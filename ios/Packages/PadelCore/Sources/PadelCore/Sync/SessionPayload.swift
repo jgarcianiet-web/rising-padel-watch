@@ -28,7 +28,8 @@ public struct ScorePayload: Codable, Equatable, Sendable {
 }
 
 public struct ScoreRulesPayload: Codable, Equatable, Sendable {
-    public let goldenPoint: Bool
+    /// "advantage" | "goldenPoint" | "starPoint".
+    public let deuceFormat: String
     public let setsToWin: Int
 }
 
@@ -176,7 +177,10 @@ extension PadelSession {
 extension MatchScore {
     func toPayload() -> ScorePayload {
         ScorePayload(
-            rules: ScoreRulesPayload(goldenPoint: rules.goldenPoint, setsToWin: rules.setsToWin),
+            rules: ScoreRulesPayload(
+                deuceFormat: rules.deuceFormat.wireName,
+                setsToWin: rules.setsToWin
+            ),
             sets: allSets.map { SetScorePayload(us: $0.us, them: $0.them) },
             winner: winner?.wireName,
             completed: isFinished

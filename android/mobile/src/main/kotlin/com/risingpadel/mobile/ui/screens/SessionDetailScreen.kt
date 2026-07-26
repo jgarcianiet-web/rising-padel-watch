@@ -138,7 +138,7 @@ private fun ScoreCard(score: MatchScore) {
             )
             Text(
                 text = buildString {
-                    append(if (score.rules.goldenPoint) "Punto de oro" else "Con ventajas")
+                    append(score.rules.deuceFormat.label)
                     append(" · al mejor de ${score.rules.setsToWin * 2 - 1} sets")
                 },
                 style = MaterialTheme.typography.bodySmall,

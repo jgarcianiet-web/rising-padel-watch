@@ -90,7 +90,7 @@ repetidas.
     "zonesSeconds": { "z1": 640, "z2": 1980, "z3": 1910, "z4": 830, "z5": 196 }
   },
   "score": {                        // se omite si se jugó sin llevar marcador
-    "rules": { "goldenPoint": true, "setsToWin": 2 },
+    "rules": { "deuceFormat": "starPoint", "setsToWin": 2 },
     "sets": [
       { "us": 6, "them": 4 },
       { "us": 3, "them": 6 },
@@ -114,6 +114,9 @@ Notas de campos:
 - `score.sets` va en orden de juego e incluye el set en curso si el partido se
   interrumpió. `completed` distingue "3-6, 6-4, 6-2 y ganamos" de "íbamos 4-3 y se acabó
   la hora de pista".
+- `score.rules.deuceFormat` es `"advantage"`, `"goldenPoint"` o `"starPoint"`. Cambia
+  cómo se cuentan los puntos, no solo la etiqueta: con star point se juegan hasta dos
+  ventajas y el tercer 40-40 decide.
 
 ### Respuestas
 

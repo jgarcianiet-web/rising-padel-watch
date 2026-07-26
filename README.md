@@ -16,8 +16,8 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 ## Qué mide
 
 - **Marcador**: puntuación completa de pádel llevada desde el reloj — puntos, juegos,
-  sets, tie-break, punto de oro y cambios de pista — con el resultado sincronizado a la
-  liga.
+  sets, tie-break y cambios de pista — con el resultado sincronizado a la liga. A 40-40
+  se elige entre ventajas, punto de oro y star point.
 - **Golpeos**: total, ritmo por minuto y desglose en derecha, revés, volea de derecha,
   volea de revés, bandeja/smash y saque.
 - **Intensidad**: g de impacto y velocidad estimada de pala, media y máxima.
@@ -27,7 +27,7 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 ## Empezar
 
 ```bash
-# Lo único que corre sin SDK de móvil: el core y sus 88 tests
+# Lo único que corre sin SDK de móvil: el core y sus 95 tests
 cd android/core && ./gradlew test
 ```
 

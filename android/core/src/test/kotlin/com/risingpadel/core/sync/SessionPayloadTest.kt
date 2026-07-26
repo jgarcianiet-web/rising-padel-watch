@@ -13,6 +13,8 @@ import com.risingpadel.core.model.ShotFeatures
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
 import com.risingpadel.core.score.MatchScore
+import com.risingpadel.core.score.DeuceFormat
+import com.risingpadel.core.score.ScoreRules
 import com.risingpadel.core.score.Side
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -177,7 +179,7 @@ class SessionPayloadTest {
         assertEquals(listOf(SetScorePayload(6, 0), SetScorePayload(6, 0)), score.sets)
         assertEquals("us", score.winner)
         assertTrue(score.completed)
-        assertTrue(score.rules.goldenPoint)
+        assertEquals("goldenPoint", score.rules.deuceFormat)
         assertEquals(2, score.rules.setsToWin)
     }
 
@@ -188,6 +190,15 @@ class SessionPayloadTest {
 
         assertNull(score.winner)
         assertFalse(score.completed)
+    }
+
+    @Test
+    fun `el formato de 40-40 viaja con su nombre del contrato`() {
+        DeuceFormat.entries.forEach { format ->
+            val marcador = MatchScore.start(ScoreRules(deuceFormat = format)).pointTo(Side.US)
+            val payload = session.copy(score = marcador).toPayload(shareHealth = true)
+            assertEquals(format.wireName, assertNotNull(payload.score).rules.deuceFormat)
+        }
     }
 
     @Test

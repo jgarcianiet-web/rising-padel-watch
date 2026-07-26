@@ -79,7 +79,7 @@ struct SessionDetailView: View {
     }
 
     private func rulesLabel(_ score: MatchScore) -> String {
-        let format = score.rules.goldenPoint ? "Punto de oro" : "Con ventajas"
+        let format = score.rules.deuceFormat.label
         return "\(format) · al mejor de \(score.rules.setsToWin * 2 - 1) sets"
     }
 

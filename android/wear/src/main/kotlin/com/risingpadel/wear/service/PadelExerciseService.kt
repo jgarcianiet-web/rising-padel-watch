@@ -106,7 +106,7 @@ class PadelExerciseService : LifecycleService() {
             if (preferences.trackScore) {
                 container.scoreSession.start(
                     rules = ScoreRules(
-                        goldenPoint = preferences.goldenPoint,
+                        deuceFormat = preferences.deuceFormat,
                         setsToWin = preferences.setsToWin,
                     ),
                     firstServer = Side.US,

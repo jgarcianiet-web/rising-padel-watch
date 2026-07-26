@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.risingpadel.core.score.DeuceFormat
 import com.risingpadel.core.score.MatchScore
 import com.risingpadel.core.score.ScoreRules
 import com.risingpadel.core.score.Side
@@ -90,6 +91,19 @@ fun ScoreScreen(
                     .fillMaxWidth()
                     .padding(top = 4.dp),
             )
+
+            // El punto decisivo hay que saber que se está jugando: con star point llega
+            // sin avisar tras dos ventajas.
+            if (score.isGoldenPoint) {
+                Text(
+                    text = "PUNTO DE ORO",
+                    style = MaterialTheme.typography.caption2,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colors.error,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
 
             if (score.changeEndsPending) {
                 Text(
@@ -158,7 +172,7 @@ private fun statusLine(score: MatchScore, shotCount: Int): String = buildString 
 @Composable
 private fun ScorePreview() {
     MaterialTheme {
-        val score = MatchScore.start(ScoreRules(goldenPoint = true))
+        val score = MatchScore.start(ScoreRules(deuceFormat = DeuceFormat.STAR_POINT))
             .pointTo(Side.US)
             .pointTo(Side.US)
             .pointTo(Side.THEM)

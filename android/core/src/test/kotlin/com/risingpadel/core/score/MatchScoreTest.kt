@@ -57,7 +57,7 @@ class MatchScoreTest {
 
     @Test
     fun `sin punto de oro hace falta sacar dos de diferencia`() {
-        val rules = ScoreRules(goldenPoint = false)
+        val rules = ScoreRules(deuceFormat = DeuceFormat.ADVANTAGE)
         val deuce = MatchScore.start(rules).play(US, US, US, THEM, THEM, THEM)
 
         val advantage = deuce.pointTo(US)
@@ -70,6 +70,85 @@ class MatchScoreTest {
 
         val game = backToDeuce.play(US, US)
         assertEquals(1, game.currentSet.us, "dos puntos seguidos desde iguales sí ganan el juego")
+    }
+
+    // --- star point: dos ventajas y el tercer 40-40 decide ---
+
+    /** Deja el juego en 40-40 (tres puntos cada uno). */
+    private fun deuce(rules: ScoreRules): MatchScore =
+        MatchScore.start(rules).play(US, US, US, THEM, THEM, THEM)
+
+    @Test
+    fun `el star point permite dos ventajas antes de decidir`() {
+        val rules = ScoreRules(deuceFormat = DeuceFormat.STAR_POINT)
+
+        // 40-40, primera ventaja, vuelta a 40-40.
+        var score = deuce(rules)
+        assertFalse(score.isGoldenPoint, "el primer 40-40 no decide")
+
+        score = score.pointTo(US)
+        assertEquals("AD", score.pointsLabel(US), "primera ventaja")
+        assertEquals(0, score.currentSet.us, "la ventaja no cierra el juego")
+
+        score = score.pointTo(THEM)
+        assertEquals("40", score.pointsLabel(US), "vuelta a iguales")
+        assertFalse(score.isGoldenPoint, "el segundo 40-40 tampoco decide")
+
+        // Segunda ventaja y vuelta a 40-40: este ya es el decisivo.
+        score = score.pointTo(THEM)
+        assertEquals("AD", score.pointsLabel(THEM), "segunda ventaja")
+        assertEquals(0, score.currentSet.them, "sigue sin cerrar")
+
+        score = score.pointTo(US)
+        assertEquals("40", score.pointsLabel(US))
+        assertTrue(score.isGoldenPoint, "el tercer 40-40 sí es punto de oro")
+
+        score = score.pointTo(US)
+        assertEquals(1, score.currentSet.us, "el punto decisivo cierra el juego")
+    }
+
+    @Test
+    fun `con star point una ventaja convertida gana el juego como siempre`() {
+        val rules = ScoreRules(deuceFormat = DeuceFormat.STAR_POINT)
+        val game = deuce(rules).play(US, US)
+        assertEquals(1, game.currentSet.us, "ventaja y punto siguiente: juego")
+    }
+
+    @Test
+    fun `el punto de oro marca el 40-40 como decisivo desde el primero`() {
+        val golden = deuce(ScoreRules(deuceFormat = DeuceFormat.GOLDEN_POINT))
+        assertTrue(golden.isGoldenPoint)
+    }
+
+    @Test
+    fun `con ventajas clasicas ningun 40-40 es decisivo`() {
+        var score = deuce(ScoreRules(deuceFormat = DeuceFormat.ADVANTAGE))
+        repeat(6) {
+            assertFalse(score.isGoldenPoint, "con ventajas nunca hay punto decisivo")
+            score = score.pointTo(US).pointTo(THEM)
+        }
+        assertEquals(0, score.currentSet.us, "el juego sigue abierto tras seis iguales")
+    }
+
+    @Test
+    fun `un juego sin llegar a iguales no es punto decisivo en ningun formato`() {
+        DeuceFormat.entries.forEach { format ->
+            val score = MatchScore.start(ScoreRules(deuceFormat = format))
+                .play(US, US, US, THEM)
+            assertFalse(score.isGoldenPoint, "40-15 no es punto decisivo con $format")
+        }
+    }
+
+    @Test
+    fun `el tie-break nunca es punto de oro`() {
+        DeuceFormat.entries.forEach { format ->
+            var score = MatchScore.start(ScoreRules(deuceFormat = format))
+            repeat(6) { score = score.winGame(US).winGame(THEM) }
+            repeat(4) { score = score.pointTo(US).pointTo(THEM) }
+
+            assertTrue(score.isTieBreak, "debería estar en tie-break con $format")
+            assertFalse(score.isGoldenPoint, "el tie-break tiene sus propias reglas ($format)")
+        }
     }
 
     @Test

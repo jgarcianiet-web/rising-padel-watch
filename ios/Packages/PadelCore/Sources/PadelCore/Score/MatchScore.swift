@@ -16,22 +16,21 @@ public enum Side: String, Codable, CaseIterable, Sendable {
 
 /// Reglas del partido. Cambian de una liga a otra, así que son configurables.
 ///
-/// `goldenPoint` (punto de oro: a 40-40 el siguiente punto decide el juego, sin
-/// ventajas) viene activado por defecto porque es lo habitual en ligas amateur y en
-/// circuito profesional.
+/// `deuceFormat` es qué se juega a 40-40. Por defecto punto de oro, que es lo más
+/// extendido en ligas amateur y en circuito profesional.
 public struct ScoreRules: Codable, Equatable, Sendable {
-    public let goldenPoint: Bool
+    public let deuceFormat: DeuceFormat
     public let setsToWin: Int
     public let gamesToWinSet: Int
     public let tieBreakTarget: Int
 
     public init(
-        goldenPoint: Bool = true,
+        deuceFormat: DeuceFormat = .goldenPoint,
         setsToWin: Int = 2,
         gamesToWinSet: Int = 6,
         tieBreakTarget: Int = 7
     ) {
-        self.goldenPoint = goldenPoint
+        self.deuceFormat = deuceFormat
         self.setsToWin = setsToWin
         self.gamesToWinSet = gamesToWinSet
         self.tieBreakTarget = tieBreakTarget
@@ -104,6 +103,15 @@ public struct MatchScore: Codable, Equatable, Sendable {
 
     public var isFinished: Bool { winner != nil }
 
+    /// True cuando el siguiente punto cierra el juego sí o sí, porque se han agotado las
+    /// ventajas del formato. La UI lo destaca: es el punto que hay que saber que se está
+    /// jugando.
+    public var isGoldenPoint: Bool {
+        guard !isFinished, !isTieBreak else { return false }
+        guard let decisiveAt = rules.deuceFormat.decisiveDeuceAt else { return false }
+        return usPoints == themPoints && usPoints >= decisiveAt
+    }
+
     /// En pádel el tie-break se juega al llegar a 6-6 en juegos.
     public var isTieBreak: Bool {
         !isFinished
@@ -126,8 +134,10 @@ public struct MatchScore: Codable, Equatable, Sendable {
     }
 
     /// Etiqueta del marcador de juego: `0`, `15`, `30`, `40`, `AD` o el número crudo en
-    /// tie-break. Con punto de oro `AD` no aparece nunca, porque a 40-40 el siguiente
-    /// punto cierra el juego.
+    /// tie-break.
+    ///
+    /// Con punto de oro `AD` no aparece nunca, porque a 40-40 el siguiente punto cierra
+    /// el juego. Con star point aparece como mucho dos veces por juego.
     public func pointsLabel(_ side: Side) -> String {
         if isTieBreak { return String(points(for: side)) }
         let mine = points(for: side)
@@ -158,11 +168,13 @@ public struct MatchScore: Codable, Equatable, Sendable {
     }
 
     private func gameWon(mine: Int, theirs: Int) -> Bool {
-        if rules.goldenPoint {
-            // Punto de oro: desde 40-40 el siguiente punto decide, así que basta con
-            // llegar a 4 por delante sin exigir dos de diferencia.
-            return mine >= 4 && mine > theirs
+        // Punto decisivo: agotadas las ventajas que permite el formato, basta con ganar
+        // el punto. Punto de oro decide en 3-3; star point, en 5-5 tras dos ventajas.
+        if let decisiveAt = rules.deuceFormat.decisiveDeuceAt, theirs >= decisiveAt, mine > theirs {
+            return true
         }
+        // Fuera de ese caso, siempre manda la regla de siempre: cuatro puntos y dos de
+        // diferencia.
         return mine >= 4 && mine - theirs >= 2
     }
 

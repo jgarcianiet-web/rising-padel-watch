@@ -4,6 +4,7 @@ import SwiftUI
 struct WatchRootView: View {
     @EnvironmentObject private var controller: SessionController
     @AppStorage("trackScore") private var trackScore = false
+    @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
 
     var body: some View {
         Group {
@@ -47,11 +48,29 @@ struct WatchRootView: View {
             // un partido de liga sí.
             Toggle("Llevar marcador", isOn: $trackScore)
                 .font(.caption)
+            // El formato de 40-40 solo importa si se lleva marcador, así que solo
+            // aparece entonces. Toque = siguiente formato: un selector de tres opciones
+            // no cabe sin comerse el botón de empezar, y se toca una vez.
+            if trackScore {
+                Button {
+                    deuceFormatRaw = currentDeuceFormat.next().rawValue
+                } label: {
+                    VStack(spacing: 0) {
+                        Text(currentDeuceFormat.label).font(.caption2)
+                        Text("A 40-40").font(.system(size: 9)).foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.bordered)
+            }
             Button("Empezar") {
                 Task { await controller.start() }
             }
             .buttonStyle(.borderedProminent)
         }
+    }
+
+    private var currentDeuceFormat: DeuceFormat {
+        DeuceFormat(rawValue: deuceFormatRaw) ?? .goldenPoint
     }
 
     private func loadingContent(_ label: String) -> some View {
@@ -128,6 +147,15 @@ struct WatchRootView: View {
 
     private func formatDuration(_ seconds: Int64) -> String {
         String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+private extension DeuceFormat {
+    /// Siguiente formato en la rueda, para el botón que cicla.
+    func next() -> DeuceFormat {
+        let all = DeuceFormat.allCases
+        let index = all.firstIndex(of: self) ?? 0
+        return all[(index + 1) % all.count]
     }
 }
 

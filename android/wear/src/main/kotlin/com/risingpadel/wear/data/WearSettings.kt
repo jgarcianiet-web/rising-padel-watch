@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.PlayerProfile
+import com.risingpadel.core.score.DeuceFormat
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -23,7 +24,7 @@ data class WearPreferences(
     val shareHealth: Boolean = false,
     /** Llevar el marcador del partido. Un entreno suelto no lo necesita. */
     val trackScore: Boolean = false,
-    val goldenPoint: Boolean = true,
+    val deuceFormat: DeuceFormat = DeuceFormat.GOLDEN_POINT,
     val setsToWin: Int = 2,
 )
 
@@ -46,7 +47,7 @@ class WearSettings(private val context: Context) {
                 .getOrDefault(Sensitivity.MEDIUM),
             shareHealth = prefs[KEY_SHARE_HEALTH] ?: false,
             trackScore = prefs[KEY_TRACK_SCORE] ?: false,
-            goldenPoint = prefs[KEY_GOLDEN_POINT] ?: true,
+            deuceFormat = DeuceFormat.fromWire(prefs[KEY_DEUCE_FORMAT].orEmpty()),
             setsToWin = prefs[KEY_SETS_TO_WIN] ?: 2,
         )
     }
@@ -61,7 +62,7 @@ class WearSettings(private val context: Context) {
             prefs[KEY_SENSITIVITY] = preferences.sensitivity.name
             prefs[KEY_SHARE_HEALTH] = preferences.shareHealth
             prefs[KEY_TRACK_SCORE] = preferences.trackScore
-            prefs[KEY_GOLDEN_POINT] = preferences.goldenPoint
+            prefs[KEY_DEUCE_FORMAT] = preferences.deuceFormat.wireName
             prefs[KEY_SETS_TO_WIN] = preferences.setsToWin
         }
     }
@@ -75,7 +76,7 @@ class WearSettings(private val context: Context) {
         val KEY_SENSITIVITY = stringPreferencesKey("sensitivity")
         val KEY_SHARE_HEALTH = booleanPreferencesKey("share_health")
         val KEY_TRACK_SCORE = booleanPreferencesKey("track_score")
-        val KEY_GOLDEN_POINT = booleanPreferencesKey("golden_point")
+        val KEY_DEUCE_FORMAT = stringPreferencesKey("deuce_format")
         val KEY_SETS_TO_WIN = intPreferencesKey("sets_to_win")
     }
 }

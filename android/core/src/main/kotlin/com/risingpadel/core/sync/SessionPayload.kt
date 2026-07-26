@@ -95,7 +95,8 @@ data class ScorePayload(
 
 @Serializable
 data class ScoreRulesPayload(
-    val goldenPoint: Boolean,
+    /** "advantage" | "goldenPoint" | "starPoint". */
+    val deuceFormat: String,
     val setsToWin: Int,
 )
 
@@ -185,7 +186,10 @@ fun PadelSession.toPayload(
 )
 
 private fun MatchScore.toPayload() = ScorePayload(
-    rules = ScoreRulesPayload(goldenPoint = rules.goldenPoint, setsToWin = rules.setsToWin),
+    rules = ScoreRulesPayload(
+        deuceFormat = rules.deuceFormat.wireName,
+        setsToWin = rules.setsToWin,
+    ),
     sets = allSets.map { SetScorePayload(us = it.us, them = it.them) },
     winner = winner?.wireName,
     completed = isFinished,

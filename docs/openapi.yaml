@@ -212,11 +212,16 @@ components:
       properties:
         rules:
           type: object
-          required: [goldenPoint, setsToWin]
+          required: [deuceFormat, setsToWin]
           properties:
-            goldenPoint:
-              type: boolean
-              description: A 40-40 el siguiente punto decide el juego, sin ventajas.
+            deuceFormat:
+              type: string
+              enum: [advantage, goldenPoint, starPoint]
+              description: >
+                Qué se juega a 40-40. advantage = ventajas sin límite;
+                goldenPoint = el siguiente punto decide; starPoint = hasta dos ventajas
+                y el tercer 40-40 decide.
+              example: goldenPoint
             setsToWin: { type: integer, example: 2 }
         sets:
           type: array

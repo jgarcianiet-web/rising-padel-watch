@@ -168,7 +168,7 @@ final class SessionPayloadTests: XCTestCase {
         XCTAssertEqual(score.sets, [SetScorePayload(us: 6, them: 0), SetScorePayload(us: 6, them: 0)])
         XCTAssertEqual(score.winner, "us")
         XCTAssertTrue(score.completed)
-        XCTAssertTrue(score.rules.goldenPoint)
+        XCTAssertEqual(score.rules.deuceFormat, "goldenPoint")
         XCTAssertEqual(score.rules.setsToWin, 2)
     }
 
@@ -178,6 +178,14 @@ final class SessionPayloadTests: XCTestCase {
 
         XCTAssertNil(score.winner)
         XCTAssertFalse(score.completed)
+    }
+
+    func testElFormatoDe4040ViajaConSuNombreDelContrato() throws {
+        for format in DeuceFormat.allCases {
+            let marcador = MatchScore.start(rules: ScoreRules(deuceFormat: format)).pointTo(.us)
+            let payload = sessionWithScore(marcador).toPayload(shareHealth: true)
+            XCTAssertEqual(try XCTUnwrap(payload.score).rules.deuceFormat, format.wireName)
+        }
     }
 
     func testElMarcadorSeSerializaDentroDelJSONDelContrato() throws {

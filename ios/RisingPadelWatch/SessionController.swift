@@ -34,7 +34,7 @@ final class SessionController: ObservableObject {
     @AppStorage("watchWrist") private var watchWristRaw = Hand.right.rawValue
     @AppStorage("sensitivity") private var sensitivityRaw = Sensitivity.medium.rawValue
     @AppStorage("trackScore") private var trackScore = false
-    @AppStorage("goldenPoint") private var goldenPoint = true
+    @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
     @AppStorage("setsToWin") private var setsToWin = 2
 
     private let motionRecorder = MotionRecorder()
@@ -86,7 +86,10 @@ final class SessionController: ObservableObject {
 
         if trackScore {
             let board = ScoreBoard(
-                rules: ScoreRules(goldenPoint: goldenPoint, setsToWin: setsToWin),
+                rules: ScoreRules(
+                    deuceFormat: DeuceFormat(rawValue: deuceFormatRaw) ?? .goldenPoint,
+                    setsToWin: setsToWin
+                ),
                 firstServer: .us
             )
             scoreBoard = board

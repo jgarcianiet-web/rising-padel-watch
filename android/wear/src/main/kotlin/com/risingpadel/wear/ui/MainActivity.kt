@@ -65,9 +65,15 @@ class MainActivity : ComponentActivity() {
                         state = state,
                         healthPermissionDenied = bodySensorsDenied,
                         trackScore = preferences.trackScore,
+                        deuceFormat = preferences.deuceFormat,
                         onTrackScoreChange = { enabled ->
                             lifecycleScope.launch {
                                 container.settings.update(preferences.copy(trackScore = enabled))
+                            }
+                        },
+                        onDeuceFormatChange = { format ->
+                            lifecycleScope.launch {
+                                container.settings.update(preferences.copy(deuceFormat = format))
                             }
                         },
                         onStart = { requestPermissions.launch(requiredPermissions()) },

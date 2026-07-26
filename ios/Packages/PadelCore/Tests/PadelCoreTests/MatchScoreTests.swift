@@ -51,7 +51,7 @@ final class MatchScoreTests: XCTestCase {
     }
 
     func testSinPuntoDeOroHaceFaltaSacarDosDeDiferencia() {
-        let rules = ScoreRules(goldenPoint: false)
+        let rules = ScoreRules(deuceFormat: .advantage)
         let deuce = play(MatchScore.start(rules: rules), [.us, .us, .us, .them, .them, .them])
 
         let advantage = deuce.pointTo(.us)
@@ -64,6 +64,78 @@ final class MatchScoreTests: XCTestCase {
 
         let game = play(backToDeuce, [.us, .us])
         XCTAssertEqual(game.currentSet.us, 1, "dos puntos seguidos desde iguales sí ganan el juego")
+    }
+
+    // MARK: Star point: dos ventajas y el tercer 40-40 decide
+
+    /// Deja el juego en 40-40 (tres puntos cada uno).
+    private func deuce(_ rules: ScoreRules) -> MatchScore {
+        play(MatchScore.start(rules: rules), [.us, .us, .us, .them, .them, .them])
+    }
+
+    func testElStarPointPermiteDosVentajasAntesDeDecidir() {
+        let rules = ScoreRules(deuceFormat: .starPoint)
+
+        // 40-40, primera ventaja, vuelta a 40-40.
+        var score = deuce(rules)
+        XCTAssertFalse(score.isGoldenPoint, "el primer 40-40 no decide")
+
+        score = score.pointTo(.us)
+        XCTAssertEqual(score.pointsLabel(.us), "AD", "primera ventaja")
+        XCTAssertEqual(score.currentSet.us, 0, "la ventaja no cierra el juego")
+
+        score = score.pointTo(.them)
+        XCTAssertEqual(score.pointsLabel(.us), "40", "vuelta a iguales")
+        XCTAssertFalse(score.isGoldenPoint, "el segundo 40-40 tampoco decide")
+
+        // Segunda ventaja y vuelta a 40-40: este ya es el decisivo.
+        score = score.pointTo(.them)
+        XCTAssertEqual(score.pointsLabel(.them), "AD", "segunda ventaja")
+        XCTAssertEqual(score.currentSet.them, 0, "sigue sin cerrar")
+
+        score = score.pointTo(.us)
+        XCTAssertEqual(score.pointsLabel(.us), "40")
+        XCTAssertTrue(score.isGoldenPoint, "el tercer 40-40 sí es punto de oro")
+
+        score = score.pointTo(.us)
+        XCTAssertEqual(score.currentSet.us, 1, "el punto decisivo cierra el juego")
+    }
+
+    func testConStarPointUnaVentajaConvertidaGanaElJuegoComoSiempre() {
+        let game = play(deuce(ScoreRules(deuceFormat: .starPoint)), [.us, .us])
+        XCTAssertEqual(game.currentSet.us, 1, "ventaja y punto siguiente: juego")
+    }
+
+    func testElPuntoDeOroMarcaEl4040ComoDecisivoDesdeElPrimero() {
+        XCTAssertTrue(deuce(ScoreRules(deuceFormat: .goldenPoint)).isGoldenPoint)
+    }
+
+    func testConVentajasClasicasNingun4040EsDecisivo() {
+        var score = deuce(ScoreRules(deuceFormat: .advantage))
+        for _ in 0..<6 {
+            XCTAssertFalse(score.isGoldenPoint, "con ventajas nunca hay punto decisivo")
+            score = score.pointTo(.us).pointTo(.them)
+        }
+        XCTAssertEqual(score.currentSet.us, 0, "el juego sigue abierto tras seis iguales")
+    }
+
+    func testUnJuegoSinLlegarAIgualesNoEsPuntoDecisivoEnNingunFormato() {
+        for format in DeuceFormat.allCases {
+            let score = play(MatchScore.start(rules: ScoreRules(deuceFormat: format)),
+                             [.us, .us, .us, .them])
+            XCTAssertFalse(score.isGoldenPoint, "40-15 no es punto decisivo con \(format)")
+        }
+    }
+
+    func testElTieBreakNuncaEsPuntoDeOro() {
+        for format in DeuceFormat.allCases {
+            var score = MatchScore.start(rules: ScoreRules(deuceFormat: format))
+            for _ in 0..<6 { score = winGame(winGame(score, .us), .them) }
+            for _ in 0..<4 { score = score.pointTo(.us).pointTo(.them) }
+
+            XCTAssertTrue(score.isTieBreak, "debería estar en tie-break con \(format)")
+            XCTAssertFalse(score.isGoldenPoint, "el tie-break tiene sus propias reglas (\(format))")
+        }
     }
 
     func testElSaqueAlternaEnCadaJuego() {

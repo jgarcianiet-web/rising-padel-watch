@@ -36,6 +36,15 @@ struct ScoreView: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
 
+                // El punto decisivo hay que saber que se está jugando: con star point
+                // llega sin avisar tras dos ventajas.
+                if score.isGoldenPoint {
+                    Text("PUNTO DE ORO")
+                        .font(.caption2)
+                        .bold()
+                        .foregroundStyle(.red)
+                }
+
                 if score.changeEndsPending {
                     Text("Cambio de pista")
                         .font(.caption2)

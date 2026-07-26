@@ -18,13 +18,12 @@ enum class Side(val wireName: String) {
 /**
  * Reglas del partido. Cambian de una liga a otra, así que son configurables.
  *
- * @param goldenPoint punto de oro: a 40-40 el siguiente punto decide el juego, sin
- *   ventajas. Es lo habitual en ligas amateur y en circuito profesional, así que viene
- *   activado por defecto.
+ * @param deuceFormat qué se juega a 40-40. Por defecto punto de oro, que es lo más
+ *   extendido en ligas amateur y en circuito profesional.
  */
 @Serializable
 data class ScoreRules(
-    val goldenPoint: Boolean = true,
+    val deuceFormat: DeuceFormat = DeuceFormat.GOLDEN_POINT,
     val setsToWin: Int = 2,
     val gamesToWinSet: Int = 6,
     val tieBreakTarget: Int = 7,
@@ -68,6 +67,18 @@ data class MatchScore(
 
     val isFinished: Boolean get() = winner != null
 
+    /**
+     * True cuando el siguiente punto cierra el juego sí o sí, porque se han agotado las
+     * ventajas del formato. La UI lo destaca: es el punto que hay que saber que se está
+     * jugando.
+     */
+    val isGoldenPoint: Boolean
+        get() {
+            if (isFinished || isTieBreak) return false
+            val decisiveAt = rules.deuceFormat.decisiveDeuceAt ?: return false
+            return usPoints == themPoints && usPoints >= decisiveAt
+        }
+
     /** En pádel el tie-break se juega al llegar a 6-6 en juegos. */
     val isTieBreak: Boolean
         get() = !isFinished &&
@@ -85,8 +96,10 @@ data class MatchScore(
 
     /**
      * Etiqueta del marcador de juego: `0`, `15`, `30`, `40`, `AD` o el número crudo en
-     * tie-break. Con punto de oro `AD` no aparece nunca, porque a 40-40 el siguiente
-     * punto cierra el juego.
+     * tie-break.
+     *
+     * Con punto de oro `AD` no aparece nunca, porque a 40-40 el siguiente punto cierra
+     * el juego. Con star point aparece como mucho dos veces por juego.
      */
     fun pointsLabel(side: Side): String {
         if (isTieBreak) return pointsFor(side).toString()
@@ -99,6 +112,8 @@ data class MatchScore(
                 else -> "40"
             }
         }
+        // Con ventajas, los puntos crudos pasan de 3 sin que el marcador visible cambie:
+        // 4-3 sigue siendo AD-40. El índice solo se usa por debajo de 40-40.
         return POINT_LABELS.getOrElse(mine) { "40" }
     }
 
@@ -121,11 +136,14 @@ data class MatchScore(
         }
     }
 
-    private fun gameWon(mine: Int, theirs: Int): Boolean = when {
-        // Punto de oro: desde 40-40 el siguiente punto decide, así que basta con llegar
-        // a 4 por delante sin exigir dos de diferencia.
-        rules.goldenPoint -> mine >= 4 && mine > theirs
-        else -> mine >= 4 && mine - theirs >= 2
+    private fun gameWon(mine: Int, theirs: Int): Boolean {
+        // Punto decisivo: agotadas las ventajas que permite el formato, basta con ganar
+        // el punto. Punto de oro decide en 3-3; star point, en 5-5 tras dos ventajas.
+        val decisiveAt = rules.deuceFormat.decisiveDeuceAt
+        if (decisiveAt != null && theirs >= decisiveAt && mine > theirs) return true
+        // Fuera de ese caso, siempre manda la regla de siempre: cuatro puntos y dos de
+        // diferencia.
+        return mine >= 4 && mine - theirs >= 2
     }
 
     private fun afterGameWon(side: Side): MatchScore {
