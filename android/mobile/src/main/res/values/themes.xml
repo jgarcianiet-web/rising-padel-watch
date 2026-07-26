@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Tema del sistema (splash y ventana). Los colores reales de la UI los pone
+        Compose en RisingPadelTheme; esto solo evita el flash blanco al arrancar.
+    -->
+    <style name="Theme.RisingPadel" parent="android:Theme.Material.DayNight.NoActionBar" />
+</resources>

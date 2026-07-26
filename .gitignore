@@ -1,0 +1,25 @@
+# --- Gradle / Android ---
+.gradle/
+build/
+local.properties
+*.apk
+*.aab
+captures/
+.cxx/
+
+# --- Xcode ---
+# El .xcodeproj se genera desde ios/project.yml con XcodeGen: un pbxproj no se puede
+# revisar en un diff y provoca conflictos constantes.
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+*.xcuserstate
+.swiftpm/
+Packages/*/.build/
+
+# --- macOS / editores ---
+.DS_Store
+.idea/
+*.iml
+*.swp

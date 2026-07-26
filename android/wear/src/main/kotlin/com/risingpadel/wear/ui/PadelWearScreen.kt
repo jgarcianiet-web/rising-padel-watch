@@ -1,0 +1,187 @@
+package com.risingpadel.wear.ui
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.CircularProgressIndicator
+import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Text
+import com.risingpadel.core.model.ShotType
+import com.risingpadel.wear.service.SessionStatus
+import com.risingpadel.wear.service.SessionUiState
+
+@Composable
+fun PadelWearScreen(
+    state: SessionUiState,
+    healthPermissionDenied: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onDone: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        when (state.status) {
+            SessionStatus.IDLE -> IdleContent(healthPermissionDenied, onStart)
+            SessionStatus.PREPARING -> LoadingContent("Preparando…")
+            SessionStatus.RECORDING -> RecordingContent(state, onStop)
+            SessionStatus.SAVING -> LoadingContent("Guardando…")
+            SessionStatus.SAVED -> SummaryContent(state, onDone)
+            SessionStatus.ERROR -> ErrorContent(state.errorMessage, onDone)
+        }
+    }
+}
+
+@Composable
+private fun IdleContent(healthPermissionDenied: Boolean, onStart: () -> Unit) {
+    Text(
+        text = "Rising Padel",
+        style = MaterialTheme.typography.title3,
+        textAlign = TextAlign.Center,
+    )
+    if (healthPermissionDenied) {
+        Text(
+            text = "Sin permiso de FC: se contarán golpeos, pero no datos de salud",
+            style = MaterialTheme.typography.caption2,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(vertical = 6.dp),
+        )
+    }
+    Button(onClick = onStart, modifier = Modifier.padding(top = 12.dp)) {
+        Text("Empezar")
+    }
+}
+
+@Composable
+private fun LoadingContent(label: String) {
+    CircularProgressIndicator()
+    Text(
+        text = label,
+        style = MaterialTheme.typography.caption1,
+        modifier = Modifier.padding(top = 8.dp),
+    )
+}
+
+@Composable
+private fun RecordingContent(state: SessionUiState, onStop: () -> Unit) {
+    Text(
+        text = "${state.shotCount}",
+        style = MaterialTheme.typography.display1,
+    )
+    Text(
+        text = "golpeos",
+        style = MaterialTheme.typography.caption1,
+    )
+    Text(
+        text = buildString {
+            append(formatDuration(state.elapsedSeconds))
+            state.heartRateBpm?.let { append(" · $it ppm") }
+        },
+        style = MaterialTheme.typography.caption2,
+        modifier = Modifier.padding(top = 4.dp),
+    )
+    state.lastShotType?.let {
+        Text(
+            text = it.label(),
+            style = MaterialTheme.typography.caption2,
+            color = MaterialTheme.colors.primary,
+        )
+    }
+    if (state.wrongWristWarning) {
+        Text(
+            text = "Reloj en la muñeca sin pala: el conteo no será fiable",
+            style = MaterialTheme.typography.caption3,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colors.error,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        )
+    }
+    Button(onClick = onStop, modifier = Modifier.padding(top = 10.dp)) {
+        Text("Parar")
+    }
+}
+
+@Composable
+private fun SummaryContent(state: SessionUiState, onDone: () -> Unit) {
+    Text("Sesión guardada", style = MaterialTheme.typography.title3, textAlign = TextAlign.Center)
+    Text(
+        text = "${state.shotCount} golpeos · ${formatDuration(state.elapsedSeconds)}",
+        style = MaterialTheme.typography.caption1,
+        modifier = Modifier.padding(top = 6.dp),
+    )
+    state.errorMessage?.let {
+        Text(
+            text = it,
+            style = MaterialTheme.typography.caption3,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+    }
+    Button(onClick = onDone, modifier = Modifier.padding(top = 10.dp)) {
+        Text("Hecho")
+    }
+}
+
+@Composable
+private fun ErrorContent(message: String?, onDone: () -> Unit) {
+    Text(
+        text = message ?: "No se pudo medir la sesión",
+        style = MaterialTheme.typography.caption1,
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colors.error,
+    )
+    Button(onClick = onDone, modifier = Modifier.padding(top = 10.dp)) {
+        Text("Cerrar")
+    }
+}
+
+private fun formatDuration(seconds: Long): String {
+    val minutes = seconds / 60
+    val remaining = seconds % 60
+    return "%d:%02d".format(minutes, remaining)
+}
+
+internal fun ShotType.label(): String = when (this) {
+    ShotType.FOREHAND -> "Derecha"
+    ShotType.BACKHAND -> "Revés"
+    ShotType.FOREHAND_VOLLEY -> "Volea de derecha"
+    ShotType.BACKHAND_VOLLEY -> "Volea de revés"
+    ShotType.OVERHEAD -> "Bandeja / smash"
+    ShotType.SERVE -> "Saque"
+    ShotType.UNKNOWN -> "Sin clasificar"
+}
+
+@Preview(device = "id:wearos_small_round", showSystemUi = true)
+@Composable
+private fun RecordingPreview() {
+    MaterialTheme {
+        PadelWearScreen(
+            state = SessionUiState(
+                status = SessionStatus.RECORDING,
+                elapsedSeconds = 1_845,
+                shotCount = 214,
+                heartRateBpm = 143,
+                lastShotType = ShotType.FOREHAND,
+            ),
+            healthPermissionDenied = false,
+            onStart = {},
+            onStop = {},
+            onDone = {},
+        )
+    }
+}
