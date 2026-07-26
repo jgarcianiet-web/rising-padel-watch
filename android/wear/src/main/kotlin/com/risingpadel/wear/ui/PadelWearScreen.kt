@@ -19,6 +19,7 @@ import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
 import androidx.wear.compose.material.ToggleChip
+import com.risingpadel.core.level.label
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.score.DeuceFormat
 import com.risingpadel.wear.service.SessionStatus
@@ -198,6 +199,16 @@ private fun SummaryContent(state: SessionUiState, onDone: () -> Unit) {
         style = MaterialTheme.typography.caption1,
         modifier = Modifier.padding(top = 6.dp),
     )
+    // El nivel se enseña al acabar y no en vivo: mirarlo subir y bajar entre puntos no
+    // aporta nada y distrae del partido.
+    state.level?.let { level ->
+        Text(
+            text = level.label(),
+            style = MaterialTheme.typography.caption1,
+            color = MaterialTheme.colors.primary,
+            modifier = Modifier.padding(top = 4.dp),
+        )
+    }
     state.errorMessage?.let {
         Text(
             text = it,

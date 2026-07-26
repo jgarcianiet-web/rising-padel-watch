@@ -17,6 +17,22 @@ public struct SessionPayload: Codable, Equatable, Sendable {
     public let shots: ShotsPayload
     public let health: HealthPayload?
     public let score: ScorePayload?
+    public let level: LevelPayload?
+}
+
+/// Nivel técnico estimado, en la escala de pádel de 1 a 7.
+///
+/// Es **derivado**: la liga puede recalcularlo de los golpeos si algún día quiere usar su
+/// propia fórmula. Viaja en el payload para que no tenga que hacerlo.
+public struct LevelPayload: Codable, Equatable, Sendable {
+    public let overall: Float
+    public let byShotType: [String: Float]
+    /// 0 a 1. En pádel la regularidad es tanto del nivel como la potencia.
+    public let consistency: Float
+    public let repertoire: Float
+    public let gradedShots: Int
+    /// false si hubo pocos golpeos: el número está, pero no hay que fiarse de él.
+    public let reliable: Bool
 }
 
 public struct ScorePayload: Codable, Equatable, Sendable {
@@ -169,7 +185,25 @@ extension PadelSession {
                     : []
             ),
             health: shareHealth ? health.toPayload() : nil,
-            score: score.map { $0.toPayload() }
+            score: score.map { $0.toPayload() },
+            level: level.toPayload()
+        )
+    }
+}
+
+extension SessionLevel {
+    /// Sin golpeos puntuables no hay nivel que mandar: se omite en vez de mandar un 1 falso.
+    func toPayload() -> LevelPayload? {
+        guard gradedShots > 0 else { return nil }
+        return LevelPayload(
+            overall: round1(overall),
+            byShotType: Dictionary(
+                uniqueKeysWithValues: byShotType.map { ($0.key.wireName, round1($0.value)) }
+            ),
+            consistency: round2(consistency),
+            repertoire: round2(repertoire),
+            gradedShots: gradedShots,
+            reliable: reliable
         )
     }
 }

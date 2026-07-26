@@ -1,5 +1,6 @@
 package com.risingpadel.core.sync
 
+import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.model.HealthMetrics
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.score.MatchScore
@@ -28,6 +29,25 @@ data class SessionPayload(
     val shots: ShotsPayload,
     val health: HealthPayload? = null,
     val score: ScorePayload? = null,
+    val level: LevelPayload? = null,
+)
+
+/**
+ * Nivel técnico estimado, en la escala de pádel de 1 a 7.
+ *
+ * Es **derivado**: la liga puede recalcularlo de los golpeos si algún día quiere usar su
+ * propia fórmula. Viaja en el payload para que no tenga que hacerlo.
+ */
+@Serializable
+data class LevelPayload(
+    val overall: Float,
+    val byShotType: Map<String, Float>,
+    /** 0 a 1. En pádel la regularidad es tanto del nivel como la potencia. */
+    val consistency: Float,
+    val repertoire: Float,
+    val gradedShots: Int,
+    /** false si hubo pocos golpeos: el número está, pero no hay que fiarse de él. */
+    val reliable: Boolean,
 )
 
 @Serializable
@@ -183,7 +203,21 @@ fun PadelSession.toPayload(
     ),
     health = if (shareHealth) health.toPayloadOrNull() else null,
     score = score?.toPayload(),
+    level = level.toPayloadOrNull(),
 )
+
+/** Sin golpeos puntuables no hay nivel que mandar: se omite en vez de mandar un 1 falso. */
+private fun SessionLevel.toPayloadOrNull(): LevelPayload? {
+    if (gradedShots == 0) return null
+    return LevelPayload(
+        overall = round1(overall),
+        byShotType = byShotType.entries.associate { (type, value) -> type.wireName to round1(value) },
+        consistency = round2(consistency),
+        repertoire = round2(repertoire),
+        gradedShots = gradedShots,
+        reliable = reliable,
+    )
+}
 
 private fun MatchScore.toPayload() = ScorePayload(
     rules = ScoreRulesPayload(

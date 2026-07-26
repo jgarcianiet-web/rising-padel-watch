@@ -1,5 +1,7 @@
 package com.risingpadel.core.model
 
+import com.risingpadel.core.level.LevelEstimator
+import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.score.MatchScore
 import kotlinx.serialization.Serializable
 
@@ -142,6 +144,17 @@ data class PadelSession(
         get() = shots.groupingBy { it.type }.eachCount()
 
     val intensity: ShotIntensity get() = ShotIntensity.from(shots)
+
+    /**
+     * Nivel técnico estimado, de 1 a 7.
+     *
+     * Es una propiedad **derivada** y no un campo guardado: se recalcula de los golpeos
+     * cada vez. Así no puede quedar desincronizada, y afinar las bandas de
+     * [com.risingpadel.core.level.LevelConfig] cambia el nivel de las sesiones ya
+     * grabadas sin migrar nada — que es justo lo que hace falta mientras el modelo esté
+     * sin calibrar.
+     */
+    val level: SessionLevel get() = LevelEstimator().estimate(shots)
 
     /** Golpeos por minuto, la métrica más comparable entre sesiones de distinta duración. */
     val shotsPerMinute: Float

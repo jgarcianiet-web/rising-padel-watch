@@ -15,11 +15,11 @@ cd android/core
 ./gradlew test
 ```
 
-134 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
+153 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
 (puntos, los tres formatos de 40-40, tie-break, saque, cambios de pista y deshacer),
-captura de ventanas de entrenamiento, replicación de ajustes al reloj, zonas de frecuencia
-cardiaca, contrato JSON, política de reintentos y almacenamiento local. Es un build independiente a propósito, así
-que **no** necesita el SDK de Android.
+captura de ventanas de entrenamiento, nivel técnico, replicación de ajustes al reloj,
+zonas de frecuencia cardiaca, contrato JSON, política de reintentos y almacenamiento
+local. Es un build independiente a propósito, así que **no** necesita el SDK de Android.
 
 ## Entrenar el clasificador
 

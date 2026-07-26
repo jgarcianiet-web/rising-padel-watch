@@ -21,13 +21,16 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 - **Golpeos**: total, ritmo por minuto y desglose en derecha, revés, volea de derecha,
   volea de revés, bandeja/smash y saque.
 - **Intensidad**: g de impacto y velocidad estimada de pala, media y máxima.
+- **Nivel técnico**: cada golpeo puntuado de 1 a 7 y un nivel de sesión con el desglose
+  por golpe, para ver cuál va por detrás. Es una estimación sin calibrar: mide el swing,
+  no la colocación ni la táctica. Ver [`docs/level.md`](docs/level.md).
 - **Salud**: frecuencia cardiaca media y máxima, tiempo en cada zona, calorías activas,
   pasos y distancia. Solo si das el consentimiento explícito.
 
 ## Empezar
 
 ```bash
-# Lo único que corre sin SDK de móvil: el core y sus 134 tests
+# Lo único que corre sin SDK de móvil: el core y sus 153 tests
 cd android/core && ./gradlew test
 ```
 
@@ -53,6 +56,7 @@ Para compilar las apps, ver [`docs/setup.md`](docs/setup.md).
 - [Detección de golpeos](docs/shot-detection.md) — el algoritmo, sus umbrales y sus
   límites
 - [Marcador](docs/scoring.md) — reglas del partido y por qué la interacción es así
+- [Nivel técnico](docs/level.md) — cómo se puntúa de 1 a 7, qué mide y qué no
 - [Ajustes](docs/architecture.md#ajustes-el-móvil-manda-el-reloj-obedece) — se configuran
   en el móvil y se replican al reloj
 - [Entrenar el clasificador](docs/training-data.md) — grabar golpeos etiquetados y

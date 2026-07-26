@@ -28,6 +28,8 @@ final class SessionController: ObservableObject {
     @Published private(set) var statusMessage: String?
     /// Marcador en curso, o nil si se juega sin llevarlo.
     @Published private(set) var score: MatchScore?
+    /// Nivel técnico de la sesión recién cerrada. Nil mientras se juega.
+    @Published private(set) var sessionLevel: SessionLevel?
 
     @AppStorage("shareHealth") private var shareHealth = false
     @AppStorage("playerHand") private var playerHandRaw = Hand.right.rawValue
@@ -272,6 +274,7 @@ final class SessionController: ObservableObject {
         let queued = transport.send(session)
         shotCount = session.totalShots
         elapsedSeconds = session.durationSeconds
+        sessionLevel = session.level
         statusMessage = queued ? nil : "Guardada en el reloj; se enviará al iPhone al reconectar"
         status = .saved
         applyPendingRemoteSettings()
@@ -308,6 +311,7 @@ final class SessionController: ObservableObject {
         heartRateBpm = nil
         lastShotType = nil
         statusMessage = nil
+        sessionLevel = nil
     }
 
     private func apply(_ metrics: WorkoutMetrics) {

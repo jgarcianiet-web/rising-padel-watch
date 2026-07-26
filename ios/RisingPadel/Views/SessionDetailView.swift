@@ -14,6 +14,7 @@ struct SessionDetailView: View {
         List {
             headlineSection
             if let score = session.score { scoreSection(score) }
+            levelSection
             shotBreakdownSection
             if !session.health.isEmpty { healthSection }
             matchLinkSection
@@ -53,6 +54,60 @@ struct SessionDetailView: View {
                 }
             }
             .padding(.vertical, 4)
+        }
+    }
+
+    @ViewBuilder
+    private var levelSection: some View {
+        let level = session.level
+        if level.gradedShots > 0 {
+            Section("Nivel técnico") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(String(format: "%.1f", level.rounded))
+                            .font(.system(size: 40, weight: .bold, design: .rounded))
+                            .foregroundStyle(.tint)
+                        Text("de 7").font(.subheadline).foregroundStyle(.secondary)
+                    }
+                    Text("sobre \(level.gradedShots) golpeos")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    HStack {
+                        stat("Regularidad", "\(Int(level.consistency * 100))%")
+                        Spacer()
+                        stat("Repertorio", "\(Int(level.repertoire * 100))%")
+                        Spacer()
+                    }
+                    .padding(.top, 4)
+
+                    // El desglose por golpe es lo accionable: el número global dice poco,
+                    // saber que el revés va dos puntos por debajo de la derecha dice qué
+                    // entrenar.
+                    ForEach(level.byShotType.sorted { $0.value > $1.value }, id: \.key) { entry in
+                        HStack {
+                            Text(entry.key.label)
+                            Spacer()
+                            Text(String(format: "%.1f", entry.value)).monospacedDigit()
+                        }
+                        .font(.subheadline)
+                    }
+
+                    if !level.reliable {
+                        Text("Pocos golpeos para una estimación firme: juega una sesión más larga.")
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    Text("""
+                        Estimado a partir de la velocidad y la forma del swing. No mide \
+                        colocación ni táctica, y está sin calibrar contra jugadores de \
+                        nivel conocido.
+                        """)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 4)
+            }
         }
     }
 
