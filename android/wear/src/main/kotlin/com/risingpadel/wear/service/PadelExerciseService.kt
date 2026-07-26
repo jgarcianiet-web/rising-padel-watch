@@ -57,6 +57,10 @@ data class SessionUiState(
  */
 class PadelExerciseService : LifecycleService() {
 
+    /** Una sesión normal y una tanda de datos usan los mismos sensores pero no se mezclan. */
+    private enum class Mode { SESSION, TRAINING }
+
+    private var mode = Mode.SESSION
     private var recorder: SessionRecorder? = null
     private var motionJob: Job? = null
     private var metricsJob: Job? = null
@@ -67,14 +71,66 @@ class PadelExerciseService : LifecycleService() {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
             ACTION_START -> startSession()
-            ACTION_STOP -> stopSession()
+            ACTION_START_TRAINING -> startTraining()
+            ACTION_STOP -> if (mode == Mode.TRAINING) stopTraining() else stopSession()
             else -> stopSelf()
         }
         return START_NOT_STICKY
     }
 
+    /**
+     * Graba una tanda de golpeos etiquetados. Comparte el servicio en primer plano con
+     * la sesión normal porque el problema es el mismo: sin él, Android corta los
+     * sensores en cuanto se apaga la pantalla, y grabar treinta golpes lleva minutos.
+     */
+    private fun startTraining() {
+        if (_state.value.status == SessionStatus.RECORDING) return
+        mode = Mode.TRAINING
+        _state.value = SessionUiState(status = SessionStatus.PREPARING)
+        if (!goForeground()) return
+
+        lifecycleScope.launch {
+            val container = (application as PadelWearApp).container
+            val preferences = container.settings.preferences.first()
+
+            if (!container.motionCollector.isSupported) {
+                fail("Este reloj no tiene los sensores necesarios")
+                return@launch
+            }
+
+            container.trainingSession.start(
+                source = SourceInfo(
+                    platform = Platform.WEAROS,
+                    device = "${Build.MANUFACTURER} ${Build.MODEL}",
+                    appVersion = container.appVersion,
+                ),
+                profile = preferences.profile,
+                config = DetectorConfig.DEFAULT.withSensitivity(preferences.sensitivity),
+                playerAlias = preferences.playerAlias,
+                monotonicMs = SystemClock.elapsedRealtime(),
+            )
+
+            motionJob = launch {
+                container.motionCollector.samples(DetectorConfig.DEFAULT.sampleRateHz)
+                    .catch { fail("Fallo leyendo sensores: ${it.message}") }
+                    .collect { container.trainingSession.onMotion(it) }
+            }
+
+            _state.value = _state.value.copy(status = SessionStatus.RECORDING)
+        }
+    }
+
+    private fun stopTraining() {
+        motionJob?.cancel()
+        (application as PadelWearApp).container.trainingSession.stop()
+        mode = Mode.SESSION
+        _state.value = SessionUiState()
+        stopForegroundAndSelf()
+    }
+
     private fun startSession() {
         if (_state.value.status == SessionStatus.RECORDING) return
+        mode = Mode.SESSION
         _state.value = SessionUiState(status = SessionStatus.PREPARING)
         if (!goForeground()) return
 
@@ -293,6 +349,7 @@ class PadelExerciseService : LifecycleService() {
         private const val CHANNEL_ID = "padel_session"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.risingpadel.wear.START"
+        const val ACTION_START_TRAINING = "com.risingpadel.wear.START_TRAINING"
         const val ACTION_STOP = "com.risingpadel.wear.STOP"
 
         private val _state = MutableStateFlow(SessionUiState())
@@ -301,6 +358,12 @@ class PadelExerciseService : LifecycleService() {
         fun start(context: Context) {
             context.startForegroundService(
                 Intent(context, PadelExerciseService::class.java).setAction(ACTION_START)
+            )
+        }
+
+        fun startTraining(context: Context) {
+            context.startForegroundService(
+                Intent(context, PadelExerciseService::class.java).setAction(ACTION_START_TRAINING)
             )
         }
 

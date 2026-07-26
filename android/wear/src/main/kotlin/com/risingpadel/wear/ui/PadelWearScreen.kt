@@ -32,6 +32,8 @@ fun PadelWearScreen(
     deuceFormat: DeuceFormat,
     onTrackScoreChange: (Boolean) -> Unit,
     onDeuceFormatChange: (DeuceFormat) -> Unit,
+    collectTrainingData: Boolean,
+    onOpenTraining: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onDone: () -> Unit,
@@ -50,6 +52,8 @@ fun PadelWearScreen(
                 deuceFormat = deuceFormat,
                 onTrackScoreChange = onTrackScoreChange,
                 onDeuceFormatChange = onDeuceFormatChange,
+                collectTrainingData = collectTrainingData,
+                onOpenTraining = onOpenTraining,
                 onStart = onStart,
             )
             SessionStatus.PREPARING -> LoadingContent("Preparando…")
@@ -68,6 +72,8 @@ private fun IdleContent(
     deuceFormat: DeuceFormat,
     onTrackScoreChange: (Boolean) -> Unit,
     onDeuceFormatChange: (DeuceFormat) -> Unit,
+    collectTrainingData: Boolean,
+    onOpenTraining: () -> Unit,
     onStart: () -> Unit,
 ) {
     Text(
@@ -113,6 +119,19 @@ private fun IdleContent(
 
     Button(onClick = onStart, modifier = Modifier.padding(top = 8.dp)) {
         Text("Empezar")
+    }
+
+    // Solo aparece si el usuario ha activado la recogida de datos en el móvil: es un
+    // modo para quien está construyendo el dataset, no para jugar.
+    if (collectTrainingData) {
+        Chip(
+            onClick = onOpenTraining,
+            label = { Text("Datos de entrenamiento", style = MaterialTheme.typography.caption2) },
+            colors = ChipDefaults.secondaryChipColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        )
     }
 }
 
@@ -238,6 +257,8 @@ private fun RecordingPreview() {
             deuceFormat = DeuceFormat.STAR_POINT,
             onTrackScoreChange = {},
             onDeuceFormatChange = {},
+            collectTrainingData = false,
+            onOpenTraining = {},
             onStart = {},
             onStop = {},
             onDone = {},

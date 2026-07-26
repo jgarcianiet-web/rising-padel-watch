@@ -164,9 +164,8 @@ así que se pueden ajustar por usuario. Vías previstas:
 La heurística es la v1 deliberadamente: es explicable, no necesita dataset y se ajusta
 con dos constantes. Para mejorarla, el orden razonable es:
 
-1. Grabar sesiones etiquetadas (la app puede guardar la ventana cruda de ±1 s alrededor
-   de cada golpeo detectado cuando el modo "recoger datos de entrenamiento" está
-   activo, con consentimiento explícito).
+1. Grabar sesiones etiquetadas. **Ya implementado**: ver
+   [`training-data.md`](./training-data.md).
 2. Entrenar un clasificador pequeño (un árbol de decisión con gradient boosting sobre
    los mismos rasgos, o una CNN 1D sobre la ventana cruda).
 3. Exportar a Core ML / TFLite y sustituir **solo** `ShotClassifier`, dejando intacta la

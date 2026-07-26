@@ -47,8 +47,20 @@ final class PhoneTransport: NSObject {
         }
     }
 
+    /// Envía el fichero de datos de entrenamiento al iPhone.
+    ///
+    /// `transferFile` y no `transferUserInfo` porque el fichero puede pesar decenas de
+    /// megas: es la señal cruda de miles de golpeos, no un resumen.
+    @discardableResult
+    func sendTrainingFile(_ url: URL) -> Bool {
+        guard WCSession.isSupported(), session.activationState == .activated else { return false }
+        session.transferFile(url, metadata: [Self.trainingFileKey: true])
+        return true
+    }
+
     static let payloadKey = "padel_session"
     static let sessionIdKey = "padel_session_id"
+    static let trainingFileKey = "padel_training_data"
 }
 
 extension PhoneTransport: WCSessionDelegate {

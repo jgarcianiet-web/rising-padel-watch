@@ -36,6 +36,8 @@ final class SessionController: ObservableObject {
     @AppStorage("trackScore") private var trackScore = false
     @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
     @AppStorage("setsToWin") private var setsToWin = 2
+    @AppStorage("collectTrainingData") var collectTrainingData = false
+    @AppStorage("playerAlias") private var playerAlias = "anon"
 
     private let motionRecorder = MotionRecorder()
     private let workoutManager = WorkoutManager()
@@ -44,6 +46,22 @@ final class SessionController: ObservableObject {
     private var recorder: SessionRecorder?
     private var ticker: Timer?
     private var scoreBoard: ScoreBoard?
+
+    // --- modo de recogida de datos ---
+
+    /// Los datos se quedan en el reloj hasta que el usuario los envía al iPhone a
+    /// propósito, y no se suben nunca a la liga. Ver `docs/training-data.md`.
+    private lazy var trainingStore = TrainingSampleStore(
+        url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("training/muestras.jsonl")
+    )
+    private var trainingRecorder: TrainingRecorder?
+
+    @Published var trainingLabel: ShotType = .forehand
+    @Published private(set) var trainingRecording = false
+    @Published private(set) var trainingCapturedInBatch = 0
+    @Published private(set) var trainingTotalStored = 0
+    @Published private(set) var trainingStoredKB = 0
 
     var profile: PlayerProfile {
         PlayerProfile(
@@ -56,6 +74,69 @@ final class SessionController: ObservableObject {
 
     init() {
         transport.activate()
+        refreshTrainingCounts()
+    }
+
+    // MARK: Modo de recogida de datos
+
+    func startTraining() async {
+        guard motionRecorder.isAvailable, !trainingRecording else { return }
+
+        let recorder = TrainingRecorder(
+            source: SourceInfo(
+                platform: .watchos,
+                device: WKInterfaceDevice.current().model,
+                appVersion: Bundle.main.appVersion
+            ),
+            profile: profile,
+            config: DetectorConfig.default.withSensitivity(
+                Sensitivity(rawValue: sensitivityRaw) ?? .medium
+            )
+        )
+        recorder.label = trainingLabel
+        recorder.playerAlias = playerAlias
+        recorder.start(monotonicMs: Self.monotonicMs())
+        trainingRecorder = recorder
+        trainingRecording = true
+        trainingCapturedInBatch = 0
+
+        motionRecorder.start(sampleRateHz: DetectorConfig.default.sampleRateHz) { [weak self] sample in
+            // Se escribe cada golpeo en cuanto está listo, no al final de la tanda: si
+            // el reloj se queda sin batería a mitad, se pierde como mucho el último.
+            let captured = recorder.onMotion(sample)
+            guard !captured.isEmpty else { return }
+            Task { @MainActor in
+                self?.trainingStore.appendAll(captured)
+                self?.trainingCapturedInBatch = recorder.capturedCount
+            }
+        }
+    }
+
+    func stopTraining() {
+        guard let recorder = trainingRecorder else { return }
+        motionRecorder.stop()
+        trainingStore.appendAll(recorder.stop())
+        trainingCapturedInBatch = recorder.capturedCount
+        trainingRecorder = nil
+        trainingRecording = false
+        refreshTrainingCounts()
+    }
+
+    /// Envía el fichero de datos al iPhone. Es una acción explícita del usuario.
+    func sendTrainingDataToPhone() -> Bool {
+        guard trainingStore.exists, !trainingRecording else { return false }
+        return transport.sendTrainingFile(trainingStore.url)
+    }
+
+    func clearTrainingData() {
+        guard !trainingRecording else { return }
+        trainingStore.clear()
+        refreshTrainingCounts()
+    }
+
+    private func refreshTrainingCounts() {
+        trainingTotalStored = trainingStore.count()
+        trainingStoredKB = Int(trainingStore.sizeBytes / 1024)
     }
 
     func start() async {

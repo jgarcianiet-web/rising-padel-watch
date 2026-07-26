@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Solo el directorio de datos de entrenamiento: nada más se comparte nunca. -->
+    <files-path name="training" path="training/" />
+</paths>
