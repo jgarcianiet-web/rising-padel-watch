@@ -27,7 +27,7 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 ## Empezar
 
 ```bash
-# Lo único que corre sin SDK de móvil: el core y sus 122 tests
+# Lo único que corre sin SDK de móvil: el core y sus 134 tests
 cd android/core && ./gradlew test
 ```
 
@@ -53,6 +53,8 @@ Para compilar las apps, ver [`docs/setup.md`](docs/setup.md).
 - [Detección de golpeos](docs/shot-detection.md) — el algoritmo, sus umbrales y sus
   límites
 - [Marcador](docs/scoring.md) — reglas del partido y por qué la interacción es así
+- [Ajustes](docs/architecture.md#ajustes-el-móvil-manda-el-reloj-obedece) — se configuran
+  en el móvil y se replican al reloj
 - [Entrenar el clasificador](docs/training-data.md) — grabar golpeos etiquetados y
   entrenar un modelo propio
 - [Puesta en marcha](docs/setup.md) — compilar, conectar la liga, calibrar

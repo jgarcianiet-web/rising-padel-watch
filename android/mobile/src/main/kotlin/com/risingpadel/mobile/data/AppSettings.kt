@@ -3,10 +3,12 @@ package com.risingpadel.mobile.data
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -14,6 +16,7 @@ import androidx.security.crypto.MasterKey
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.PlayerProfile
+import com.risingpadel.core.settings.DeviceSettings
 import com.risingpadel.core.sync.LeagueConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -33,10 +36,22 @@ data class AppPreferences(
     /** Modo de recogida de datos de entrenamiento. Apagado por defecto. */
     val collectTrainingData: Boolean = false,
     /** Alias del jugador, para validar el modelo dejándolo fuera. */
-    val playerAlias: String = "anon",
+    val playerAlias: String = DeviceSettings.DEFAULT_ALIAS,
     /** Tamaño del fichero recibido del reloj. 0 si todavía no ha llegado nada. */
     val trainingDataBytes: Long = 0,
-)
+    /** Marca de tiempo de la última edición de un ajuste replicado al reloj. */
+    val updatedAtEpochMs: Long = 0,
+) {
+    /** Lo que se replica al reloj. Ni credenciales ni ajustes de marcador. */
+    fun toDeviceSettings(): DeviceSettings = DeviceSettings(
+        profile = profile,
+        sensitivity = sensitivity,
+        shareHealth = shareHealth,
+        collectTrainingData = collectTrainingData,
+        playerAlias = playerAlias,
+        updatedAtEpochMs = updatedAtEpochMs,
+    )
+}
 
 /**
  * Ajustes de la app.
@@ -76,7 +91,8 @@ class AppSettings(private val context: Context) {
             shareShotEvents = prefs[KEY_SHARE_EVENTS] ?: true,
             hasToken = token() != null,
             collectTrainingData = prefs[KEY_COLLECT_TRAINING] ?: false,
-            playerAlias = prefs[KEY_PLAYER_ALIAS] ?: "anon",
+            playerAlias = prefs[KEY_PLAYER_ALIAS] ?: DeviceSettings.DEFAULT_ALIAS,
+            updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
             trainingDataBytes = trainingDataFile.let { if (it.exists()) it.length() else 0L },
         )
     }
@@ -86,7 +102,7 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun setProfile(profile: PlayerProfile) {
-        context.dataStore.edit { prefs ->
+        editReplicated { prefs ->
             prefs[KEY_HAND] = profile.hand.wireName
             prefs[KEY_WRIST] = profile.watchWrist.wireName
             profile.birthYear?.let { prefs[KEY_BIRTH_YEAR] = it }
@@ -96,23 +112,37 @@ class AppSettings(private val context: Context) {
     }
 
     suspend fun setSensitivity(sensitivity: Sensitivity) {
-        context.dataStore.edit { it[KEY_SENSITIVITY] = sensitivity.name }
+        editReplicated { it[KEY_SENSITIVITY] = sensitivity.name }
     }
 
     suspend fun setShareHealth(share: Boolean) {
-        context.dataStore.edit { it[KEY_SHARE_HEALTH] = share }
+        editReplicated { it[KEY_SHARE_HEALTH] = share }
     }
 
+    /** No se replica: es política de subida del móvil, el reloj no la usa. */
     suspend fun setShareShotEvents(share: Boolean) {
         context.dataStore.edit { it[KEY_SHARE_EVENTS] = share }
     }
 
     suspend fun setCollectTrainingData(collect: Boolean) {
-        context.dataStore.edit { it[KEY_COLLECT_TRAINING] = collect }
+        editReplicated { it[KEY_COLLECT_TRAINING] = collect }
     }
 
     suspend fun setPlayerAlias(alias: String) {
-        context.dataStore.edit { it[KEY_PLAYER_ALIAS] = alias.trim().ifEmpty { "anon" } }
+        editReplicated { it[KEY_PLAYER_ALIAS] = DeviceSettings.sanitizeAlias(alias) }
+    }
+
+    /**
+     * Edita un ajuste que el reloj también usa, dejando la marca de tiempo al día.
+     *
+     * Sin la marca, la reentrega que hace el Data Layer al reconectar devolvería al reloj
+     * un estado viejo. Va aquí y no en cada llamada para que no se pueda olvidar.
+     */
+    private suspend fun editReplicated(block: (MutablePreferences) -> Unit) {
+        context.dataStore.edit { prefs ->
+            block(prefs)
+            prefs[KEY_UPDATED_AT] = System.currentTimeMillis()
+        }
     }
 
     /**
@@ -151,6 +181,7 @@ class AppSettings(private val context: Context) {
         val KEY_SHARE_EVENTS = booleanPreferencesKey("share_shot_events")
         val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
         val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
+        val KEY_UPDATED_AT = longPreferencesKey("settings_updated_at")
         const val KEY_TOKEN = "league_token"
     }
 }

@@ -27,8 +27,11 @@ gráficas. Nadie distingue un revés de una volea alta en una serie de aceleróm
 
 Lo que sí: **una tanda por tipo de golpe, con la etiqueta puesta antes de golpear.**
 
-1. Ajustes del móvil → activa "Recoger datos de entrenamiento" y pon tu alias.
-2. En el reloj, pantalla inicial → **Datos de entrenamiento**.
+1. Ajustes del móvil → activa "Recoger datos de entrenamiento" y pon tu alias. El ajuste
+   se replica al reloj solo; si el reloj estaba apagado, lo recibe al encenderlo.
+2. En el reloj, pantalla inicial → **Datos de entrenamiento**. Este botón **solo aparece
+   con el modo activado**: si no lo ves, el ajuste todavía no ha llegado — comprueba que el
+   reloj esté emparejado y que las dos apps estén firmadas con la misma clave.
 3. Elige el tipo (toque en el chip para cambiarlo) y dale a **Grabar**.
 4. Da **30-40 golpes seguidos solo de ese tipo**. El contador sube en cada uno.
 5. **Parar tanda**, cambia de tipo, repite.
@@ -39,7 +42,7 @@ Media hora en pista da unos 400 golpeos limpios.
 
 | Necesitas | Por qué |
 |---|---|
-| **4-5 jugadores** distintos | Con uno solo, el modelo aprende *tu* forma de golpear, no el golpe |
+| **4-5 jugadores** distintos, **cada uno con su alias** | Con uno solo, el modelo aprende *tu* forma de golpear, no el golpe. Y si todos graban como `anon`, la validación leave-one-player-out no puede separarlos y el número que da es mentira |
 | Diestros **y zurdos** | Aunque la señal se normaliza por lateralidad, conviene comprobar que generaliza |
 | Niveles distintos | Un golpe de alguien que empieza no se parece al de alguien que lleva años |
 | **~2.000-3.000 golpeos** en total | Por debajo de 2.000 el resultado es ruido |

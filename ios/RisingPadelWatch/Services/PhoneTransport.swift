@@ -15,10 +15,22 @@ final class PhoneTransport: NSObject {
     /// Sesiones que no se han podido encolar todavía (sin WCSession disponible).
     private(set) var pending: [PadelSession] = []
 
+    /// Ajustes replicados desde el iPhone. Lo consume `SessionController`.
+    var onSettingsReceived: ((DeviceSettings) -> Void)?
+
     func activate() {
         guard WCSession.isSupported() else { return }
         session.delegate = self
         session.activate()
+        // Al activar puede haber un contexto pendiente de una edición hecha con el reloj
+        // apagado: WatchConnectivity no lo reentrega por delegado, hay que leerlo.
+        applyContext(session.receivedApplicationContext)
+    }
+
+    fileprivate func applyContext(_ context: [String: Any]) {
+        guard let data = context[Self.settingsKey] as? Data,
+              let settings = DeviceSettings.decode(data) else { return }
+        onSettingsReceived?(settings)
     }
 
     /// - Returns: true si la sesión quedó encolada para entrega.
@@ -61,6 +73,7 @@ final class PhoneTransport: NSObject {
     static let payloadKey = "padel_session"
     static let sessionIdKey = "padel_session_id"
     static let trainingFileKey = "padel_training_data"
+    static let settingsKey = "padel_settings"
 }
 
 extension PhoneTransport: WCSessionDelegate {
@@ -71,6 +84,11 @@ extension PhoneTransport: WCSessionDelegate {
     ) {
         if activationState == .activated {
             flushPending()
+            applyContext(session.receivedApplicationContext)
         }
+    }
+
+    func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
+        applyContext(context)
     }
 }

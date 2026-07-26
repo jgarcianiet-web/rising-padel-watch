@@ -28,6 +28,24 @@ final class WatchSessionReceiver: NSObject {
         WCSession.default.activate()
     }
 
+    /// Replica los ajustes al reloj.
+    ///
+    /// `updateApplicationContext` y no `sendMessage` porque **sustituye y persiste**: el
+    /// reloj recibe el último estado en cuanto vuelve a estar a tiro, aunque estuviera
+    /// apagado cuando se cambió el ajuste. Solo interesa el estado actual, no el historial
+    /// de ediciones, que es exactamente lo que este primitivo modela.
+    ///
+    /// Va aquí y no en una clase aparte porque WatchConnectivity admite **un solo
+    /// delegado** por proceso, y en el iPhone es este.
+    func replicate(_ settings: DeviceSettings) {
+        guard WCSession.isSupported(),
+              WCSession.default.activationState == .activated,
+              let data = DeviceSettings.encode(settings) else { return }
+        // Sin reloj emparejado esto lanza, y no es un error que deba ver el usuario: la
+        // app de iPhone funciona igual sin reloj.
+        try? WCSession.default.updateApplicationContext([PhoneTransportKeys.settings: data])
+    }
+
     private func handle(_ userInfo: [String: Any]) {
         guard let data = userInfo[PhoneTransportKeys.payload] as? Data,
               let session = try? decoder.decode(PadelSession.self, from: data) else {
@@ -69,4 +87,5 @@ enum PhoneTransportKeys {
     static let payload = "padel_session"
     static let sessionId = "padel_session_id"
     static let trainingFile = "padel_training_data"
+    static let settings = "padel_settings"
 }

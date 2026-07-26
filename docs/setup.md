@@ -15,10 +15,10 @@ cd android/core
 ./gradlew test
 ```
 
-122 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
+134 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
 (puntos, los tres formatos de 40-40, tie-break, saque, cambios de pista y deshacer),
-captura de ventanas de entrenamiento, zonas de frecuencia cardiaca, contrato JSON,
-política de reintentos y almacenamiento local. Es un build independiente a propósito, así
+captura de ventanas de entrenamiento, replicación de ajustes al reloj, zonas de frecuencia
+cardiaca, contrato JSON, política de reintentos y almacenamiento local. Es un build independiente a propósito, así
 que **no** necesita el SDK de Android.
 
 ## Entrenar el clasificador
@@ -53,6 +53,38 @@ Para instalar en un reloj Wear OS emparejado por adb:
 Las apps de móvil y reloj comparten `applicationId` (`com.risingpadel.watch`), que es lo
 que exige Google Play para distribuir la app de reloj junto a la de móvil.
 
+### Instalar en un reloj Wear OS de verdad
+
+**Hay que instalar las dos apps**, no solo la del reloj: la del reloj declara
+`standalone=false` y los ajustes se configuran en el móvil.
+
+1. **Activa opciones de desarrollador en el reloj**: Ajustes → Información → Versiones →
+   toca 7 veces en **Número de compilación**.
+2. Ajustes → Opciones de desarrollador → **Depuración por ADB** y **Depuración por Wi-Fi**.
+3. El reloj muestra su IP. Desde el ordenador, en la misma red Wi-Fi:
+
+   ```bash
+   adb pair <ip-del-reloj>:<puerto-de-emparejamiento>   # el código sale en el reloj
+   adb connect <ip-del-reloj>:5555
+   adb devices                                          # comprueba que aparece
+   ```
+4. Instala las dos:
+
+   ```bash
+   cd android
+   ./gradlew :mobile:installDebug        # con el móvil también conectado
+   ./gradlew :wear:installDebug
+   ```
+
+Si `adb devices` ve el móvil y el reloj a la vez, `installDebug` se queja de que hay
+varios dispositivos: usa `adb -s <serie> install <ruta-al-apk>` para cada uno.
+
+> **Las dos apps tienen que estar firmadas con la misma clave.** El Data Layer de Wear
+> solo deja hablar a apps con el mismo `applicationId` **y** la misma firma. Compilando las
+> dos desde el mismo ordenador esto se cumple solo, porque comparten
+> `~/.android/debug.keystore`. Si compilas cada una en un sitio, no se verán y no sabrás
+> por qué: ni sesiones, ni ajustes.
+
 ## iOS + watchOS
 
 El `.xcodeproj` no está versionado: se genera desde `ios/project.yml`.
@@ -72,6 +104,28 @@ Los tests del core Swift no necesitan simulador:
 cd ios/Packages/PadelCore
 swift test
 ```
+
+### Instalar en un Apple Watch de verdad
+
+Hace falta **un Mac con Xcode**. No hay forma de compilar para watchOS sin él.
+
+1. Xcode → Settings → Accounts → añade tu Apple ID. En `ios/project.yml`, pon tu Team ID
+   en `DEVELOPMENT_TEAM` y ejecuta `xcodegen generate` otra vez.
+2. Conecta el iPhone por cable, y en el iPhone: Ajustes → Privacidad y seguridad → **Modo
+   de desarrollador** → activar (reinicia).
+3. En Xcode, elige el iPhone como destino y **Run**. La app del reloj va **embebida** en la
+   del iPhone: no se instala por separado.
+4. En el iPhone, abre la app **Watch** → busca "Rising Padel" → **Instalar**. Suele tardar
+   un par de minutos. Si no aparece, verifica que el reloj esté cargando y desbloqueado.
+5. La primera vez que abras la app en el reloj te pedirá permisos de movimiento y salud.
+
+**Lo que caduca:** con un Apple ID gratuito el perfil dura **7 días** y hay que reinstalar
+desde Xcode; con el Apple Developer Program (99 €/año) dura un año. Para grabar datos
+durante varias semanas, el programa de pago ahorra bastante fricción.
+
+Si al compilar falla la firma por el *entitlement* de HealthKit, es que tu cuenta no lo
+tiene habilitado: entra en el portal de Apple Developer, activa HealthKit para el App ID y
+vuelve a generar el perfil.
 
 ## Conectar con la app de liga
 
@@ -117,9 +171,13 @@ sesión por consola.
 
 1. **Ponte el reloj en la muñeca de la pala.** Es el requisito que más veces se pasa por
    alto: en la otra muñeca el reloj no ve el swing. La app avisa, pero conviene saberlo.
-2. Configura mano y muñeca en Ajustes.
+2. Configura mano y muñeca **en el móvil**. Se replican solas al reloj; no hay que tocar
+   nada en la muñeca. Si el reloj estaba apagado, los recibe al encenderse.
 3. Decide si quieres compartir datos de salud. Si lo dejas apagado, el reloj **no los
    mide siquiera**.
 4. Valida el signo del giróscopo: juega diez derechas y diez reveses y mira el desglose
    por tipo. Si salen cambiados, pon `invertAxialSign = true` en `DetectorConfig` (ver
    [`shot-detection.md`](./shot-detection.md)).
+
+Los ajustes que cambies a mitad de partido no se aplican hasta que termine: la sesión en
+curso se mide entera con la configuración con la que empezó.

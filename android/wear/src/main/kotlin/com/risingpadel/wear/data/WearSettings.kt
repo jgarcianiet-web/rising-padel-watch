@@ -6,13 +6,16 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.score.DeuceFormat
+import com.risingpadel.core.settings.DeviceSettings
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "padel_wear_settings")
@@ -32,8 +35,30 @@ data class WearPreferences(
      */
     val collectTrainingData: Boolean = false,
     /** Alias del jugador, para poder validar el modelo dejándolo fuera. */
-    val playerAlias: String = "anon",
-)
+    val playerAlias: String = DeviceSettings.DEFAULT_ALIAS,
+    /** Marca de tiempo de la última edición, para resolver la replicación. */
+    val updatedAtEpochMs: Long = 0L,
+) {
+    /** La parte que se replica desde el móvil. El marcador se queda fuera a propósito. */
+    fun toDeviceSettings(): DeviceSettings = DeviceSettings(
+        profile = profile,
+        sensitivity = sensitivity,
+        shareHealth = shareHealth,
+        collectTrainingData = collectTrainingData,
+        playerAlias = playerAlias,
+        updatedAtEpochMs = updatedAtEpochMs,
+    )
+
+    /** Aplica lo replicado dejando intactos los ajustes de partido, que son del reloj. */
+    fun withDeviceSettings(settings: DeviceSettings): WearPreferences = copy(
+        profile = settings.profile,
+        sensitivity = settings.sensitivity,
+        shareHealth = settings.shareHealth,
+        collectTrainingData = settings.collectTrainingData,
+        playerAlias = settings.playerAlias,
+        updatedAtEpochMs = settings.updatedAtEpochMs,
+    )
+}
 
 /**
  * Ajustes del reloj. Se replican desde el móvil por el Data Layer, pero el reloj tiene
@@ -57,8 +82,23 @@ class WearSettings(private val context: Context) {
             deuceFormat = DeuceFormat.fromWire(prefs[KEY_DEUCE_FORMAT].orEmpty()),
             setsToWin = prefs[KEY_SETS_TO_WIN] ?: 2,
             collectTrainingData = prefs[KEY_COLLECT_TRAINING] ?: false,
-            playerAlias = prefs[KEY_PLAYER_ALIAS] ?: "anon",
+            playerAlias = prefs[KEY_PLAYER_ALIAS] ?: DeviceSettings.DEFAULT_ALIAS,
+            updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
         )
+    }
+
+    /**
+     * Aplica los ajustes replicados desde el móvil.
+     *
+     * El merge por marca de tiempo lo decide [DeviceSettings]: si lo que llega es más
+     * viejo que lo que hay, no se toca nada. Hace falta porque el Data Layer reentrega el
+     * último item al reconectar, y sin esto una reconexión revertiría un cambio posterior.
+     */
+    suspend fun applyRemote(incoming: DeviceSettings) {
+        val current = preferences.first()
+        val merged = current.toDeviceSettings().mergedWith(incoming)
+        if (merged.updatedAtEpochMs == current.updatedAtEpochMs) return
+        update(current.withDeviceSettings(merged))
     }
 
     suspend fun update(preferences: WearPreferences) {
@@ -75,6 +115,7 @@ class WearSettings(private val context: Context) {
             prefs[KEY_SETS_TO_WIN] = preferences.setsToWin
             prefs[KEY_COLLECT_TRAINING] = preferences.collectTrainingData
             prefs[KEY_PLAYER_ALIAS] = preferences.playerAlias
+            prefs[KEY_UPDATED_AT] = preferences.updatedAtEpochMs
         }
     }
 
@@ -91,5 +132,6 @@ class WearSettings(private val context: Context) {
         val KEY_SETS_TO_WIN = intPreferencesKey("sets_to_win")
         val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
         val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
+        val KEY_UPDATED_AT = longPreferencesKey("settings_updated_at")
     }
 }
