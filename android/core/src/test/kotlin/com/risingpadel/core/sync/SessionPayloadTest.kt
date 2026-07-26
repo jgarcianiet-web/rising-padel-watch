@@ -12,6 +12,8 @@ import com.risingpadel.core.model.Shot
 import com.risingpadel.core.model.ShotFeatures
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
+import com.risingpadel.core.score.MatchScore
+import com.risingpadel.core.score.Side
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -141,6 +143,64 @@ class SessionPayloadTest {
         val payload = vacia.toPayload(shareHealth = true)
         assertEquals(0, payload.shots.total)
         assertNull(payload.shots.intensity)
+    }
+
+    // --- marcador ---
+
+    private fun finishedMatch(): MatchScore =
+        (1..12).fold(MatchScore.start()) { state, _ ->
+            (1..4).fold(state) { inner, _ -> inner.pointTo(Side.US) }
+        }
+
+    @Test
+    fun `una sesion sin marcador declara la version 1`() {
+        val payload = session.toPayload(shareHealth = true)
+        assertEquals(1, payload.schemaVersion)
+        assertNull(payload.score)
+    }
+
+    @Test
+    fun `una sesion con marcador declara la version 2`() {
+        val payload = session.copy(score = finishedMatch()).toPayload(shareHealth = true)
+        // Solo sube de versión cuando lleva marcador: así una liga que solo entiende v1
+        // sigue aceptando los entrenos, y en cambio rechaza de forma visible lo que no
+        // sabe interpretar en vez de perder el resultado en silencio.
+        assertEquals(2, payload.schemaVersion)
+        assertNotNull(payload.score)
+    }
+
+    @Test
+    fun `el marcador viaja con sets, ganador y reglas`() {
+        val payload = session.copy(score = finishedMatch()).toPayload(shareHealth = true)
+        val score = assertNotNull(payload.score)
+
+        assertEquals(listOf(SetScorePayload(6, 0), SetScorePayload(6, 0)), score.sets)
+        assertEquals("us", score.winner)
+        assertTrue(score.completed)
+        assertTrue(score.rules.goldenPoint)
+        assertEquals(2, score.rules.setsToWin)
+    }
+
+    @Test
+    fun `un partido sin terminar viaja sin ganador`() {
+        val unfinished = MatchScore.start().pointTo(Side.US)
+        val score = assertNotNull(session.copy(score = unfinished).toPayload(shareHealth = true).score)
+
+        assertNull(score.winner)
+        assertFalse(score.completed)
+    }
+
+    @Test
+    fun `el marcador se serializa dentro del JSON del contrato`() {
+        val encoded = json.encodeToString(
+            SessionPayload.serializer(),
+            session.copy(score = finishedMatch()).toPayload(shareHealth = true),
+        )
+        val score = assertNotNull(Json.parseToJsonElement(encoded).jsonObject["score"]).jsonObject
+
+        assertEquals("us", score["winner"]?.jsonPrimitive?.content)
+        assertNotNull(score["sets"])
+        assertNotNull(score["rules"])
     }
 
     @Test

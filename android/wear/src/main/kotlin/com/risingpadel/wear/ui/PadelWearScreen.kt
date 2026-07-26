@@ -14,7 +14,9 @@ import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
+import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
+import androidx.wear.compose.material.ToggleChip
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.wear.service.SessionStatus
 import com.risingpadel.wear.service.SessionUiState
@@ -23,6 +25,8 @@ import com.risingpadel.wear.service.SessionUiState
 fun PadelWearScreen(
     state: SessionUiState,
     healthPermissionDenied: Boolean,
+    trackScore: Boolean,
+    onTrackScoreChange: (Boolean) -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     onDone: () -> Unit,
@@ -35,7 +39,7 @@ fun PadelWearScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         when (state.status) {
-            SessionStatus.IDLE -> IdleContent(healthPermissionDenied, onStart)
+            SessionStatus.IDLE -> IdleContent(healthPermissionDenied, trackScore, onTrackScoreChange, onStart)
             SessionStatus.PREPARING -> LoadingContent("Preparando…")
             SessionStatus.RECORDING -> RecordingContent(state, onStop)
             SessionStatus.SAVING -> LoadingContent("Guardando…")
@@ -46,7 +50,12 @@ fun PadelWearScreen(
 }
 
 @Composable
-private fun IdleContent(healthPermissionDenied: Boolean, onStart: () -> Unit) {
+private fun IdleContent(
+    healthPermissionDenied: Boolean,
+    trackScore: Boolean,
+    onTrackScoreChange: (Boolean) -> Unit,
+    onStart: () -> Unit,
+) {
     Text(
         text = "Rising Padel",
         style = MaterialTheme.typography.title3,
@@ -60,7 +69,19 @@ private fun IdleContent(healthPermissionDenied: Boolean, onStart: () -> Unit) {
             modifier = Modifier.padding(vertical = 6.dp),
         )
     }
-    Button(onClick = onStart, modifier = Modifier.padding(top = 12.dp)) {
+    // El marcador se decide aquí, al empezar: un entreno suelto no lo necesita y un
+    // partido de liga sí.
+    ToggleChip(
+        checked = trackScore,
+        onCheckedChange = onTrackScoreChange,
+        label = { Text("Llevar marcador", style = MaterialTheme.typography.caption1) },
+        toggleControl = { Switch(checked = trackScore) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+    )
+
+    Button(onClick = onStart, modifier = Modifier.padding(top = 8.dp)) {
         Text("Empezar")
     }
 }
@@ -179,6 +200,8 @@ private fun RecordingPreview() {
                 lastShotType = ShotType.FOREHAND,
             ),
             healthPermissionDenied = false,
+            trackScore = true,
+            onTrackScoreChange = {},
             onStart = {},
             onStop = {},
             onDone = {},

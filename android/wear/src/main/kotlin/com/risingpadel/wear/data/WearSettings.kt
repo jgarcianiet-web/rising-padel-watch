@@ -21,6 +21,10 @@ data class WearPreferences(
     val sensitivity: Sensitivity = Sensitivity.MEDIUM,
     /** Consentimiento explícito para que los datos de salud salgan del reloj. */
     val shareHealth: Boolean = false,
+    /** Llevar el marcador del partido. Un entreno suelto no lo necesita. */
+    val trackScore: Boolean = false,
+    val goldenPoint: Boolean = true,
+    val setsToWin: Int = 2,
 )
 
 /**
@@ -41,6 +45,9 @@ class WearSettings(private val context: Context) {
             sensitivity = runCatching { Sensitivity.valueOf(prefs[KEY_SENSITIVITY].orEmpty()) }
                 .getOrDefault(Sensitivity.MEDIUM),
             shareHealth = prefs[KEY_SHARE_HEALTH] ?: false,
+            trackScore = prefs[KEY_TRACK_SCORE] ?: false,
+            goldenPoint = prefs[KEY_GOLDEN_POINT] ?: true,
+            setsToWin = prefs[KEY_SETS_TO_WIN] ?: 2,
         )
     }
 
@@ -53,6 +60,9 @@ class WearSettings(private val context: Context) {
             preferences.profile.restingHeartRate?.let { prefs[KEY_RESTING_HR] = it }
             prefs[KEY_SENSITIVITY] = preferences.sensitivity.name
             prefs[KEY_SHARE_HEALTH] = preferences.shareHealth
+            prefs[KEY_TRACK_SCORE] = preferences.trackScore
+            prefs[KEY_GOLDEN_POINT] = preferences.goldenPoint
+            prefs[KEY_SETS_TO_WIN] = preferences.setsToWin
         }
     }
 
@@ -64,5 +74,8 @@ class WearSettings(private val context: Context) {
         val KEY_RESTING_HR = intPreferencesKey("resting_hr")
         val KEY_SENSITIVITY = stringPreferencesKey("sensitivity")
         val KEY_SHARE_HEALTH = booleanPreferencesKey("share_health")
+        val KEY_TRACK_SCORE = booleanPreferencesKey("track_score")
+        val KEY_GOLDEN_POINT = booleanPreferencesKey("golden_point")
+        val KEY_SETS_TO_WIN = intPreferencesKey("sets_to_win")
     }
 }

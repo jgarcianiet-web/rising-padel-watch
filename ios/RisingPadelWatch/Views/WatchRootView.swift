@@ -3,31 +3,50 @@ import SwiftUI
 
 struct WatchRootView: View {
     @EnvironmentObject private var controller: SessionController
+    @AppStorage("trackScore") private var trackScore = false
 
     var body: some View {
-        VStack(spacing: 6) {
-            switch controller.status {
-            case .idle:
-                idleContent
-            case .preparing:
-                loadingContent("Preparando…")
-            case .recording:
-                recordingContent
-            case .saving:
-                loadingContent("Guardando…")
-            case .saved:
-                summaryContent
-            case .error(let message):
-                errorContent(message)
+        Group {
+            // Con marcador activo, el marcador **es** la pantalla del partido: es lo que
+            // el jugador mira y toca entre puntos. El conteo de golpeos sigue corriendo
+            // por debajo y aparece en la línea de estado.
+            if controller.status == .recording, let score = controller.score {
+                ScoreView(
+                    score: score,
+                    shotCount: controller.shotCount,
+                    onPoint: { controller.pointTo($0) },
+                    onUndo: { controller.undoPoint() }
+                )
+            } else {
+                VStack(spacing: 6) {
+                    switch controller.status {
+                    case .idle:
+                        idleContent
+                    case .preparing:
+                        loadingContent("Preparando…")
+                    case .recording:
+                        recordingContent
+                    case .saving:
+                        loadingContent("Guardando…")
+                    case .saved:
+                        summaryContent
+                    case .error(let message):
+                        errorContent(message)
+                    }
+                }
+                .padding(.horizontal, 8)
             }
         }
-        .padding(.horizontal, 8)
     }
 
     private var idleContent: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             Text("Rising Padel")
                 .font(.headline)
+            // El marcador se decide aquí, al empezar: un entreno suelto no lo necesita y
+            // un partido de liga sí.
+            Toggle("Llevar marcador", isOn: $trackScore)
+                .font(.caption)
             Button("Empezar") {
                 Task { await controller.start() }
             }

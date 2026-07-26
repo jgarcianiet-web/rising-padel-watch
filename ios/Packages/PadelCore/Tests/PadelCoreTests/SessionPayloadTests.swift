@@ -124,6 +124,74 @@ final class SessionPayloadTests: XCTestCase {
         XCTAssertNil(payload.shots.intensity)
     }
 
+    // MARK: Marcador
+
+    private func finishedMatch() -> MatchScore {
+        (1...12).reduce(MatchScore.start()) { state, _ in
+            (1...4).reduce(state) { inner, _ in inner.pointTo(.us) }
+        }
+    }
+
+    private func sessionWithScore(_ score: MatchScore?) -> PadelSession {
+        PadelSession(
+            sessionId: session.sessionId,
+            source: session.source,
+            startedAtEpochMs: session.startedAtEpochMs,
+            endedAtEpochMs: session.endedAtEpochMs,
+            profile: session.profile,
+            shots: session.shots,
+            health: session.health,
+            score: score,
+            matchRef: session.matchRef
+        )
+    }
+
+    func testUnaSesionSinMarcadorDeclaraLaVersion1() {
+        let payload = session.toPayload(shareHealth: true)
+        XCTAssertEqual(payload.schemaVersion, 1)
+        XCTAssertNil(payload.score)
+    }
+
+    func testUnaSesionConMarcadorDeclaraLaVersion2() {
+        let payload = sessionWithScore(finishedMatch()).toPayload(shareHealth: true)
+        // Solo sube de versión cuando lleva marcador: así una liga que solo entiende v1
+        // sigue aceptando los entrenos, y en cambio rechaza de forma visible lo que no
+        // sabe interpretar en vez de perder el resultado en silencio.
+        XCTAssertEqual(payload.schemaVersion, 2)
+        XCTAssertNotNil(payload.score)
+    }
+
+    func testElMarcadorViajaConSetsGanadorYReglas() throws {
+        let payload = sessionWithScore(finishedMatch()).toPayload(shareHealth: true)
+        let score = try XCTUnwrap(payload.score)
+
+        XCTAssertEqual(score.sets, [SetScorePayload(us: 6, them: 0), SetScorePayload(us: 6, them: 0)])
+        XCTAssertEqual(score.winner, "us")
+        XCTAssertTrue(score.completed)
+        XCTAssertTrue(score.rules.goldenPoint)
+        XCTAssertEqual(score.rules.setsToWin, 2)
+    }
+
+    func testUnPartidoSinTerminarViajaSinGanador() throws {
+        let unfinished = MatchScore.start().pointTo(.us)
+        let score = try XCTUnwrap(sessionWithScore(unfinished).toPayload(shareHealth: true).score)
+
+        XCTAssertNil(score.winner)
+        XCTAssertFalse(score.completed)
+    }
+
+    func testElMarcadorSeSerializaDentroDelJSONDelContrato() throws {
+        let data = try JSONEncoder().encode(
+            sessionWithScore(finishedMatch()).toPayload(shareHealth: true)
+        )
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let score = try XCTUnwrap(root["score"] as? [String: Any])
+
+        XCTAssertEqual(score["winner"] as? String, "us")
+        XCTAssertNotNil(score["sets"])
+        XCTAssertNotNil(score["rules"])
+    }
+
     func testLaURLBaseSeComponeBienConYSinBarraFinal() {
         XCTAssertEqual(
             LeagueAPIClient.buildURL("https://liga.example.com/api", "v1/padel-sessions"),

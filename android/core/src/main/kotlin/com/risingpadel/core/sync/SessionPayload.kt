@@ -2,6 +2,7 @@ package com.risingpadel.core.sync
 
 import com.risingpadel.core.model.HealthMetrics
 import com.risingpadel.core.model.PadelSession
+import com.risingpadel.core.score.MatchScore
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.time.Instant
@@ -26,6 +27,7 @@ data class SessionPayload(
     val matchRef: MatchRefPayload? = null,
     val shots: ShotsPayload,
     val health: HealthPayload? = null,
+    val score: ScorePayload? = null,
 )
 
 @Serializable
@@ -83,6 +85,24 @@ data class HealthPayload(
 )
 
 @Serializable
+data class ScorePayload(
+    val rules: ScoreRulesPayload,
+    val sets: List<SetScorePayload>,
+    /** "us" | "them", o ausente si el partido no llegó a terminarse. */
+    val winner: String? = null,
+    val completed: Boolean,
+)
+
+@Serializable
+data class ScoreRulesPayload(
+    val goldenPoint: Boolean,
+    val setsToWin: Int,
+)
+
+@Serializable
+data class SetScorePayload(val us: Int, val them: Int)
+
+@Serializable
 data class HeartRatePayload(
     val meanBpm: Int,
     val maxBpm: Int,
@@ -128,7 +148,7 @@ fun PadelSession.toPayload(
     includeEvents: Boolean = true,
 ): SessionPayload = SessionPayload(
     sessionId = sessionId,
-    schemaVersion = PadelSession.SCHEMA_VERSION,
+    schemaVersion = schemaVersion,
     source = SourcePayload(
         platform = source.platform.wireName,
         device = source.device,
@@ -161,6 +181,14 @@ fun PadelSession.toPayload(
         },
     ),
     health = if (shareHealth) health.toPayloadOrNull() else null,
+    score = score?.toPayload(),
+)
+
+private fun MatchScore.toPayload() = ScorePayload(
+    rules = ScoreRulesPayload(goldenPoint = rules.goldenPoint, setsToWin = rules.setsToWin),
+    sets = allSets.map { SetScorePayload(us = it.us, them = it.them) },
+    winner = winner?.wireName,
+    completed = isFinished,
 )
 
 private fun HealthMetrics.toPayloadOrNull(): HealthPayload? {

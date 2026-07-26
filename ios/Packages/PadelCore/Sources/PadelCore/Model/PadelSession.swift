@@ -172,7 +172,8 @@ public struct SyncStatus: Codable, Equatable, Sendable {
 
 /// Una sesión de pádel completa, tal y como la construye el reloj.
 public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
-    public static let schemaVersion = 1
+    public static let schemaVersionBase = 1
+    public static let schemaVersionWithScore = 2
 
     public let sessionId: String
     public let source: SourceInfo
@@ -181,6 +182,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public let profile: PlayerProfile
     public let shots: [Shot]
     public let health: HealthMetrics
+    /// Marcador del partido. Nil si se jugó sin llevarlo (entreno suelto).
+    public let score: MatchScore?
     public var matchRef: MatchRef?
     public var sync: SyncStatus
 
@@ -194,6 +197,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         profile: PlayerProfile,
         shots: [Shot],
         health: HealthMetrics = .empty,
+        score: MatchScore? = nil,
         matchRef: MatchRef? = nil,
         sync: SyncStatus = SyncStatus()
     ) {
@@ -204,8 +208,19 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         self.profile = profile
         self.shots = shots
         self.health = health
+        self.score = score
         self.matchRef = matchRef
         self.sync = sync
+    }
+
+    /// Versión del esquema que se declara al subir **esta** sesión.
+    ///
+    /// Solo sube a 2 cuando la sesión lleva marcador. Así una liga que todavía solo
+    /// entiende v1 sigue aceptando los entrenos sin marcador, y en cambio rechaza de
+    /// forma visible las sesiones con resultado en vez de tragárselas ignorando el
+    /// marcador en silencio: perder el resultado sin avisar sería peor que fallar.
+    public var schemaVersion: Int {
+        score == nil ? Self.schemaVersionBase : Self.schemaVersionWithScore
     }
 
     public var durationSeconds: Int64 {

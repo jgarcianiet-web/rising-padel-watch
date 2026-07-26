@@ -13,6 +13,7 @@ struct SessionDetailView: View {
     var body: some View {
         List {
             headlineSection
+            if let score = session.score { scoreSection(score) }
             shotBreakdownSection
             if !session.health.isEmpty { healthSection }
             matchLinkSection
@@ -53,6 +54,33 @@ struct SessionDetailView: View {
             }
             .padding(.vertical, 4)
         }
+    }
+
+    private func scoreSection(_ score: MatchScore) -> some View {
+        Section("Resultado") {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(score.allSets.map { "\($0.us)-\($0.them)" }.joined(separator: "   "))
+                    .font(.title2.weight(.semibold))
+                    .monospacedDigit()
+                Text(outcomeLabel(score))
+                    .font(.subheadline)
+                    .foregroundStyle(score.winner == .us ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                Text(rulesLabel(score))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        }
+    }
+
+    private func outcomeLabel(_ score: MatchScore) -> String {
+        guard score.isFinished else { return "Partido sin terminar" }
+        return score.winner == .us ? "Ganado" : "Perdido"
+    }
+
+    private func rulesLabel(_ score: MatchScore) -> String {
+        let format = score.rules.goldenPoint ? "Punto de oro" : "Con ventajas"
+        return "\(format) · al mejor de \(score.rules.setsToWin * 2 - 1) sets"
     }
 
     private func stat(_ label: String, _ value: String) -> some View {

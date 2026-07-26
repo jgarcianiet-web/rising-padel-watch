@@ -1,5 +1,6 @@
 package com.risingpadel.core.model
 
+import com.risingpadel.core.score.MatchScore
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -128,6 +129,8 @@ data class PadelSession(
     val profile: PlayerProfile,
     val shots: List<Shot>,
     val health: HealthMetrics = HealthMetrics.EMPTY,
+    /** Marcador del partido. Null si se jugó sin llevarlo (entreno suelto). */
+    val score: MatchScore? = null,
     val matchRef: MatchRef? = null,
     val sync: SyncStatus = SyncStatus(),
 ) {
@@ -144,7 +147,19 @@ data class PadelSession(
     val shotsPerMinute: Float
         get() = if (durationSeconds <= 0) 0f else totalShots * 60f / durationSeconds
 
+    /**
+     * Versión del esquema que se declara al subir **esta** sesión.
+     *
+     * Solo sube a 2 cuando la sesión lleva marcador. Así una liga que todavía solo
+     * entiende v1 sigue aceptando los entrenos sin marcador, y en cambio rechaza de
+     * forma visible las sesiones con resultado en vez de tragárselas ignorando el
+     * marcador en silencio: perder el resultado sin avisar sería peor que fallar.
+     */
+    val schemaVersion: Int
+        get() = if (score != null) SCHEMA_VERSION_WITH_SCORE else SCHEMA_VERSION_BASE
+
     companion object {
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION_BASE = 1
+        const val SCHEMA_VERSION_WITH_SCORE = 2
     }
 }

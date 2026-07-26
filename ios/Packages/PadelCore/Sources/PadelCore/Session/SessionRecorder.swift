@@ -59,6 +59,11 @@ public final class SessionRecorder {
 
     public var matchRef: MatchRef?
 
+    /// Marcador del partido, si el jugador lo está llevando. El reloj lo mantiene aparte
+    /// del conteo de golpeos: se puede jugar con marcador y sin él, y una sesión sin
+    /// marcador sigue siendo una sesión válida.
+    public var score: MatchScore?
+
     public var shots: [Shot] { collectedShots }
     public var isRecording: Bool { sessionId != nil }
 
@@ -157,6 +162,7 @@ public final class SessionRecorder {
             profile: profile,
             shots: collectedShots,
             health: shareHealth ? buildHealth() : .empty,
+            score: score,
             matchRef: matchRef
         )
         sessionId = nil
