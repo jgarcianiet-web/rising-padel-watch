@@ -1,5 +1,7 @@
 # Rising Padel Watch
 
+[![CI](https://github.com/jgarcianiet-web/rising-padel-watch/actions/workflows/ci.yml/badge.svg)](https://github.com/jgarcianiet-web/rising-padel-watch/actions/workflows/ci.yml)
+
 Mide los golpeos de una sesión de pádel con el reloj, recoge las métricas de salud del
 entrenamiento y las envía a tu app de liga y torneos.
 
@@ -23,7 +25,7 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 
 ```bash
 # Lo único que corre sin SDK de móvil: el core y sus 51 tests
-cd android/core && gradle test
+cd android/core && ./gradlew test
 ```
 
 Para compilar las apps, ver [`docs/setup.md`](docs/setup.md).

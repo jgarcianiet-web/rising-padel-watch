@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  # Un push nuevo sobre la misma rama cancela el run anterior: no tiene sentido gastar
+  # minutos (sobre todo de macOS) validando un commit que ya está superado.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  core-kotlin:
+    name: Core Kotlin (tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # `core` es un build independiente: sus tests no necesitan el SDK de Android.
+      - name: Tests del core
+        working-directory: android/core
+        run: ./gradlew --no-daemon test
+
+      - name: Publicar resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-kotlin-test-results
+          path: android/core/build/reports/tests/test
+          if-no-files-found: ignore
+
+  android-apps:
+    name: Apps Android (móvil + Wear OS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          # El build raíz no lleva wrapper porque no se puede generar sin resolver el
+          # Android Gradle Plugin; la versión se fija aquí.
+          gradle-version: "8.14.3"
+
+      # El SDK de Android viene preinstalado en el runner de ubuntu, y AGP lo encuentra
+      # por ANDROID_HOME sin necesidad de local.properties.
+      - name: Compilar apps
+        working-directory: android
+        run: gradle --no-daemon :mobile:assembleDebug :wear:assembleDebug
+
+  core-swift:
+    name: Core Swift (tests)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tests de PadelCore
+        run: swift test --package-path ios/Packages/PadelCore
+
+  apple-apps:
+    name: Apps Apple (iOS + watchOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar XcodeGen
+        run: brew install xcodegen
+
+      # El .xcodeproj no está versionado: se genera desde ios/project.yml.
+      - name: Generar proyecto
+        working-directory: ios
+        run: xcodegen generate
+
+      # Sin firmar: en CI solo interesa que compile, no producir un binario instalable.
+      - name: Compilar iOS + watchOS
+        working-directory: ios
+        run: |
+          xcodebuild build \
+            -project RisingPadel.xcodeproj \
+            -scheme RisingPadel \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
