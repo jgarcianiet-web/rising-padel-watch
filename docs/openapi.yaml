@@ -1,0 +1,231 @@
+openapi: 3.0.3
+info:
+  title: Rising Padel Watch - Contrato de integración con la liga
+  version: "1.0.0"
+  description: >
+    Endpoint que la app de liga/torneos debe exponer para recibir las sesiones de
+    pádel medidas con el reloj. Ver docs/api-contract.md para la versión legible.
+
+servers:
+  - url: https://{host}/api
+    variables:
+      host:
+        default: liga.example.com
+
+security:
+  - bearerAuth: []
+
+paths:
+  /v1/padel-sessions:
+    post:
+      summary: Sube una sesión de pádel medida con el reloj
+      operationId: createPadelSession
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: sessionId (UUID v4). Repetir la clave debe devolver 200, no crear un duplicado.
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PadelSession' }
+      responses:
+        '201':
+          description: Sesión creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionRef' }
+        '200':
+          description: Ya existía una sesión con esa Idempotency-Key
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionRef' }
+        '400':
+          description: Payload inválido (fallo permanente, el cliente no reintenta)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Token inválido o caducado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Conflicto (por ejemplo, otra sesión ya vinculada al mismo partido)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '413':
+          description: Payload demasiado grande. El cliente reintenta una vez sin shots.events
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '429':
+          description: Rate limit
+          headers:
+            Retry-After:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/me/matches:
+    get:
+      summary: Partidos del jugador en una ventana temporal (opcional)
+      operationId: listMyMatches
+      parameters:
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to,   in: query, required: true, schema: { type: string, format: date-time } }
+      responses:
+        '200':
+          description: Lista de partidos
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [matches]
+                properties:
+                  matches:
+                    type: array
+                    items: { $ref: '#/components/schemas/Match' }
+        '404':
+          description: No implementado por esta liga. El cliente degrada a matchId manual.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+
+  schemas:
+    PadelSession:
+      type: object
+      required: [sessionId, schemaVersion, source, startedAt, endedAt, durationSeconds, shots]
+      properties:
+        sessionId: { type: string, format: uuid }
+        schemaVersion: { type: integer, example: 1 }
+        source: { $ref: '#/components/schemas/Source' }
+        startedAt: { type: string, format: date-time }
+        endedAt: { type: string, format: date-time }
+        durationSeconds: { type: integer, minimum: 0 }
+        player: { $ref: '#/components/schemas/Player' }
+        matchRef: { $ref: '#/components/schemas/MatchRef' }
+        shots: { $ref: '#/components/schemas/Shots' }
+        health:
+          allOf: [{ $ref: '#/components/schemas/Health' }]
+          description: Se omite por completo si el usuario no ha consentido compartir datos de salud.
+
+    Source:
+      type: object
+      required: [platform, appVersion]
+      properties:
+        platform: { type: string, enum: [watchos, wearos] }
+        device: { type: string, example: Apple Watch Series 9 }
+        appVersion: { type: string, example: "1.0.0" }
+
+    Player:
+      type: object
+      properties:
+        hand: { type: string, enum: [right, left] }
+        watchWrist: { type: string, enum: [right, left] }
+
+    MatchRef:
+      type: object
+      properties:
+        matchId: { type: string }
+        leagueId: { type: string }
+
+    Shots:
+      type: object
+      required: [total, byType]
+      properties:
+        total: { type: integer, minimum: 0 }
+        byType:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+          example:
+            forehand: 151
+            backhand: 128
+            forehandVolley: 44
+            backhandVolley: 37
+            overhead: 39
+            serve: 11
+            unknown: 2
+        intensity: { $ref: '#/components/schemas/Intensity' }
+        events:
+          type: array
+          description: Serie de golpeos ordenada por offsetMs. Puede venir vacía.
+          items: { $ref: '#/components/schemas/ShotEvent' }
+
+    Intensity:
+      type: object
+      properties:
+        meanRacketSpeedKmh: { type: number, format: float }
+        maxRacketSpeedKmh: { type: number, format: float }
+        meanImpactG: { type: number, format: float }
+        maxImpactG: { type: number, format: float }
+
+    ShotEvent:
+      type: object
+      required: [offsetMs, type]
+      properties:
+        offsetMs:
+          type: integer
+          minimum: 0
+          description: Milisegundos desde startedAt.
+        type:
+          type: string
+          enum: [forehand, backhand, forehandVolley, backhandVolley, overhead, serve, unknown]
+        racketSpeedKmh: { type: number, format: float }
+        impactG: { type: number, format: float }
+        confidence: { type: number, format: float, minimum: 0, maximum: 1 }
+
+    Health:
+      type: object
+      properties:
+        heartRate:
+          type: object
+          properties:
+            meanBpm: { type: integer }
+            maxBpm: { type: integer }
+            restingBpm: { type: integer }
+        activeEnergyKcal: { type: number, format: float }
+        totalEnergyKcal: { type: number, format: float }
+        steps: { type: integer }
+        distanceMeters: { type: number, format: float }
+        zonesSeconds:
+          type: object
+          description: Segundos en cada zona de frecuencia cardiaca.
+          additionalProperties: { type: integer }
+
+    SessionRef:
+      type: object
+      required: [id, sessionId]
+      properties:
+        id: { type: string }
+        sessionId: { type: string, format: uuid }
+        createdAt: { type: string, format: date-time }
+        matchRef: { $ref: '#/components/schemas/MatchRef' }
+
+    Match:
+      type: object
+      required: [matchId]
+      properties:
+        matchId: { type: string }
+        leagueId: { type: string }
+        scheduledAt: { type: string, format: date-time }
+        opponents: { type: string }
+        venue: { type: string }
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: invalid_payload }
+            message: { type: string }

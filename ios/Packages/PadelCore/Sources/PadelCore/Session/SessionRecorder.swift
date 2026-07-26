@@ -1,0 +1,196 @@
+import Foundation
+
+/// Métricas parciales para la pantalla del reloj mientras se juega.
+public struct LiveStats: Equatable, Sendable {
+    public let elapsedSeconds: Int64
+    public let shotCount: Int
+    public let currentHeartRate: Int?
+    public let activeEnergyKcal: Float?
+    public let lastShot: Shot?
+
+    public init(
+        elapsedSeconds: Int64,
+        shotCount: Int,
+        currentHeartRate: Int?,
+        activeEnergyKcal: Float?,
+        lastShot: Shot?
+    ) {
+        self.elapsedSeconds = elapsedSeconds
+        self.shotCount = shotCount
+        self.currentHeartRate = currentHeartRate
+        self.activeEnergyKcal = activeEnergyKcal
+        self.lastShot = lastShot
+    }
+}
+
+/// Acumula una sesión en curso: golpeos detectados + métricas de salud del workout.
+///
+/// Vive en el reloj y es el único punto donde se junta todo. Las apps solo tienen que
+/// bombear muestras y métricas; el resultado es una `PadelSession` lista para enviar al
+/// iPhone.
+///
+/// Los tiempos vienen por duplicado a propósito: **epoch** para fechar la sesión y
+/// **monótono** para medir dentro de ella (el epoch puede saltar si el reloj se
+/// sincroniza a mitad de partido).
+public final class SessionRecorder {
+    private let source: SourceInfo
+    private let profile: PlayerProfile
+    private let detector: ShotDetector
+    private let maxHeartRate: Int
+    private let sessionIdProvider: () -> String
+
+    private var sessionId: String?
+    private var startedAtEpochMs: Int64 = 0
+    private var startedAtMonotonicMs: Int64 = 0
+
+    private var collectedShots: [Shot] = []
+
+    private var lastHeartRateBpm: Int?
+    private var lastHeartRateAtMs: Int64?
+    private var maxObservedBpm = 0
+    private var weightedBpmSum: Double = 0
+    private var weightedSeconds: Double = 0
+    private var zoneSeconds: [String: Double] = [:]
+
+    private var activeEnergyKcal: Float?
+    private var totalEnergyKcal: Float?
+    private var steps: Int?
+    private var distanceMeters: Float?
+
+    public var matchRef: MatchRef?
+
+    public var shots: [Shot] { collectedShots }
+    public var isRecording: Bool { sessionId != nil }
+
+    public init(
+        source: SourceInfo,
+        profile: PlayerProfile = PlayerProfile(),
+        config: DetectorConfig = .default,
+        currentYear: Int = 2026,
+        sessionIdProvider: @escaping () -> String = { UUID().uuidString }
+    ) {
+        self.source = source
+        self.profile = profile
+        self.detector = ShotDetector(config: config, profile: profile)
+        self.maxHeartRate = profile.effectiveMaxHeartRate(currentYear: currentYear)
+        self.sessionIdProvider = sessionIdProvider
+    }
+
+    public func start(startedAtEpochMs: Int64, monotonicMs: Int64) {
+        sessionId = sessionIdProvider()
+        self.startedAtEpochMs = startedAtEpochMs
+        self.startedAtMonotonicMs = monotonicMs
+        collectedShots.removeAll()
+        lastHeartRateBpm = nil
+        lastHeartRateAtMs = nil
+        maxObservedBpm = 0
+        weightedBpmSum = 0
+        weightedSeconds = 0
+        zoneSeconds.removeAll()
+        activeEnergyKcal = nil
+        totalEnergyKcal = nil
+        steps = nil
+        distanceMeters = nil
+        detector.reset(referenceTimestampMs: monotonicMs)
+    }
+
+    /// Devuelve el golpeo si esta muestra cierra uno, para poder avisar en la UI al instante.
+    @discardableResult
+    public func onMotion(_ sample: MotionSample) -> Shot? {
+        guard let shot = detector.process(sample) else { return nil }
+        collectedShots.append(shot)
+        return shot
+    }
+
+    /// Cada lectura de FC cierra el intervalo anterior: el tiempo transcurrido desde la
+    /// lectura previa se atribuye a la zona de **esa** lectura previa, que es la que
+    /// estuvo vigente durante el intervalo.
+    public func onHeartRate(_ bpm: Int, monotonicMs: Int64) {
+        guard bpm > 0 else { return }
+        if let previousBpm = lastHeartRateBpm, let previousAt = lastHeartRateAtMs {
+            let elapsed = min(max(Double(monotonicMs - previousAt) / 1000, 0), 60)
+            if elapsed > 0 {
+                let zone = HeartRateZones.zone(for: previousBpm, maxHeartRate: maxHeartRate)
+                zoneSeconds[zone, default: 0] += elapsed
+                weightedBpmSum += Double(previousBpm) * elapsed
+                weightedSeconds += elapsed
+            }
+        }
+        lastHeartRateBpm = bpm
+        lastHeartRateAtMs = monotonicMs
+        if bpm > maxObservedBpm { maxObservedBpm = bpm }
+    }
+
+    /// Valores acumulados del workout; se sustituyen, no se suman.
+    public func onEnergy(activeKcal: Float?, totalKcal: Float? = nil) {
+        if let activeKcal { activeEnergyKcal = activeKcal }
+        if let totalKcal { totalEnergyKcal = totalKcal }
+    }
+
+    public func onSteps(_ count: Int) {
+        steps = count
+    }
+
+    public func onDistance(_ meters: Float) {
+        distanceMeters = meters
+    }
+
+    /// Cierra la sesión. `shareHealth` es el consentimiento del usuario: si es false, la
+    /// sesión sale sin ningún dato de salud (no se recorta después, no se construye).
+    public func finish(endedAtEpochMs: Int64, monotonicMs: Int64, shareHealth: Bool) -> PadelSession {
+        guard let id = sessionId else {
+            preconditionFailure("finish() sin start()")
+        }
+        if let trailing = detector.flush() {
+            collectedShots.append(trailing)
+        }
+        // Cierra el último intervalo de FC con el instante de fin.
+        if let last = lastHeartRateBpm {
+            onHeartRate(last, monotonicMs: monotonicMs)
+        }
+
+        let session = PadelSession(
+            sessionId: id,
+            source: source,
+            startedAtEpochMs: startedAtEpochMs,
+            endedAtEpochMs: endedAtEpochMs,
+            profile: profile,
+            shots: collectedShots,
+            health: shareHealth ? buildHealth() : .empty,
+            matchRef: matchRef
+        )
+        sessionId = nil
+        return session
+    }
+
+    public func liveSnapshot(monotonicMs: Int64) -> LiveStats {
+        LiveStats(
+            elapsedSeconds: max((monotonicMs - startedAtMonotonicMs) / 1000, 0),
+            shotCount: collectedShots.count,
+            currentHeartRate: lastHeartRateBpm,
+            activeEnergyKcal: activeEnergyKcal,
+            lastShot: collectedShots.last
+        )
+    }
+
+    private func buildHealth() -> HealthMetrics {
+        let heartRate: HeartRateSummary? = maxObservedBpm > 0
+            ? HeartRateSummary(
+                meanBpm: weightedSeconds > 0
+                    ? Int((weightedBpmSum / weightedSeconds).rounded())
+                    : maxObservedBpm,
+                maxBpm: maxObservedBpm,
+                restingBpm: profile.restingHeartRate
+            )
+            : nil
+
+        return HealthMetrics(
+            heartRate: heartRate,
+            activeEnergyKcal: activeEnergyKcal,
+            totalEnergyKcal: totalEnergyKcal,
+            steps: steps,
+            distanceMeters: distanceMeters,
+            zones: HeartRateZones(secondsPerZone: zoneSeconds.mapValues { Int($0.rounded()) })
+        )
+    }
+}

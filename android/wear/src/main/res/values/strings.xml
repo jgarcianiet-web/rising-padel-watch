@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rising Padel</string>
+    <string name="session_channel_name">Sesión de pádel</string>
+    <string name="session_in_progress">Midiendo sesión de pádel</string>
+    <string name="session_progress_format">%1$d golpeos · %2$d min</string>
+</resources>
