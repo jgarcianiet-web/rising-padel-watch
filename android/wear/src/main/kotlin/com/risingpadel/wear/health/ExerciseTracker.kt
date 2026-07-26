@@ -88,7 +88,10 @@ class ExerciseTracker(context: Context) {
             }
         }
         client.setUpdateCallback(callback)
-        awaitClose { client.clearUpdateCallback(callback) }
+        // Registrar es síncrono pero desregistrar no: el API solo ofrece la variante
+        // async. Aquí no hay a quién esperar —el flow ya se está cerrando—, así que se
+        // lanza y se olvida.
+        awaitClose { client.clearUpdateCallbackAsync(callback) }
     }
 
     private fun ExerciseUpdate.toMetrics(): ExerciseMetrics {
