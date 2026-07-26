@@ -4,7 +4,7 @@
 
 | Plataforma | Necesitas |
 |---|---|
-| Core Kotlin | JDK 17+ y Gradle (incluido el wrapper de tu instalación) |
+| Core Kotlin | JDK 17+ (Gradle lo trae el wrapper) |
 | Android + Wear OS | Android Studio Ladybug o superior, SDK 35 |
 | iOS + watchOS | Xcode 15.4+, macOS 14+, [XcodeGen](https://github.com/yonaskolb/XcodeGen) |
 
@@ -12,7 +12,7 @@
 
 ```bash
 cd android/core
-gradle test
+./gradlew test
 ```
 
 51 tests: detección de golpeos, clasificación de los seis tipos, zonas de frecuencia

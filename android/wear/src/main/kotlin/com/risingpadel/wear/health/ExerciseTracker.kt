@@ -6,6 +6,7 @@ import androidx.health.services.client.ExerciseUpdateCallback
 import androidx.health.services.client.HealthServices
 import androidx.health.services.client.data.Availability
 import androidx.health.services.client.data.DataType
+import androidx.health.services.client.data.DeltaDataType
 import androidx.health.services.client.data.ExerciseConfig
 import androidx.health.services.client.data.ExerciseLapSummary
 import androidx.health.services.client.data.ExerciseType
@@ -44,11 +45,13 @@ class ExerciseTracker(context: Context) {
 
     /** Prepara los sensores antes de empezar, para que la FC ya esté disponible al primer punto. */
     suspend fun warmUp(dataTypes: Set<DataType<*, *>>) {
-        val warmUpTypes = dataTypes.filterIsInstance<DataType<*, *>>().toSet()
+        // WarmUpConfig solo acepta tipos delta —muestras instantáneas como la FC—. Los
+        // acumulados (calorías, pasos, distancia) no se pueden precalentar porque no son
+        // una lectura puntual sino un total que se va sumando.
+        val warmUpTypes = dataTypes.filterIsInstance<DeltaDataType<*, *>>().toSet()
+        if (warmUpTypes.isEmpty()) return
         runCatching {
-            client.prepareExerciseAsync(
-                WarmUpConfig(ExerciseType.TENNIS, warmUpTypes.filterDeltaTypes())
-            ).await()
+            client.prepareExerciseAsync(WarmUpConfig(ExerciseType.TENNIS, warmUpTypes)).await()
         }
     }
 
@@ -85,7 +88,10 @@ class ExerciseTracker(context: Context) {
             }
         }
         client.setUpdateCallback(callback)
-        awaitClose { client.clearUpdateCallback(callback) }
+        // Registrar es síncrono pero desregistrar no: el API solo ofrece la variante
+        // async. Aquí no hay a quién esperar —el flow ya se está cerrando—, así que se
+        // lanza y se olvida.
+        awaitClose { client.clearUpdateCallbackAsync(callback) }
     }
 
     private fun ExerciseUpdate.toMetrics(): ExerciseMetrics {
@@ -102,9 +108,6 @@ class ExerciseTracker(context: Context) {
         )
     }
 
-    private fun Set<DataType<*, *>>.filterDeltaTypes(): Set<DataType<*, *>> =
-        filterTo(mutableSetOf()) { it in WARM_UP_DATA_TYPES }
-
     private companion object {
         val DESIRED_DATA_TYPES = setOf<DataType<*, *>>(
             DataType.HEART_RATE_BPM,
@@ -112,8 +115,5 @@ class ExerciseTracker(context: Context) {
             DataType.STEPS_TOTAL,
             DataType.DISTANCE_TOTAL,
         )
-
-        /** Solo los sensores que tiene sentido precalentar. */
-        val WARM_UP_DATA_TYPES = setOf<DataType<*, *>>(DataType.HEART_RATE_BPM)
     }
 }

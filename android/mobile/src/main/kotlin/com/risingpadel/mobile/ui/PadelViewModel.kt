@@ -41,8 +41,8 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
     fun syncNow() {
         val app = getApplication<Application>()
         viewModelScope.launch {
-            val preferences = preferences.value
-            if (container.settings.leagueConfig(preferences.leagueBaseUrl) == null) {
+            val current = preferences.value
+            if (container.settings.leagueConfig(current.leagueBaseUrl) == null) {
                 _message.value = "Configura la URL de la liga y el token en Ajustes"
                 return@launch
             }

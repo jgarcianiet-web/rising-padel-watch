@@ -15,19 +15,14 @@ import com.risingpadel.wear.service.PadelExerciseService
 
 class MainActivity : ComponentActivity() {
 
-    private var permissionsGranted by mutableStateOf(false)
+    private var bodySensorsDenied by mutableStateOf(false)
 
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             // La FC y los pasos son opcionales: sin ellos la app sigue contando golpeos,
-            // así que no se bloquea la pantalla por un permiso denegado.
-            permissionsGranted = true
-            if (result[Manifest.permission.BODY_SENSORS] == false) {
-                bodySensorsDenied = true
-            }
+            // así que un permiso denegado no bloquea la pantalla, solo se avisa.
+            bodySensorsDenied = result[Manifest.permission.BODY_SENSORS] == false
         }
-
-    private var bodySensorsDenied by mutableStateOf(false)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

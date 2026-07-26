@@ -1,8 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-        Tema del sistema (splash y ventana). Los colores reales de la UI los pone
-        Compose en RisingPadelTheme; esto solo evita el flash blanco al arrancar.
+        Tema del sistema (ventana y arranque). Los colores reales de la UI los pone
+        Compose en RisingPadelTheme; esto solo evita el flash blanco al abrir la app.
+
+        Se usa el tema del framework y no `Theme.Material3.DayNight` de Material
+        Components porque la app es Compose puro: no hay ni un componente de View que
+        justifique arrastrar esa dependencia. El framework no tiene variante DayNight de
+        Theme.Material, así que el modo oscuro va en values-night/.
     -->
-    <style name="Theme.RisingPadel" parent="android:Theme.Material.DayNight.NoActionBar" />
+    <style name="Theme.RisingPadel" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>
