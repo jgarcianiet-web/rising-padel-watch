@@ -5,6 +5,7 @@ struct WatchRootView: View {
     @EnvironmentObject private var controller: SessionController
     @AppStorage("trackScore") private var trackScore = false
     @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
+    @State private var showTraining = false
 
     var body: some View {
         Group {
@@ -66,6 +67,17 @@ struct WatchRootView: View {
                 Task { await controller.start() }
             }
             .buttonStyle(.borderedProminent)
+
+            // Solo aparece si el usuario ha activado la recogida de datos en el iPhone:
+            // es un modo para quien está construyendo el dataset, no para jugar.
+            if controller.collectTrainingData {
+                Button("Datos de entrenamiento") { showTraining = true }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+            }
+        }
+        .sheet(isPresented: $showTraining) {
+            TrainingView().environmentObject(controller)
         }
     }
 

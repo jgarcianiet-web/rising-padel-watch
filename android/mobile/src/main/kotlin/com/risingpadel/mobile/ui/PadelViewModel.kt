@@ -115,6 +115,24 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
         container.settings.setProfile(preferences.value.profile.copy(watchWrist = wrist))
     }
 
+    fun setCollectTrainingData(collect: Boolean) = viewModelScope.launch {
+        container.settings.setCollectTrainingData(collect)
+    }
+
+    fun setPlayerAlias(alias: String) = viewModelScope.launch {
+        container.settings.setPlayerAlias(alias)
+        _message.value = "Alias guardado"
+    }
+
+    fun deleteTrainingData() = viewModelScope.launch {
+        container.settings.trainingDataFile.delete()
+        _message.value = "Datos de entrenamiento borrados"
+    }
+
+    /** Devuelve el fichero para compartirlo, o null si todavía no ha llegado nada. */
+    fun trainingDataFile(): java.io.File? =
+        container.settings.trainingDataFile.takeIf { it.exists() && it.length() > 0 }
+
     fun setProfile(profile: PlayerProfile) = viewModelScope.launch {
         container.settings.setProfile(profile)
     }

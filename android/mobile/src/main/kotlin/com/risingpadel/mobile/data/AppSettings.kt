@@ -17,6 +17,7 @@ import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.sync.LeagueConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import java.io.File
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "padel_settings")
 
@@ -29,6 +30,12 @@ data class AppPreferences(
     /** Subir la serie de golpeos, no solo los agregados. */
     val shareShotEvents: Boolean = true,
     val hasToken: Boolean = false,
+    /** Modo de recogida de datos de entrenamiento. Apagado por defecto. */
+    val collectTrainingData: Boolean = false,
+    /** Alias del jugador, para validar el modelo dejándolo fuera. */
+    val playerAlias: String = "anon",
+    /** Tamaño del fichero recibido del reloj. 0 si todavía no ha llegado nada. */
+    val trainingDataBytes: Long = 0,
 )
 
 /**
@@ -68,6 +75,9 @@ class AppSettings(private val context: Context) {
             shareHealth = prefs[KEY_SHARE_HEALTH] ?: false,
             shareShotEvents = prefs[KEY_SHARE_EVENTS] ?: true,
             hasToken = token() != null,
+            collectTrainingData = prefs[KEY_COLLECT_TRAINING] ?: false,
+            playerAlias = prefs[KEY_PLAYER_ALIAS] ?: "anon",
+            trainingDataBytes = trainingDataFile.let { if (it.exists()) it.length() else 0L },
         )
     }
 
@@ -97,6 +107,23 @@ class AppSettings(private val context: Context) {
         context.dataStore.edit { it[KEY_SHARE_EVENTS] = share }
     }
 
+    suspend fun setCollectTrainingData(collect: Boolean) {
+        context.dataStore.edit { it[KEY_COLLECT_TRAINING] = collect }
+    }
+
+    suspend fun setPlayerAlias(alias: String) {
+        context.dataStore.edit { it[KEY_PLAYER_ALIAS] = alias.trim().ifEmpty { "anon" } }
+    }
+
+    /**
+     * Fichero de datos de entrenamiento recibido del reloj.
+     *
+     * **Nunca se sube a la liga**: solo sale del móvil si el usuario lo comparte a mano.
+     * Ver `docs/training-data.md`.
+     */
+    val trainingDataFile: File
+        get() = File(context.filesDir, "training/muestras.jsonl")
+
     fun token(): String? = secure.getString(KEY_TOKEN, null)?.takeIf { it.isNotBlank() }
 
     fun setToken(token: String?) {
@@ -122,6 +149,8 @@ class AppSettings(private val context: Context) {
         val KEY_SENSITIVITY = stringPreferencesKey("sensitivity")
         val KEY_SHARE_HEALTH = booleanPreferencesKey("share_health")
         val KEY_SHARE_EVENTS = booleanPreferencesKey("share_shot_events")
+        val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
+        val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
         const val KEY_TOKEN = "league_token"
     }
 }

@@ -15,10 +15,21 @@ cd android/core
 ./gradlew test
 ```
 
-95 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
-(puntos, los tres formatos de 40-40, tie-break, saque, cambios de pista y deshacer), zonas
-de frecuencia cardiaca, contrato JSON, política de reintentos y almacenamiento local. Es un build
-independiente a propósito, así que **no** necesita el SDK de Android.
+122 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
+(puntos, los tres formatos de 40-40, tie-break, saque, cambios de pista y deshacer),
+captura de ventanas de entrenamiento, zonas de frecuencia cardiaca, contrato JSON,
+política de reintentos y almacenamiento local. Es un build independiente a propósito, así
+que **no** necesita el SDK de Android.
+
+## Entrenar el clasificador
+
+```bash
+pip install numpy scikit-learn
+python3 tools/make_synthetic_dataset.py sinteticas.jsonl   # probar la tubería
+python3 tools/train_classifier.py sinteticas.jsonl
+```
+
+Proceso completo en [`training-data.md`](./training-data.md).
 
 ## Android (móvil + reloj)
 

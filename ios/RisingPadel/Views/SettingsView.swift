@@ -14,6 +14,7 @@ struct SettingsView: View {
                 privacySection
                 playerSection
                 sensitivitySection
+                trainingDataSection
             }
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
@@ -76,6 +77,40 @@ struct SettingsView: View {
             }
         } header: {
             Text("Jugador")
+        }
+    }
+
+    @ViewBuilder
+    private var trainingDataSection: some View {
+        Section {
+            Toggle("Recoger datos de entrenamiento", isOn: $model.collectTrainingData)
+            if model.collectTrainingData {
+                TextField("Alias del jugador", text: $model.playerAlias)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+
+                if let url = model.trainingDataURL {
+                    // ShareLink en vez de subir a ningún sitio: el fichero solo sale del
+                    // móvil si el usuario lo comparte a mano.
+                    ShareLink(item: url) {
+                        Label("Exportar \(model.trainingDataSizeKB) KB", systemImage: "square.and.arrow.up")
+                    }
+                    Button("Borrar datos recogidos", role: .destructive) {
+                        model.deleteTrainingData()
+                    }
+                } else {
+                    Text("Todavía no ha llegado ningún dato del reloj.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Datos de entrenamiento")
+        } footer: {
+            Text("Graba tandas de golpes etiquetados en el reloj para entrenar un "
+                 + "clasificador propio. Guarda la señal cruda de los sensores, que en el "
+                 + "resto de la app nunca sale del dispositivo. **No se sube a la liga**: "
+                 + "solo sale de aquí si lo exportas tú.")
         }
     }
 

@@ -11,9 +11,14 @@ final class WatchSessionReceiver: NSObject {
 
     private let decoder = JSONDecoder()
     private let onSessionReceived: (PadelSession) -> Void
+    private let onTrainingFileReceived: (URL) -> Void
 
-    init(onSessionReceived: @escaping (PadelSession) -> Void) {
+    init(
+        onSessionReceived: @escaping (PadelSession) -> Void,
+        onTrainingFileReceived: @escaping (URL) -> Void = { _ in }
+    ) {
         self.onSessionReceived = onSessionReceived
+        self.onTrainingFileReceived = onTrainingFileReceived
         super.init()
     }
 
@@ -43,6 +48,13 @@ extension WatchSessionReceiver: WCSessionDelegate {
         handle(userInfo)
     }
 
+    /// El fichero llega a una ubicación temporal que el sistema borra al volver de este
+    /// método, así que hay que copiarlo aquí mismo.
+    func session(_ session: WCSession, didReceive file: WCSessionFile) {
+        guard file.metadata?[PhoneTransportKeys.trainingFile] != nil else { return }
+        onTrainingFileReceived(file.fileURL)
+    }
+
     func sessionDidBecomeInactive(_ session: WCSession) {}
 
     /// Al cambiar de reloj hay que reactivar para seguir recibiendo sesiones del nuevo.
@@ -56,4 +68,5 @@ extension WatchSessionReceiver: WCSessionDelegate {
 enum PhoneTransportKeys {
     static let payload = "padel_session"
     static let sessionId = "padel_session_id"
+    static let trainingFile = "padel_training_data"
 }

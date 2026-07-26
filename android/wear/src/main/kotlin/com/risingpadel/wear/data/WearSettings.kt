@@ -26,6 +26,13 @@ data class WearPreferences(
     val trackScore: Boolean = false,
     val deuceFormat: DeuceFormat = DeuceFormat.GOLDEN_POINT,
     val setsToWin: Int = 2,
+    /**
+     * Modo de recogida de datos de entrenamiento. Apagado por defecto: guarda la señal
+     * cruda de los sensores, que en el resto de la app nunca sale del reloj.
+     */
+    val collectTrainingData: Boolean = false,
+    /** Alias del jugador, para poder validar el modelo dejándolo fuera. */
+    val playerAlias: String = "anon",
 )
 
 /**
@@ -49,6 +56,8 @@ class WearSettings(private val context: Context) {
             trackScore = prefs[KEY_TRACK_SCORE] ?: false,
             deuceFormat = DeuceFormat.fromWire(prefs[KEY_DEUCE_FORMAT].orEmpty()),
             setsToWin = prefs[KEY_SETS_TO_WIN] ?: 2,
+            collectTrainingData = prefs[KEY_COLLECT_TRAINING] ?: false,
+            playerAlias = prefs[KEY_PLAYER_ALIAS] ?: "anon",
         )
     }
 
@@ -64,6 +73,8 @@ class WearSettings(private val context: Context) {
             prefs[KEY_TRACK_SCORE] = preferences.trackScore
             prefs[KEY_DEUCE_FORMAT] = preferences.deuceFormat.wireName
             prefs[KEY_SETS_TO_WIN] = preferences.setsToWin
+            prefs[KEY_COLLECT_TRAINING] = preferences.collectTrainingData
+            prefs[KEY_PLAYER_ALIAS] = preferences.playerAlias
         }
     }
 
@@ -78,5 +89,7 @@ class WearSettings(private val context: Context) {
         val KEY_TRACK_SCORE = booleanPreferencesKey("track_score")
         val KEY_DEUCE_FORMAT = stringPreferencesKey("deuce_format")
         val KEY_SETS_TO_WIN = intPreferencesKey("sets_to_win")
+        val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
+        val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
     }
 }

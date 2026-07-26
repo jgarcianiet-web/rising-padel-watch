@@ -19,11 +19,20 @@ del reloj, así que esta función no lo necesita, pero el resto de ajustes (mano
 sensibilidad, consentimiento de salud) hay que configurarlos en cada dispositivo. La
 replicación por Data Layer / WatchConnectivity está pendiente.
 
-## 2. Clasificador de golpeos entrenado
+## 2. Clasificador de golpeos entrenado — modo de grabación hecho
 
-La v1 es heurística (ver `shot-detection.md`). El camino a un modelo aprendido está
-descrito ahí: grabar ventanas etiquetadas, entrenar, exportar a Core ML / TFLite y
-sustituir **solo** `ShotClassifier`.
+El **modo de recogida de datos ya está implementado**, que era lo único que tenía que ir
+en la app: grabación de tandas etiquetadas en los dos relojes, transferencia al móvil,
+exportación, y `tools/train_classifier.py` para entrenar y validar. Ver
+[`training-data.md`](./training-data.md).
+
+Lo que queda **no es código, son datos**: hacen falta unos 2.000-3.000 golpeos de 4-5
+jugadores distintos. Unas 6-8 horas de pista.
+
+Cuando ese conjunto exista y el script diga que el modelo mejora la heurística, falta el
+último paso: convertir el modelo a Core ML / TFLite y sustituir `ShotClassifier`. No está
+hecho a propósito — escribir el evaluador antes de saber qué precisión da el modelo es
+trabajo especulativo.
 
 ## 3. Validación de signos en pista
 

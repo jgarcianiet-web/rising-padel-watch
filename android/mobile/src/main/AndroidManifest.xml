@@ -42,5 +42,33 @@
             </intent-filter>
         </service>
 
+        <!--
+            Recibe el fichero de datos de entrenamiento del reloj. Va por canal y no por
+            Data Layer porque puede pesar decenas de megas.
+        -->
+        <service
+            android:name=".sync.TrainingDataListenerService"
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_WEARABLE_LISTENER">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/padel/training-data" />
+            </intent-filter>
+        </service>
+
+        <!--
+            FileProvider para poder compartir el JSONL con otra app (correo, Drive, lo que
+            sea). Es la única vía por la que estos datos salen del móvil.
+        -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
     </application>
 </manifest>

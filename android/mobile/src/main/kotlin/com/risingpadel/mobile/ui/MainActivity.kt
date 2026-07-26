@@ -44,9 +44,29 @@ private object Routes {
     fun detail(sessionId: String) = "sessions/$sessionId"
 }
 
+/**
+ * Comparte el JSONL con otra app. Es la única vía por la que los datos de entrenamiento
+ * salen del móvil: no se suben a ningún sitio automáticamente.
+ */
+private fun shareTrainingData(context: android.content.Context, viewModel: PadelViewModel) {
+    val file = viewModel.trainingDataFile() ?: return
+    val uri = androidx.core.content.FileProvider.getUriForFile(
+        context,
+        "${context.packageName}.fileprovider",
+        file,
+    )
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "application/json"
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Exportar datos"))
+}
+
 @Composable
 private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
     val navController = rememberNavController()
+    val context = androidx.compose.ui.platform.LocalContext.current
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
@@ -110,6 +130,10 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                     onHandChange = viewModel::setHand,
                     onWristChange = viewModel::setWatchWrist,
                     onSensitivityChange = viewModel::setSensitivity,
+                    onCollectTrainingDataChange = viewModel::setCollectTrainingData,
+                    onPlayerAliasChange = viewModel::setPlayerAlias,
+                    onExportTrainingData = { shareTrainingData(context, viewModel) },
+                    onDeleteTrainingData = viewModel::deleteTrainingData,
                 )
             }
         }

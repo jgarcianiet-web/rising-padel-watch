@@ -27,7 +27,7 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 ## Empezar
 
 ```bash
-# Lo único que corre sin SDK de móvil: el core y sus 95 tests
+# Lo único que corre sin SDK de móvil: el core y sus 122 tests
 cd android/core && ./gradlew test
 ```
 
@@ -53,6 +53,8 @@ Para compilar las apps, ver [`docs/setup.md`](docs/setup.md).
 - [Detección de golpeos](docs/shot-detection.md) — el algoritmo, sus umbrales y sus
   límites
 - [Marcador](docs/scoring.md) — reglas del partido y por qué la interacción es así
+- [Entrenar el clasificador](docs/training-data.md) — grabar golpeos etiquetados y
+  entrenar un modelo propio
 - [Puesta en marcha](docs/setup.md) — compilar, conectar la liga, calibrar
 - [Pendiente](docs/backlog.md) — lo decidido pero no hecho, y las limitaciones conocidas
 
@@ -89,3 +91,6 @@ Los datos de salud son categoría especial y se tratan como tal:
   (Android), nunca junto a las sesiones ni en logs.
 - Las series crudas de sensores no se suben jamás: se quedan en el reloj y se descartan
   al cerrar la sesión.
+- La única excepción es el modo de recogida de datos para entrenar el clasificador, que
+  viene apagado, hay que activarlo a mano, no se sube nunca a la liga y solo sale del
+  móvil si lo exportas tú. Ver [`docs/training-data.md`](docs/training-data.md).

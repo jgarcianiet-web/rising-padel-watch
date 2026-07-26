@@ -17,6 +17,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -47,6 +48,10 @@ fun SettingsScreen(
     onHandChange: (Hand) -> Unit,
     onWristChange: (Hand) -> Unit,
     onSensitivityChange: (Sensitivity) -> Unit,
+    onCollectTrainingDataChange: (Boolean) -> Unit,
+    onPlayerAliasChange: (String) -> Unit,
+    onExportTrainingData: () -> Unit,
+    onDeleteTrainingData: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -72,6 +77,13 @@ fun SettingsScreen(
             PrivacyCard(preferences, onShareHealthChange, onShareEventsChange)
             PlayerCard(preferences, onHandChange, onWristChange)
             SensitivityCard(preferences, onSensitivityChange)
+            TrainingDataCard(
+                preferences = preferences,
+                onCollectChange = onCollectTrainingDataChange,
+                onAliasChange = onPlayerAliasChange,
+                onExport = onExportTrainingData,
+                onDelete = onDeleteTrainingData,
+            )
         }
     }
 }
@@ -228,6 +240,69 @@ private fun SensitivityCard(preferences: AppPreferences, onSensitivityChange: (S
                             }
                         )
                     },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TrainingDataCard(
+    preferences: AppPreferences,
+    onCollectChange: (Boolean) -> Unit,
+    onAliasChange: (String) -> Unit,
+    onExport: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var alias by remember(preferences.playerAlias) { mutableStateOf(preferences.playerAlias) }
+
+    SettingsCard("Datos de entrenamiento") {
+        Text(
+            "Graba tandas de golpes etiquetados en el reloj para entrenar un clasificador " +
+                "propio. Guarda la señal cruda de los sensores, que en el resto de la app " +
+                "nunca sale del dispositivo. No se sube a la liga: solo sale de aquí si lo " +
+                "exportas tú.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        SwitchRow(
+            title = "Recoger datos de entrenamiento",
+            subtitle = "Activa el modo de grabación en el reloj.",
+            checked = preferences.collectTrainingData,
+            onCheckedChange = onCollectChange,
+        )
+        if (preferences.collectTrainingData) {
+            OutlinedTextField(
+                value = alias,
+                onValueChange = { alias = it },
+                label = { Text("Alias del jugador") },
+                supportingText = { Text("Sirve para validar el modelo dejándote fuera.") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(
+                onClick = { onAliasChange(alias) },
+                modifier = Modifier.align(Alignment.End),
+            ) { Text("Guardar alias") }
+
+            if (preferences.trainingDataBytes > 0) {
+                Text(
+                    "${preferences.trainingDataBytes / 1024} KB recogidos",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Button(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
+                    Text("Exportar")
+                }
+                OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
+                    Text("Borrar datos recogidos")
+                }
+            } else {
+                Text(
+                    "Todavía no ha llegado ningún dato del reloj.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp),
                 )
             }
         }

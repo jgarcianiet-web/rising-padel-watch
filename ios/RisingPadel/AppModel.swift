@@ -15,6 +15,13 @@ final class AppModel: ObservableObject {
     @AppStorage("playerHand") var playerHandRaw = Hand.right.rawValue
     @AppStorage("watchWrist") var watchWristRaw = Hand.right.rawValue
     @AppStorage("sensitivity") var sensitivityRaw = Sensitivity.medium.rawValue
+    @AppStorage("collectTrainingData") var collectTrainingData = false
+    @AppStorage("playerAlias") var playerAlias = "anon"
+
+    /// Fichero de datos de entrenamiento recibido del reloj. **Nunca se sube a la liga**:
+    /// solo se exporta cuando el usuario lo comparte a mano. Ver `docs/training-data.md`.
+    @Published private(set) var trainingDataURL: URL?
+    @Published private(set) var trainingDataSizeKB = 0
 
     private let store: SessionStore
     private let syncQueue: SyncQueue
@@ -37,15 +44,54 @@ final class AppModel: ObservableObject {
 
         // El receptor se activa aquí y no en la vista: las sesiones llegan aunque el
         // usuario nunca abra la pantalla del historial.
-        let receiver = WatchSessionReceiver { [weak self] session in
-            Task { @MainActor in self?.receive(session) }
-        }
+        let receiver = WatchSessionReceiver(
+            onSessionReceived: { [weak self] session in
+                Task { @MainActor in self?.receive(session) }
+            },
+            onTrainingFileReceived: { [weak self] url in
+                // Se copia sincrónicamente: el sistema borra el temporal al volver.
+                let destination = Self.trainingDataDestination()
+                try? FileManager.default.removeItem(at: destination)
+                try? FileManager.default.copyItem(at: url, to: destination)
+                Task { @MainActor in self?.refreshTrainingData() }
+            }
+        )
         receiver.activate()
         self.receiver = receiver
+        refreshTrainingData()
     }
 
     func refresh() {
         sessions = store.all()
+    }
+
+    // MARK: Datos de entrenamiento
+
+    func refreshTrainingData() {
+        let url = Self.trainingDataDestination()
+        guard FileManager.default.fileExists(atPath: url.path),
+              let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? Int64 else {
+            trainingDataURL = nil
+            trainingDataSizeKB = 0
+            return
+        }
+        trainingDataURL = url
+        trainingDataSizeKB = Int(size / 1024)
+    }
+
+    func deleteTrainingData() {
+        try? FileManager.default.removeItem(at: Self.trainingDataDestination())
+        refreshTrainingData()
+    }
+
+    private static func trainingDataDestination() -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(
+            at: base.appendingPathComponent("training"),
+            withIntermediateDirectories: true
+        )
+        return base.appendingPathComponent("training/muestras.jsonl")
     }
 
     /// Una sesión reenviada por el reloj no debe volver a la cola si ya se subió.

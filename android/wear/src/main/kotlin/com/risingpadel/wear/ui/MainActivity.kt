@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -43,9 +44,29 @@ class MainActivity : ComponentActivity() {
             val score by container.scoreSession.state.collectAsStateWithLifecycle()
             val preferences by container.settings.preferences
                 .collectAsStateWithLifecycle(initialValue = WearPreferences())
+            val training by container.trainingSession.state.collectAsStateWithLifecycle()
+            var showTraining by remember { mutableStateOf(false) }
 
             MaterialTheme {
                 val liveScore = score
+                // El modo de datos es una pantalla aparte: no tiene nada que ver con
+                // jugar un partido y mezclarlas solo confundiría.
+                if (showTraining || training.recording) {
+                    TrainingScreen(
+                        state = training,
+                        onLabelChange = container.trainingSession::setLabel,
+                        onStart = { PadelExerciseService.startTraining(this) },
+                        onStop = { PadelExerciseService.stop(this) },
+                        onSendToPhone = {
+                            lifecycleScope.launch {
+                                container.trainingDataSender.send(container.trainingSession.store.file)
+                            }
+                        },
+                        onExit = { showTraining = false },
+                    )
+                    return@MaterialTheme
+                }
+
                 // Con marcador activo, el marcador **es** la pantalla del partido: es lo
                 // que el jugador mira y toca entre puntos. El conteo de golpeos sigue
                 // corriendo por debajo y aparece en la línea de estado.
@@ -76,6 +97,8 @@ class MainActivity : ComponentActivity() {
                                 container.settings.update(preferences.copy(deuceFormat = format))
                             }
                         },
+                        collectTrainingData = preferences.collectTrainingData,
+                        onOpenTraining = { showTraining = true },
                         onStart = { requestPermissions.launch(requiredPermissions()) },
                         onStop = { PadelExerciseService.stop(this) },
                         onDone = { PadelExerciseService.acknowledge() },
