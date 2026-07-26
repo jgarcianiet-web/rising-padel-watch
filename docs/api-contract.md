@@ -88,6 +88,16 @@ repetidas.
     "steps": 6114,
     "distanceMeters": 3980,
     "zonesSeconds": { "z1": 640, "z2": 1980, "z3": 1910, "z4": 830, "z5": 196 }
+  },
+  "score": {                        // se omite si se jugó sin llevar marcador
+    "rules": { "deuceFormat": "starPoint", "setsToWin": 2 },
+    "sets": [
+      { "us": 6, "them": 4 },
+      { "us": 3, "them": 6 },
+      { "us": 7, "them": 6 }
+    ],
+    "winner": "us",                 // "us" | "them"; ausente si no terminó
+    "completed": true
   }
 }
 ```
@@ -101,6 +111,12 @@ Notas de campos:
 - `events` puede venir vacío si el usuario limita la subida a agregados; `byType` y
   `total` siempre vienen.
 - Todos los timestamps son ISO-8601 en UTC con `Z`.
+- `score.sets` va en orden de juego e incluye el set en curso si el partido se
+  interrumpió. `completed` distingue "3-6, 6-4, 6-2 y ganamos" de "íbamos 4-3 y se acabó
+  la hora de pista".
+- `score.rules.deuceFormat` es `"advantage"`, `"goldenPoint"` o `"starPoint"`. Cambia
+  cómo se cuentan los puntos, no solo la etiqueta: con star point se juegan hasta dos
+  ventajas y el tercer 40-40 decide.
 
 ### Respuestas
 
@@ -165,3 +181,19 @@ reintentan al recuperar conectividad. La cola se procesa en orden de `startedAt`
 responder `400` con `code: "unsupported_schema_version"` si es mayor que la soportada;
 el cliente lo trata como fallo permanente y avisa de que hay que actualizar la app de
 liga.
+
+| Versión | Qué añade |
+|---|---|
+| 1 | Golpeos y salud |
+| 2 | Bloque `score` con el marcador del partido |
+
+**La versión declarada depende del contenido, no de la app:** una sesión sin marcador
+declara `1` aunque la app sepa producir marcadores.
+
+Es deliberado. Si la app declarara siempre `2`, una liga que solo entiende `1`
+rechazaría también los entrenos, que no han cambiado en nada. Y si no subiera nunca de
+versión, esa misma liga aceptaría una sesión con resultado y descartaría el marcador sin
+decir nada: el jugador creería que su resultado está en la liga cuando no lo está.
+
+Así, una liga que solo soporte `1` sigue recibiendo entrenos con normalidad y **falla de
+forma visible** justo cuando llega algo que no sabe interpretar.

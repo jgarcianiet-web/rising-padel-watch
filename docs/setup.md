@@ -15,8 +15,9 @@ cd android/core
 ./gradlew test
 ```
 
-51 tests: detección de golpeos, clasificación de los seis tipos, zonas de frecuencia
-cardiaca, contrato JSON, política de reintentos y almacenamiento local. Es un build
+95 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
+(puntos, los tres formatos de 40-40, tie-break, saque, cambios de pista y deshacer), zonas
+de frecuencia cardiaca, contrato JSON, política de reintentos y almacenamiento local. Es un build
 independiente a propósito, así que **no** necesita el SDK de Android.
 
 ## Android (móvil + reloj)

@@ -16,6 +16,26 @@ public struct SessionPayload: Codable, Equatable, Sendable {
     public let matchRef: MatchRefPayload?
     public let shots: ShotsPayload
     public let health: HealthPayload?
+    public let score: ScorePayload?
+}
+
+public struct ScorePayload: Codable, Equatable, Sendable {
+    public let rules: ScoreRulesPayload
+    public let sets: [SetScorePayload]
+    /// "us" | "them", o ausente si el partido no llegó a terminarse.
+    public let winner: String?
+    public let completed: Bool
+}
+
+public struct ScoreRulesPayload: Codable, Equatable, Sendable {
+    /// "advantage" | "goldenPoint" | "starPoint".
+    public let deuceFormat: String
+    public let setsToWin: Int
+}
+
+public struct SetScorePayload: Codable, Equatable, Sendable {
+    public let us: Int
+    public let them: Int
 }
 
 public struct SourcePayload: Codable, Equatable, Sendable {
@@ -111,7 +131,7 @@ extension PadelSession {
     public func toPayload(shareHealth: Bool, includeEvents: Bool = true) -> SessionPayload {
         SessionPayload(
             sessionId: sessionId,
-            schemaVersion: PadelSession.schemaVersion,
+            schemaVersion: schemaVersion,
             source: SourcePayload(
                 platform: source.platform.wireName,
                 device: source.device,
@@ -148,7 +168,22 @@ extension PadelSession {
                     }
                     : []
             ),
-            health: shareHealth ? health.toPayload() : nil
+            health: shareHealth ? health.toPayload() : nil,
+            score: score.map { $0.toPayload() }
+        )
+    }
+}
+
+extension MatchScore {
+    func toPayload() -> ScorePayload {
+        ScorePayload(
+            rules: ScoreRulesPayload(
+                deuceFormat: rules.deuceFormat.wireName,
+                setsToWin: rules.setsToWin
+            ),
+            sets: allSets.map { SetScorePayload(us: $0.us, them: $0.them) },
+            winner: winner?.wireName,
+            completed: isFinished
         )
     }
 }

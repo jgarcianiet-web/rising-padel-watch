@@ -78,6 +78,13 @@ struct SessionListView: View {
                     .font(.subheadline)
             }
 
+            if let score = session.score {
+                Text(score.allSets.map { "\($0.us)-\($0.them)" }.joined(separator: "  "))
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.tint)
+                    .monospacedDigit()
+            }
+
             Text(subtitle(session))
                 .font(.caption)
                 .foregroundStyle(.secondary)

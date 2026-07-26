@@ -11,6 +11,7 @@ import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.model.Shot
 import com.risingpadel.core.model.SourceInfo
+import com.risingpadel.core.score.MatchScore
 import kotlin.math.roundToInt
 
 /**
@@ -53,6 +54,13 @@ class SessionRecorder(
     private var distanceMeters: Float? = null
 
     var matchRef: MatchRef? = null
+
+    /**
+     * Marcador del partido, si el jugador lo está llevando. El reloj lo mantiene aparte
+     * del conteo de golpeos: se puede jugar con marcador y sin él, y una sesión sin
+     * marcador sigue siendo una sesión válida.
+     */
+    var score: MatchScore? = null
 
     val shots: List<Shot> get() = collectedShots
     val isRecording: Boolean get() = sessionId != null
@@ -134,6 +142,7 @@ class SessionRecorder(
             profile = profile,
             shots = collectedShots.toList(),
             health = if (shareHealth) buildHealth() else HealthMetrics.EMPTY,
+            score = score,
             matchRef = matchRef,
         )
         sessionId = null

@@ -37,6 +37,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import com.risingpadel.core.model.HeartRateZones
 import com.risingpadel.core.model.PadelSession
+import com.risingpadel.core.score.MatchScore
+import com.risingpadel.core.score.Side
 import com.risingpadel.core.model.SyncState
 import com.risingpadel.mobile.ui.formatDuration
 import com.risingpadel.mobile.ui.formatSessionDate
@@ -73,6 +75,7 @@ fun SessionDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             HeadlineStats(session)
+            session.score?.let { ScoreCard(it) }
             ShotBreakdown(session)
             if (!session.health.isEmpty) HealthCard(session)
             MatchLinkCard(session, onLinkMatch)
@@ -109,6 +112,39 @@ private fun HeadlineStats(session: PadelSession) {
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ScoreCard(score: MatchScore) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Resultado", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = score.allSets.joinToString("   ") { "${it.us}-${it.them}" },
+                style = MaterialTheme.typography.headlineSmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            Text(
+                text = when {
+                    !score.isFinished -> "Partido sin terminar"
+                    score.winner == Side.US -> "Ganado"
+                    else -> "Perdido"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (score.winner == Side.US) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = buildString {
+                    append(score.rules.deuceFormat.label)
+                    append(" · al mejor de ${score.rules.setsToWin * 2 - 1} sets")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }

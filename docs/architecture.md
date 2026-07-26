@@ -47,8 +47,9 @@ Kotlin, con la misma batería de tests en ambos lados.
 - Swift: `ios/Packages/PadelCore` (Swift Package, sin dependencias de UIKit/WatchKit).
 - Kotlin: `android/core` (módulo JVM puro, sin dependencias de Android).
 
-Ambos módulos contienen: modelos de dominio, `ShotDetector`, `ShotClassifier`,
-serialización del payload de sync y el cliente HTTP. Sus tests se ejecutan en CI sin
+Ambos módulos contienen: modelos de dominio, `ShotDetector`, `ShotClassifier`, el
+marcador (`MatchScore` y `ScoreBoard`), serialización del payload de sync y el cliente
+HTTP. Sus tests se ejecutan en CI sin
 emulador ni simulador.
 
 **Integración con la liga vía contrato REST propio.** El core no conoce el esquema
@@ -76,8 +77,11 @@ un adaptador delante).
    acelerómetro y giroscopio a 50 Hz.
 3. `ShotDetector` procesa cada muestra en streaming y emite un `Shot` por golpeo
    detectado (tipo, intensidad, velocidad estimada de pala, instante).
+   Si el jugador activó el marcador, la pantalla pasa a ser el marcador y cada toque
+   anota un punto en `ScoreEngine`, que corre en paralelo al conteo de golpeos.
 4. Al parar, el reloj cierra el workout, recoge las métricas de salud agregadas
-   (FC media/máx, calorías activas, pasos, distancia) y construye una `PadelSession`.
+   (FC media/máx, calorías activas, pasos, distancia), adjunta el marcador si lo había y
+   construye una `PadelSession`.
 5. La sesión viaja al móvil por WatchConnectivity / Data Layer.
 6. El móvil la persiste y la encola en `SyncQueue`.
 7. `SyncQueue` hace `POST` a la app de liga con `Idempotency-Key`; reintenta con

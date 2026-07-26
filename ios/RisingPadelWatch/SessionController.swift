@@ -26,11 +26,16 @@ final class SessionController: ObservableObject {
     @Published private(set) var heartRateBpm: Int?
     @Published private(set) var lastShotType: ShotType?
     @Published private(set) var statusMessage: String?
+    /// Marcador en curso, o nil si se juega sin llevarlo.
+    @Published private(set) var score: MatchScore?
 
     @AppStorage("shareHealth") private var shareHealth = false
     @AppStorage("playerHand") private var playerHandRaw = Hand.right.rawValue
     @AppStorage("watchWrist") private var watchWristRaw = Hand.right.rawValue
     @AppStorage("sensitivity") private var sensitivityRaw = Sensitivity.medium.rawValue
+    @AppStorage("trackScore") private var trackScore = false
+    @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
+    @AppStorage("setsToWin") private var setsToWin = 2
 
     private let motionRecorder = MotionRecorder()
     private let workoutManager = WorkoutManager()
@@ -38,6 +43,7 @@ final class SessionController: ObservableObject {
 
     private var recorder: SessionRecorder?
     private var ticker: Timer?
+    private var scoreBoard: ScoreBoard?
 
     var profile: PlayerProfile {
         PlayerProfile(
@@ -78,6 +84,18 @@ final class SessionController: ObservableObject {
             monotonicMs: Self.monotonicMs()
         )
 
+        if trackScore {
+            let board = ScoreBoard(
+                rules: ScoreRules(
+                    deuceFormat: DeuceFormat(rawValue: deuceFormatRaw) ?? .goldenPoint,
+                    setsToWin: setsToWin
+                ),
+                firstServer: .us
+            )
+            scoreBoard = board
+            score = board.current
+        }
+
         // Los datos de salud son opcionales: si el usuario no ha dado consentimiento no
         // se arranca el workout, así que ni siquiera se miden.
         if shareHealth, WorkoutManager.isSupported, await workoutManager.requestAuthorization() {
@@ -108,6 +126,12 @@ final class SessionController: ObservableObject {
         motionRecorder.stop()
         await workoutManager.end()
 
+        // El marcador se adjunta antes de cerrar para que el resultado viaje dentro de la
+        // sesión y no en un mensaje aparte que pueda perderse.
+        recorder.score = scoreBoard?.current
+        scoreBoard = nil
+        score = nil
+
         let session = recorder.finish(
             endedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
             monotonicMs: Self.monotonicMs(),
@@ -122,8 +146,25 @@ final class SessionController: ObservableObject {
         status = .saved
     }
 
+    /// Anota un punto y devuelve la vibración correspondiente al evento.
+    func pointTo(_ side: Side) {
+        guard let board = scoreBoard, !board.current.isFinished else { return }
+        let before = board.current
+        let after = board.point(to: side)
+        score = after
+        ScoreHaptics.play(ScoreEvent.between(before: before, after: after))
+    }
+
+    func undoPoint() {
+        guard let board = scoreBoard, let restored = board.undo() else { return }
+        score = restored
+        ScoreHaptics.play(.undo)
+    }
+
     func acknowledge() {
         status = .idle
+        scoreBoard = nil
+        score = nil
         elapsedSeconds = 0
         shotCount = 0
         heartRateBpm = nil

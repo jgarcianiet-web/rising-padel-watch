@@ -106,6 +106,14 @@ private fun SessionCard(session: PadelSession, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            session.score?.let { score ->
+                Text(
+                    text = score.allSets.joinToString("  ") { "${it.us}-${it.them}" },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Text(
                 text = buildString {
                     append("%.1f golpeos/min".format(session.shotsPerMinute))

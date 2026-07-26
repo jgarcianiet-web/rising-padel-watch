@@ -105,7 +105,10 @@ components:
       required: [sessionId, schemaVersion, source, startedAt, endedAt, durationSeconds, shots]
       properties:
         sessionId: { type: string, format: uuid }
-        schemaVersion: { type: integer, example: 1 }
+        schemaVersion:
+          type: integer
+          description: 1 sin marcador, 2 con marcador. Depende del contenido, no de la app.
+          example: 1
         source: { $ref: '#/components/schemas/Source' }
         startedAt: { type: string, format: date-time }
         endedAt: { type: string, format: date-time }
@@ -116,6 +119,9 @@ components:
         health:
           allOf: [{ $ref: '#/components/schemas/Health' }]
           description: Se omite por completo si el usuario no ha consentido compartir datos de salud.
+        score:
+          allOf: [{ $ref: '#/components/schemas/Score' }]
+          description: Marcador del partido. Se omite si se jugó sin llevarlo.
 
     Source:
       type: object
@@ -199,6 +205,43 @@ components:
           type: object
           description: Segundos en cada zona de frecuencia cardiaca.
           additionalProperties: { type: integer }
+
+    Score:
+      type: object
+      required: [rules, sets, completed]
+      properties:
+        rules:
+          type: object
+          required: [deuceFormat, setsToWin]
+          properties:
+            deuceFormat:
+              type: string
+              enum: [advantage, goldenPoint, starPoint]
+              description: >
+                Qué se juega a 40-40. advantage = ventajas sin límite;
+                goldenPoint = el siguiente punto decide; starPoint = hasta dos ventajas
+                y el tercer 40-40 decide.
+              example: goldenPoint
+            setsToWin: { type: integer, example: 2 }
+        sets:
+          type: array
+          description: >
+            Sets en orden de juego. Incluye el set en curso si el partido se interrumpió.
+          items:
+            type: object
+            required: [us, them]
+            properties:
+              us: { type: integer, minimum: 0 }
+              them: { type: integer, minimum: 0 }
+        winner:
+          type: string
+          enum: [us, them]
+          description: Ausente si el partido no llegó a terminarse.
+        completed:
+          type: boolean
+          description: >
+            Distingue un partido terminado de uno que se cortó a medias (por ejemplo,
+            porque se acabó la hora de pista).
 
     SessionRef:
       type: object

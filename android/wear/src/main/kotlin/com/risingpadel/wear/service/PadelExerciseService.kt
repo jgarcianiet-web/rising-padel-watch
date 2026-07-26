@@ -17,6 +17,8 @@ import com.risingpadel.core.detection.DetectorConfig
 import com.risingpadel.core.model.Platform
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
+import com.risingpadel.core.score.ScoreRules
+import com.risingpadel.core.score.Side
 import com.risingpadel.core.session.SessionRecorder
 import com.risingpadel.wear.PadelWearApp
 import com.risingpadel.wear.R
@@ -74,7 +76,7 @@ class PadelExerciseService : LifecycleService() {
     private fun startSession() {
         if (_state.value.status == SessionStatus.RECORDING) return
         _state.value = SessionUiState(status = SessionStatus.PREPARING)
-        goForeground()
+        if (!goForeground()) return
 
         lifecycleScope.launch {
             val container = (application as PadelWearApp).container
@@ -100,6 +102,16 @@ class PadelExerciseService : LifecycleService() {
 
             val startedAtEpochMs = System.currentTimeMillis()
             newRecorder.start(startedAtEpochMs, SystemClock.elapsedRealtime())
+
+            if (preferences.trackScore) {
+                container.scoreSession.start(
+                    rules = ScoreRules(
+                        deuceFormat = preferences.deuceFormat,
+                        setsToWin = preferences.setsToWin,
+                    ),
+                    firstServer = Side.US,
+                )
+            }
 
             // Los datos de salud son opcionales: si el usuario no ha dado permiso o el
             // reloj no los soporta, la sesión sigue midiendo golpeos.
@@ -168,6 +180,10 @@ class PadelExerciseService : LifecycleService() {
             val container = (application as PadelWearApp).container
             runCatching { container.exerciseTracker.end() }
 
+            // El marcador se cierra antes que la sesión para que el resultado viaje
+            // dentro de ella y no en un mensaje aparte que pueda perderse.
+            current.score = container.scoreSession.finish()
+
             val session = current.finish(
                 endedAtEpochMs = System.currentTimeMillis(),
                 monotonicMs = SystemClock.elapsedRealtime(),
@@ -210,14 +226,32 @@ class PadelExerciseService : LifecycleService() {
         stopSelf()
     }
 
-    private fun goForeground() {
+    /**
+     * @return false si el sistema no deja arrancar en primer plano, en cuyo caso no se
+     *   puede medir: sin servicio en primer plano Android corta los sensores en cuanto
+     *   se apaga la pantalla, y una sesión que se para sola a los diez segundos es peor
+     *   que no empezarla.
+     */
+    private fun goForeground(): Boolean {
         createChannel()
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH
         } else {
             0
         }
-        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(0, 0), type)
+        return try {
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, buildNotification(0, 0), type)
+            true
+        } catch (e: Exception) {
+            // Desde Android 14 un servicio de tipo `health` exige tener concedido alguno
+            // de los permisos de salud; sin ellos esto lanza SecurityException.
+            _state.value = SessionUiState(
+                status = SessionStatus.ERROR,
+                errorMessage = "Concede el permiso de sensores para poder medir con la pantalla apagada",
+            )
+            stopSelf()
+            false
+        }
     }
 
     private fun updateNotification(shots: Int, elapsedSeconds: Long) {
