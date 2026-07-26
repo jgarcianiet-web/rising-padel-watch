@@ -235,6 +235,14 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
 
     public var intensity: ShotIntensity { .from(shots) }
 
+    /// Nivel técnico estimado, de 1 a 7.
+    ///
+    /// Es una propiedad **derivada** y no un campo guardado: se recalcula de los golpeos
+    /// cada vez. Así no puede quedar desincronizada, y afinar las bandas de `LevelConfig`
+    /// cambia el nivel de las sesiones ya grabadas sin migrar nada — que es justo lo que
+    /// hace falta mientras el modelo esté sin calibrar.
+    public var level: SessionLevel { LevelEstimator().estimate(shots) }
+
     /// Golpeos por minuto: la métrica más comparable entre sesiones de distinta duración.
     public var shotsPerMinute: Float {
         durationSeconds <= 0 ? 0 : Float(totalShots) * 60 / Float(durationSeconds)

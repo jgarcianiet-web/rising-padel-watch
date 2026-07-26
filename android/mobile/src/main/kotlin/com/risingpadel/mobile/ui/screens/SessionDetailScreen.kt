@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.model.HeartRateZones
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.score.MatchScore
@@ -76,6 +77,7 @@ fun SessionDetailScreen(
         ) {
             HeadlineStats(session)
             session.score?.let { ScoreCard(it) }
+            session.level.takeIf { it.gradedShots > 0 }?.let { LevelCard(it) }
             ShotBreakdown(session)
             if (!session.health.isEmpty) HealthCard(session)
             MatchLinkCard(session, onLinkMatch)
@@ -112,6 +114,60 @@ private fun HeadlineStats(session: PadelSession) {
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun LevelCard(level: SessionLevel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Nivel técnico", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = "%.1f".format(level.rounded),
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text("de 7 · sobre ${level.gradedShots} golpeos", style = MaterialTheme.typography.bodySmall)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Stat("Regularidad", "${(level.consistency * 100).toInt()}%")
+                Stat("Repertorio", "${(level.repertoire * 100).toInt()}%")
+            }
+
+            // El desglose por golpe es lo accionable: el número global dice poco, saber
+            // que el revés va dos puntos por debajo de la derecha dice qué entrenar.
+            level.byShotType.entries.sortedByDescending { it.value }.forEach { (type, value) ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(type.label(), style = MaterialTheme.typography.bodyMedium)
+                    Text("%.1f".format(value), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            if (!level.reliable) {
+                Text(
+                    text = "Pocos golpeos para una estimación firme: juega una sesión más larga.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
+            Text(
+                text = "Estimado a partir de la velocidad y la forma del swing. No mide " +
+                    "colocación ni táctica, y está sin calibrar contra jugadores de nivel conocido.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 12.dp),
+            )
         }
     }
 }

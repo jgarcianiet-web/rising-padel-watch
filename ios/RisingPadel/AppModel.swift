@@ -59,10 +59,78 @@ final class AppModel: ObservableObject {
         receiver.activate()
         self.receiver = receiver
         refreshTrainingData()
+        observeSettingsChanges()
     }
 
     func refresh() {
         sessions = store.all()
+    }
+
+    // MARK: Replicación de ajustes al reloj
+
+    /// Marca de tiempo de la última edición de un ajuste replicado al reloj.
+    @AppStorage("settingsUpdatedAt") private var settingsUpdatedAtMs = 0
+
+    /// Lo último que se mandó, para no reenviar en cada escritura de UserDefaults.
+    private var lastReplicated: DeviceSettings?
+    private var settingsObserver: NSObjectProtocol?
+
+    /// Los ajustes que el reloj necesita, con la marca de tiempo actual.
+    var deviceSettings: DeviceSettings {
+        DeviceSettings(
+            profile: profile,
+            sensitivity: Sensitivity(rawValue: sensitivityRaw) ?? .medium,
+            shareHealth: shareHealth,
+            collectTrainingData: collectTrainingData,
+            // Se normaliza aquí y no en el campo de texto: reescribir mientras el usuario
+            // teclea es hostil, y lo que importa es que lo que viaja sea consistente.
+            playerAlias: DeviceSettings.sanitizeAlias(playerAlias),
+            updatedAtEpochMs: Int64(settingsUpdatedAtMs)
+        )
+    }
+
+    /// Replica al reloj cada cambio de ajustes.
+    ///
+    /// Se observa `UserDefaults` en vez de enganchar cada `Toggle` porque las vistas
+    /// escriben directamente en `@AppStorage`: no hay un setter donde poner la llamada, y
+    /// un ajuste nuevo se replicaría solo sin que haya que acordarse de nada.
+    private func observeSettingsChanges() {
+        // Se parte de lo que hay para que arrancar la app no cuente como una edición: si
+        // no, el primer arranque mandaría los valores por defecto con marca reciente y
+        // pisaría lo que el reloj tuviera configurado.
+        var seed = deviceSettings
+        seed.updatedAtEpochMs = 0
+        lastReplicated = seed
+
+        settingsObserver = NotificationCenter.default.addObserver(
+            forName: UserDefaults.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.replicateSettingsIfChanged() }
+        }
+
+        // Si ya había ajustes editados, se reenvían tal cual: puede ser un reloj recién
+        // emparejado que nunca los recibió. La marca no se toca, así que no pisa nada más
+        // reciente que hubiera en la muñeca.
+        if settingsUpdatedAtMs > 0 {
+            receiver?.replicate(deviceSettings)
+        }
+    }
+
+    private func replicateSettingsIfChanged() {
+        var current = deviceSettings
+        // La comparación ignora la marca de tiempo; si no, escribirla dispararía otra
+        // notificación y el ciclo no pararía nunca.
+        current.updatedAtEpochMs = 0
+        guard current != lastReplicated else { return }
+        lastReplicated = current
+
+        // Solo se mueve la marca cuando cambia algo de verdad: es lo que decide quién gana
+        // si el mismo ajuste se tocó en el reloj.
+        settingsUpdatedAtMs = Int(Date().timeIntervalSince1970 * 1000)
+        current.updatedAtEpochMs = Int64(settingsUpdatedAtMs)
+        receiver?.replicate(current)
     }
 
     // MARK: Datos de entrenamiento

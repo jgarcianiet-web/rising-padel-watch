@@ -28,6 +28,8 @@ final class SessionController: ObservableObject {
     @Published private(set) var statusMessage: String?
     /// Marcador en curso, o nil si se juega sin llevarlo.
     @Published private(set) var score: MatchScore?
+    /// Nivel técnico de la sesión recién cerrada. Nil mientras se juega.
+    @Published private(set) var sessionLevel: SessionLevel?
 
     @AppStorage("shareHealth") private var shareHealth = false
     @AppStorage("playerHand") private var playerHandRaw = Hand.right.rawValue
@@ -73,8 +75,57 @@ final class SessionController: ObservableObject {
     var wrongWristWarning: Bool { !profile.watchOnRacketArm }
 
     init() {
+        transport.onSettingsReceived = { [weak self] settings in
+            Task { @MainActor in self?.applyRemoteSettings(settings) }
+        }
         transport.activate()
         refreshTrainingCounts()
+    }
+
+    // MARK: Ajustes replicados desde el iPhone
+
+    /// Marca de tiempo de los ajustes que tiene el reloj, para resolver la replicación.
+    @AppStorage("settingsUpdatedAt") private var settingsUpdatedAtMs = 0
+
+    /// Ajustes que llegaron a mitad de partido y esperan a que termine.
+    private var pendingRemoteSettings: DeviceSettings?
+
+    /// Aplica los ajustes que llegan del iPhone.
+    ///
+    /// El merge por marca de tiempo lo decide `DeviceSettings`: si lo que llega es más
+    /// viejo que lo que hay, no se toca nada. Hace falta porque `updateApplicationContext`
+    /// reentrega el último estado al reconectar, y sin esto una reconexión revertiría un
+    /// cambio posterior.
+    private func applyRemoteSettings(_ incoming: DeviceSettings) {
+        let local = DeviceSettings(
+            profile: profile,
+            sensitivity: Sensitivity(rawValue: sensitivityRaw) ?? .medium,
+            shareHealth: shareHealth,
+            collectTrainingData: collectTrainingData,
+            playerAlias: playerAlias,
+            updatedAtEpochMs: Int64(settingsUpdatedAtMs)
+        )
+        let merged = local.merged(with: incoming)
+        guard merged.updatedAtEpochMs != Int64(settingsUpdatedAtMs) else { return }
+
+        // No se cambian los ajustes a mitad de partido: el detector ya está corriendo con
+        // una configuración y cambiarla en caliente daría una sesión medida con dos
+        // criterios distintos. Se guardan y se aplican al acabar.
+        guard status == .idle || status == .saved else {
+            pendingRemoteSettings = merged
+            return
+        }
+
+        // `objectWillChange` a mano: `@AppStorage` dentro de un `ObservableObject` no
+        // publica por su cuenta, así que sin esto la vista no se enteraría del cambio.
+        objectWillChange.send()
+        playerHandRaw = merged.profile.hand.rawValue
+        watchWristRaw = merged.profile.watchWrist.rawValue
+        sensitivityRaw = merged.sensitivity.rawValue
+        shareHealth = merged.shareHealth
+        collectTrainingData = merged.collectTrainingData
+        playerAlias = merged.playerAlias
+        settingsUpdatedAtMs = Int(merged.updatedAtEpochMs)
     }
 
     // MARK: Modo de recogida de datos
@@ -223,8 +274,17 @@ final class SessionController: ObservableObject {
         let queued = transport.send(session)
         shotCount = session.totalShots
         elapsedSeconds = session.durationSeconds
+        sessionLevel = session.level
         statusMessage = queued ? nil : "Guardada en el reloj; se enviará al iPhone al reconectar"
         status = .saved
+        applyPendingRemoteSettings()
+    }
+
+    /// Aplica los ajustes que llegaron mientras se jugaba, ya con el partido cerrado.
+    private func applyPendingRemoteSettings() {
+        guard let pending = pendingRemoteSettings else { return }
+        pendingRemoteSettings = nil
+        applyRemoteSettings(pending)
     }
 
     /// Anota un punto y devuelve la vibración correspondiente al evento.
@@ -251,6 +311,7 @@ final class SessionController: ObservableObject {
         heartRateBpm = nil
         lastShotType = nil
         statusMessage = nil
+        sessionLevel = nil
     }
 
     private func apply(_ metrics: WorkoutMetrics) {

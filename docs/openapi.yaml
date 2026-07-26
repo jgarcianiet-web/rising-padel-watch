@@ -122,6 +122,11 @@ components:
         score:
           allOf: [{ $ref: '#/components/schemas/Score' }]
           description: Marcador del partido. Se omite si se jugó sin llevarlo.
+        level:
+          allOf: [{ $ref: '#/components/schemas/Level' }]
+          description: >
+            Nivel técnico estimado. Se omite si ningún golpeo pudo puntuarse. Es derivado
+            de shots, así que ignorarlo no pierde información.
 
     Source:
       type: object
@@ -205,6 +210,46 @@ components:
           type: object
           description: Segundos en cada zona de frecuencia cardiaca.
           additionalProperties: { type: integer }
+
+    Level:
+      type: object
+      required: [overall, byShotType, consistency, repertoire, gradedShots, reliable]
+      description: >
+        Estimación sin calibrar hecha con el giróscopo de la muñeca: mide velocidad y
+        forma del swing, no colocación ni táctica. No usar para clasificar jugadores.
+      properties:
+        overall:
+          type: number
+          format: float
+          minimum: 1
+          maximum: 7
+          description: Escala de nivel de pádel, de 1 a 7.
+          example: 4.6
+        byShotType:
+          type: object
+          description: Nivel medio de cada tipo de golpe jugado.
+          additionalProperties: { type: number, format: float }
+        consistency:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: >
+            Regularidad entre golpeos del mismo tipo. En pádel pesa tanto como la potencia.
+        repertoire:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Proporción de tipos de golpe usados con soltura.
+        gradedShots:
+          type: integer
+          description: Golpeos que puntuaron. Los de tipo desconocido no cuentan.
+        reliable:
+          type: boolean
+          description: >
+            false si hubo menos de 30 golpeos puntuables. El número sigue estando, pero no
+            conviene apoyarse en él.
 
     Score:
       type: object

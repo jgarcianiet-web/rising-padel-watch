@@ -98,6 +98,14 @@ repetidas.
     ],
     "winner": "us",                 // "us" | "them"; ausente si no terminó
     "completed": true
+  },
+  "level": {                        // se omite si ningún golpeo pudo puntuarse
+    "overall": 4.6,                 // escala de pádel, 1 a 7
+    "byShotType": { "forehand": 5.1, "backhand": 3.9, "forehandVolley": 4.4 },
+    "consistency": 0.78,            // 0 a 1
+    "repertoire": 0.5,              // 0 a 1
+    "gradedShots": 380,             // golpeos que puntuaron (los `unknown` no)
+    "reliable": true                // false si hubo pocos golpeos
   }
 }
 ```
@@ -117,6 +125,13 @@ Notas de campos:
 - `score.rules.deuceFormat` es `"advantage"`, `"goldenPoint"` o `"starPoint"`. Cambia
   cómo se cuentan los puntos, no solo la etiqueta: con star point se juegan hasta dos
   ventajas y el tercer 40-40 decide.
+- `level` es **derivado** de `shots`: la liga puede recalcularlo con su propia fórmula si
+  quiere. Viaja en el payload para que no tenga que hacerlo. Por eso **no** sube la versión
+  del esquema: ignorarlo no pierde información, a diferencia de `score`.
+- `level.reliable` en `false` significa que hubo menos de 30 golpeos puntuables. El número
+  sigue estando; simplemente no conviene apoyarse en él. **No lo uses para clasificar
+  jugadores en una liga**: es una estimación sin calibrar hecha con el giróscopo de la
+  muñeca, no ve colocación ni táctica. Ver [`level.md`](./level.md).
 
 ### Respuestas
 

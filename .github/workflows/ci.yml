@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # Las ramas de trabajo también se validan: sin esto hay que lanzar el workflow a mano
+    # hasta que existe el PR, y un fallo de compilación se descubre tarde.
+    branches: [main, 'claude/**']
   pull_request:
   workflow_dispatch:
 

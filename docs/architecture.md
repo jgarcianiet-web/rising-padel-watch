@@ -87,6 +87,34 @@ un adaptador delante).
 7. `SyncQueue` hace `POST` a la app de liga con `Idempotency-Key`; reintenta con
    backoff exponencial hasta confirmar.
 
+## Ajustes: el móvil manda, el reloj obedece
+
+Mano, muñeca, sensibilidad, consentimiento de salud, modo de entrenamiento y alias se
+configuran **solo en el móvil** y se replican al reloj. Escribir un alias o elegir la
+muñeca en una pantalla de 45 mm es una mala idea, y tener dos sitios donde configurar lo
+mismo garantiza que acaben distintos.
+
+El payload es `DeviceSettings`, que vive en el core y está cubierto por tests en las dos
+implementaciones. Viaja por `updateApplicationContext` (Apple) y por un `DataItem` de ruta
+fija (Wear): los dos **sustituyen** el estado anterior y lo **reentregan al reconectar**,
+que es justo la semántica que quiere un ajuste. Con un mensaje habría que acertar con el
+momento en que el reloj está encendido y a tiro.
+
+Tres decisiones que no son obvias:
+
+- **La marca de tiempo no es decorativa.** Como el sistema reentrega el último estado al
+  reconectar, sin ella una reconexión revertiría un cambio hecho después. El merge lo
+  resuelve `DeviceSettings.mergedWith`: gana el más reciente, y en caso de empate lo local.
+- **El marcador no se replica.** `trackScore`, `deuceFormat` y `setsToWin` se deciden en el
+  reloj al empezar el partido, que es cuando el jugador sabe si va a llevar marcador.
+  Replicarlos pisaría lo que acaba de elegir en la muñeca.
+- **Ni la URL de la liga ni el token viajan.** El reloj no habla con la liga, habla con el
+  móvil. Un token es una credencial y cuantos menos sitios la tengan, mejor.
+
+Los ajustes que llegan a mitad de partido no se aplican hasta que termina: el detector ya
+está corriendo con una configuración, y cambiarla en caliente daría una sesión medida con
+dos criterios distintos.
+
 ## Privacidad
 
 Los datos de salud son categoría especial. Reglas del proyecto:

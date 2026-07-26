@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -32,6 +35,26 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         viewModelScope.launch { container.sessions.refresh() }
+        replicateSettingsToWatch()
+    }
+
+    /**
+     * Manda al reloj cada cambio de ajustes.
+     *
+     * Se observa el flujo entero en vez de llamar al emisor en cada setter: así un ajuste
+     * nuevo se replica solo, sin que haya que acordarse de añadir la llamada. El
+     * `distinctUntilChanged` evita reenviar cuando cambia algo que el reloj no usa.
+     */
+    private fun replicateSettingsToWatch() {
+        viewModelScope.launch {
+            container.settings.preferences
+                .map { it.toDeviceSettings() }
+                .distinctUntilChanged()
+                // Sin ninguna edición todavía no hay nada que replicar, y mandarlo
+                // pisaría con valores por defecto lo que el reloj pudiera tener.
+                .filter { it.updatedAtEpochMs > 0 }
+                .collect { container.watchSettingsSender.send(it) }
+        }
     }
 
     fun refresh() {

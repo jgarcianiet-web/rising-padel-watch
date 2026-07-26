@@ -1,7 +1,9 @@
 package com.risingpadel.core.detection
 
 import com.risingpadel.core.model.Vector3
+import kotlinx.serialization.Serializable
 
+@Serializable
 enum class Sensitivity(val factor: Float) {
     /** Menos falsos positivos, se pierden golpeos suaves. */
     LOW(1.25f),

@@ -9,10 +9,12 @@ import com.risingpadel.core.sync.SyncQueue
 import com.risingpadel.mobile.data.AppSettings
 import com.risingpadel.mobile.data.SessionRepository
 import com.risingpadel.mobile.sync.SyncScheduler
+import com.risingpadel.mobile.sync.WatchSettingsSender
 import java.io.File
 
 class AppContainer(context: Context) {
     val settings = AppSettings(context)
+    val watchSettingsSender = WatchSettingsSender(context)
 
     private val store = FileSessionStore(File(context.filesDir, "sessions"))
     val sessions = SessionRepository(store)

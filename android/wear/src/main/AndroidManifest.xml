@@ -49,5 +49,24 @@
             android:exported="false"
             android:foregroundServiceType="health" />
 
+        <!--
+            Recibe los ajustes que el jugador cambia en el móvil (mano, muñeca,
+            sensibilidad, consentimiento de salud, modo de entrenamiento y alias).
+            Google Play Services arranca el servicio aunque la app del reloj esté cerrada:
+            los ajustes se cambian el día antes, no en la pista.
+        -->
+        <service
+            android:name=".transport.SettingsListenerService"
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_WEARABLE_LISTENER">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/padel/settings" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

@@ -135,6 +135,13 @@ struct WatchRootView: View {
             Text("Sesión guardada").font(.headline).multilineTextAlignment(.center)
             Text("\(controller.shotCount) golpeos · \(formatDuration(controller.elapsedSeconds))")
                 .font(.caption)
+            // El nivel se enseña al acabar y no en vivo: mirarlo subir y bajar entre
+            // puntos no aporta nada y distrae del partido.
+            if let level = controller.sessionLevel, level.gradedShots > 0 {
+                Text(level.label)
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+            }
             if let message = controller.statusMessage {
                 Text(message)
                     .font(.system(size: 10))

@@ -13,11 +13,15 @@ deslizar**. El deslizamiento horizontal está tomado por el gesto de volver atr�
 sistema en Wear OS y por la navegación entre vistas en watchOS; robarlo rompe la
 navegación o directamente no funciona.
 
-Queda una limitación conocida: los ajustes del reloj y los del móvil **no se
-sincronizan** todavía. El interruptor de "llevar marcador" está en la pantalla inicial
-del reloj, así que esta función no lo necesita, pero el resto de ajustes (mano, muñeca,
-sensibilidad, consentimiento de salud) hay que configurarlos en cada dispositivo. La
-replicación por Data Layer / WatchConnectivity está pendiente.
+## ~~1b. Replicar los ajustes del móvil al reloj~~ — hecho
+
+Era una limitación conocida y resultó ser un bloqueo: el modo de recogida de datos se
+activa en el móvil pero la pantalla que lo usa está en el reloj, así que **sin
+replicación no había forma de llegar a ella**. Lo mismo con el alias, que sin configurar
+se queda en `anon` y hace inútil la validación leave-one-player-out.
+
+Implementado con `DeviceSettings` en el core y replicación por `updateApplicationContext`
+(Apple) y `DataItem` (Wear). Ver [`architecture.md`](./architecture.md#ajustes-el-móvil-manda-el-reloj-obedece).
 
 ## 2. Clasificador de golpeos entrenado — modo de grabación hecho
 

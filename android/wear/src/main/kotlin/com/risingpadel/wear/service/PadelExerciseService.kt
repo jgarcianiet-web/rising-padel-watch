@@ -14,6 +14,7 @@ import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.risingpadel.core.detection.DetectorConfig
+import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.model.Platform
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
@@ -44,6 +45,8 @@ data class SessionUiState(
     val activeEnergyKcal: Float? = null,
     val lastShotType: ShotType? = null,
     val wrongWristWarning: Boolean = false,
+    /** Nivel técnico de la sesión. Solo al terminar: en vivo no aporta y distrae. */
+    val level: SessionLevel? = null,
     val errorMessage: String? = null,
 )
 
@@ -252,6 +255,7 @@ class PadelExerciseService : LifecycleService() {
                 status = SessionStatus.SAVED,
                 shotCount = session.totalShots,
                 elapsedSeconds = session.durationSeconds,
+                level = session.level.takeIf { it.gradedShots > 0 },
                 errorMessage = if (sent) null else "Guardada en el reloj; se enviará al móvil al reconectar",
             )
             stopForegroundAndSelf()
