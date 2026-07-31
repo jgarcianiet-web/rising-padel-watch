@@ -62,6 +62,7 @@ Para compilar las apps, ver [`docs/setup.md`](docs/setup.md).
 - [Entrenar el clasificador](docs/training-data.md) — grabar golpeos etiquetados y
   entrenar un modelo propio
 - [Puesta en marcha](docs/setup.md) — compilar, conectar la liga, calibrar
+- [Apple Watch sin Mac](docs/testflight.md) — compilar y subir a TestFlight desde CI
 - [Pendiente](docs/backlog.md) — lo decidido pero no hecho, y las limitaciones conocidas
 
 ## Dos cosas que conviene saber antes de usarlo
