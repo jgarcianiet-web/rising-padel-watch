@@ -107,7 +107,10 @@ swift test
 
 ### Instalar en un Apple Watch de verdad
 
-Hace falta **un Mac con Xcode**. No hay forma de compilar para watchOS sin él.
+> **¿Sin Mac?** Compilar para watchOS necesita Xcode, pero no que el Mac sea tuyo: los
+> runners de GitHub Actions lo son. Ver [`testflight.md`](./testflight.md).
+
+Con un Mac con Xcode a mano:
 
 1. Xcode → Settings → Accounts → añade tu Apple ID. En `ios/project.yml`, pon tu Team ID
    en `DEVELOPMENT_TEAM` y ejecuta `xcodegen generate` otra vez.
