@@ -40,16 +40,44 @@ details**. Son 10 caracteres tipo `A1B2C3D4E5`.
 
 ### 2. Clave de App Store Connect
 
-[App Store Connect](https://appstoreconnect.apple.com) → **Users and Access** → **Integrations**
-→ **App Store Connect API** → **+**.
+Es una clave de API: sustituye a usuario y contraseña para que el workflow pueda hablar
+con Apple sin pelearse con el doble factor.
 
-- Rol: **App Manager** (con Developer no puede subir builds).
-- Descarga el `.p8`. **Solo se puede descargar una vez.** Si lo pierdes, se revoca y se
-  crea otra.
-- Apunta el **Key ID** y el **Issuer ID** de esa pantalla.
+1. Entra en [App Store Connect](https://appstoreconnect.apple.com) con la cuenta que pagó
+   el programa.
+2. **Users and Access** (arriba).
+3. Pestaña **Integrations**.
+4. En la barra izquierda, **App Store Connect API** → **Team Keys**.
 
-Para `APPSTORE_PRIVATE_KEY`, pega el contenido completo del `.p8`, con las líneas
-`-----BEGIN PRIVATE KEY-----` y `-----END PRIVATE KEY-----` incluidas.
+   > **Que sea Team Keys, no Individual Keys.** Las individuales van atadas a tu persona y
+   > heredan tu rol: no tienen selector de rol, así que si acabas ahí no vas a encontrar el
+   > desplegable de App Manager y no sabrás por qué. Las de equipo son de la organización,
+   > que es lo que quiere un CI.
+
+5. Botón **+** (o **Generate API Key** si es la primera).
+6. **Name**: algo reconocible, `GitHub Actions TestFlight`. Es solo una etiqueta.
+7. **Access**: **App Manager**.
+8. **Generate**.
+
+Ahora, en la fila que acaba de aparecer:
+
+- **Download** → baja un fichero `AuthKey_XXXXXXXXXX.p8`. **Solo se puede descargar una
+  vez**; en cuanto recargues la página el enlace desaparece para siempre. Si lo pierdes,
+  hay que revocar la clave y crear otra.
+- **KEY ID**: los 10 caracteres de esa misma fila → secreto `APPSTORE_KEY_ID`.
+- **ISSUER ID**: el UUID largo **encima de la tabla**, con un enlace *Copy* al lado. Es el
+  mismo para todas las claves del equipo → secreto `APPSTORE_ISSUER_ID`.
+
+Para `APPSTORE_PRIVATE_KEY`, abre el `.p8` con un editor de texto y pega **el contenido
+completo**, incluidas las líneas `-----BEGIN PRIVATE KEY-----` y
+`-----END PRIVATE KEY-----`. Los secretos de GitHub admiten varias líneas sin problema.
+
+Sobre el rol: **App Manager** es el que cubre subir builds *y* gestionar TestFlight
+(grupos, probadores, notas). **Developer** sí puede subir builds, pero se queda corto en la
+parte de TestFlight y en los metadatos de la app, así que tarde o temprano da un error de
+permisos. **Admin** funcionaría, pero da más poder del necesario a una credencial que vive
+en un CI. El rol **no se puede cambiar después**: para cambiarlo hay que revocar la clave y
+crear otra.
 
 ### 3. Certificado de distribución (sin Mac, con `openssl`)
 
@@ -132,7 +160,8 @@ fallos previsibles y qué significan:
 | `MAC verification failed` al importar | Falta `-legacy` al generar el `.p12` |
 | `No signing certificate "Apple Distribution" found` | El `.p12` no entró bien, o es de tipo Development y no Distribution |
 | `No profiles for 'com.risingpadel.watch' were found` | La app no está registrada en App Store Connect (paso 4) |
-| `Authentication credentials are missing or invalid` | La clave de API tiene rol Developer en vez de App Manager |
+| `Authentication credentials are missing or invalid` | El `.p8`, el Key ID o el Issuer ID no cuadran. Comprueba que el Issuer ID es el UUID de encima de la tabla y no otro identificador |
+| `Forbidden` / `not permitted` al subir | La clave se creó con un rol insuficiente. Revócala y crea otra con App Manager |
 | `xcodebuild` se cuelga en la firma | Falta `set-key-partition-list`; ya está en el workflow, pero si tocas ese paso no lo quites |
 | `method` no válido en ExportOptions | Xcode viejo: cambia `app-store-connect` por `app-store` |
 
