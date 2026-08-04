@@ -6,9 +6,11 @@ struct SessionDetailView: View {
 
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
 
     @State private var matchId = ""
     @State private var leagueId = ""
+    @State private var leagueOpenFailed = false
 
     var body: some View {
         List {
@@ -17,6 +19,7 @@ struct SessionDetailView: View {
             levelSection
             shotBreakdownSection
             if !session.health.isEmpty { healthSection }
+            leagueExportSection
             matchLinkSection
             syncSection
             deleteSection
@@ -209,6 +212,30 @@ struct SessionDetailView: View {
             .frame(height: 8)
         }
         .padding(.vertical, 2)
+    }
+
+    // Volcado local a Liga Personal Pádel (mismo iPhone): abre la liga con la sesión
+    // y ella prerrellena el partido. No usa red ni token; ver LeagueDeepLink.
+    private var leagueExportSection: some View {
+        Section {
+            Button("Enviar a Liga Personal Pádel") {
+                guard let url = LeagueDeepLink.url(for: session, shareHealth: model.shareHealth)
+                else { return }
+                leagueOpenFailed = false
+                openURL(url) { accepted in leagueOpenFailed = !accepted }
+            }
+            if leagueOpenFailed {
+                Text("No se pudo abrir Liga Personal Pádel. ¿Está instalada en este iPhone?")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        } footer: {
+            Text(
+                model.shareHealth
+                    ? "Abre la app de liga de este iPhone con el partido prerrellenado (golpeos, marcador, nivel y salud)."
+                    : "Abre la app de liga de este iPhone con el partido prerrellenado. La salud no se incluye: el consentimiento está desactivado en Ajustes."
+            )
+        }
     }
 
     private var matchLinkSection: some View {
