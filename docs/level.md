@@ -43,7 +43,9 @@ smash de nivel 3:
 | Revés | 26 km/h | 60 km/h |
 | Volea de derecha | 10 km/h | 26 km/h |
 | Volea de revés | 10 km/h | 24 km/h |
-| Bandeja / smash | 45 km/h | 90 km/h |
+| Bandeja | 32 km/h | 58 km/h |
+| Víbora | 38 km/h | 68 km/h |
+| Smash | 50 km/h | 95 km/h |
 | Saque | 32 km/h | 72 km/h |
 
 **Amplitud**: cuánto se acerca el ángulo barrido a la referencia del golpe. Aquí hay una

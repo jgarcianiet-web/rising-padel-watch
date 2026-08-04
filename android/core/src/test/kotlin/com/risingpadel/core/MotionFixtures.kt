@@ -157,12 +157,33 @@ object MotionFixtures {
     )
 
     /** Bandeja / smash: brazo alto y swing contenido. */
-    fun overhead(startMs: Long) = swing(
+    /** Bandeja: golpe alto de control, plano y sin violencia. */
+    fun bandeja(startMs: Long) = swing(
         startMs = startMs,
-        peakGyroRadS = 18f,
+        peakGyroRadS = 15f,
         swingDurationMs = 250,
+        impactG = 6f,
+        axialFraction = 0.2f,
+        elevationDeg = 75f,
+    )
+
+    /** Víbora: golpe alto con mucho efecto lateral — rotación axial alta sin ser remate. */
+    fun vibora(startMs: Long) = swing(
+        startMs = startMs,
+        peakGyroRadS = 19f,
+        swingDurationMs = 240,
         impactG = 8f,
-        axialFraction = 0.5f,
+        axialFraction = 0.6f,
+        elevationDeg = 70f,
+    )
+
+    /** Smash: el remate — violento y corto, con el pico de giro por encima de todo. */
+    fun smash(startMs: Long) = swing(
+        startMs = startMs,
+        peakGyroRadS = 30f,
+        swingDurationMs = 170,
+        impactG = 10f,
+        axialFraction = 0.3f,
         elevationDeg = 80f,
     )
 

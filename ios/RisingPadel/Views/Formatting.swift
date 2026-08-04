@@ -25,7 +25,9 @@ extension ShotType {
         case .backhand: return "Revés"
         case .forehandVolley: return "Volea de derecha"
         case .backhandVolley: return "Volea de revés"
-        case .overhead: return "Bandeja / smash"
+        case .bandeja: return "Bandeja"
+        case .vibora: return "Víbora"
+        case .smash: return "Smash"
         case .serve: return "Saque"
         case .unknown: return "Sin clasificar"
         }

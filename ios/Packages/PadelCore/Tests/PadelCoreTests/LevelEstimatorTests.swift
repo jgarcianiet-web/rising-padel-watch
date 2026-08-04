@@ -143,7 +143,7 @@ final class LevelEstimatorTests: XCTestCase {
         // 100 derechas flojas y 10 smashes buenos. Si la media fuera por golpeo, los
         // smashes no se notarían; siendo por tipo, pesan igual que las derechas.
         let sesion = (0..<100).map { _ in shot(type: .forehand, speedKmh: 30) }
-            + (0..<10).map { _ in shot(type: .overhead, speedKmh: 88, sweptDeg: 200) }
+            + (0..<10).map { _ in shot(type: .smash, speedKmh: 88, sweptDeg: 210) }
 
         let level = estimator.estimate(sesion)
         let soloDerechas = estimator.estimate((0..<100).map { _ in shot(type: .forehand, speedKmh: 30) })

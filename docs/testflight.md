@@ -130,8 +130,14 @@ uno invalida las builds firmadas con él.
 - Plataforma: iOS.
 - Nombre y SKU: los que quieras.
 
-Los identificadores y los perfiles de aprovisionamiento se crean solos: el workflow pasa
-`-allowProvisioningUpdates` con la clave de API, y Xcode los genera en el portal.
+Los identificadores y los perfiles de aprovisionamiento los crea el propio workflow
+contra la API de App Store Connect (`.github/scripts/preparar_perfiles.py`), incluida la
+capability de HealthKit del reloj. No hay que crear nada a mano en el portal.
+
+Se hace así y no con la firma automática de Xcode porque la automática archiva con un
+perfil de desarrollo, y esos exigen **un dispositivo registrado en el equipo** — que en
+una cuenta sin Mac ni cable no hay forma cómoda de registrar. Los perfiles de App Store
+no piden dispositivos.
 
 ## Lanzar una build
 
@@ -158,18 +164,19 @@ Cada ejecución usa `github.run_number` como número de build, así que nunca ch
 
 ## Cuando falle
 
-No he podido probar este workflow: hace falta una cuenta de Apple de verdad. Estos son los
-fallos previsibles y qué significan:
+Errores vistos de verdad al poner esto en marcha, más los previsibles:
 
 | Error | Causa |
 |---|---|
+| `Error Downloading App Information` al exportar | **La app no existe en App Store Connect** con el bundle ID `com.risingpadel.watch`. Es el único paso que no se puede hacer por API: créala en la web (paso 4). Visto en el run #4 |
+| `Your team has no devices from which to generate a provisioning profile` | Alguien cambió la firma a automática: la automática archiva con perfil de desarrollo, que exige un dispositivo registrado. Vuelve a la firma manual de `ios/project.yml`. Visto en el run #1 |
+| `conflicting provisioning settings` | Se pasó `CODE_SIGN_IDENTITY` por línea de comandos con firma automática. O todo automático o todo manual. Visto en el run #2 |
+| `PARAMETER_ERROR.ILLEGAL` en el paso de perfiles | Un endpoint de relación de la API no admite un parámetro de colección (p. ej. `limit`). Visto en el run #3 |
 | `MAC verification failed` al importar | Falta `-legacy` al generar el `.p12` |
 | `No signing certificate "Apple Distribution" found` | El `.p12` no entró bien, o es de tipo Development y no Distribution |
-| `No profiles for 'com.risingpadel.watch' were found` | La app no está registrada en App Store Connect (paso 4) |
 | `Authentication credentials are missing or invalid` | El `.p8`, el Key ID o el Issuer ID no cuadran. Comprueba que el Issuer ID es el UUID de encima de la tabla y no otro identificador |
 | `Forbidden` / `not permitted` al subir | La clave se creó con un rol insuficiente. Revócala y crea otra con App Manager |
 | `xcodebuild` se cuelga en la firma | Falta `set-key-partition-list`; ya está en el workflow, pero si tocas ese paso no lo quites |
-| `method` no válido en ExportOptions | Xcode viejo: cambia `app-store-connect` por `app-store` |
 
 El job sube los logs de `xcodebuild` como artefacto cuando falla. Si te atascas, pásamelos.
 

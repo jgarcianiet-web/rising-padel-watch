@@ -136,7 +136,9 @@ final class ShotDetectorTests: XCTestCase {
             (.backhand, MotionFixtures.backhand(startMs: 400)),
             (.forehandVolley, MotionFixtures.forehandVolley(startMs: 400)),
             (.backhandVolley, MotionFixtures.backhandVolley(startMs: 400)),
-            (.overhead, MotionFixtures.overhead(startMs: 400)),
+            (.bandeja, MotionFixtures.bandeja(startMs: 400)),
+            (.vibora, MotionFixtures.vibora(startMs: 400)),
+            (.smash, MotionFixtures.smash(startMs: 400)),
             (.serve, MotionFixtures.serve(startMs: 400)),
         ]
         for (expected, samples) in cases {

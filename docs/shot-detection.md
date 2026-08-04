@@ -83,11 +83,28 @@ rotación se invierte si el reloj va en la muñeca contraria a la que empuña.
 
 ```
 elevation > 45°  ──► sweptAngle > 220° y peakGyro > 18 rad/s ──► serve
-                 └─► resto                                    ──► overhead
+                 ├─► peakGyro > 24 rad/s                      ──► smash
+                 ├─► |axialRotation| > 5 rad/s                ──► vibora
+                 └─► resto                                    ──► bandeja
 
 elevation ≤ 45°  ──► sweptAngle < 70°  ──► axialRotation > 0 ? forehandVolley : backhandVolley
                  └─► sweptAngle ≥ 70°  ──► axialRotation > 0 ? forehand       : backhand
 ```
+
+Los tres golpes altos que no son saque se separan por lo que los define en pista, y el
+orden de las preguntas importa:
+
+- **Smash** = violencia. El pico de giro va por encima de todo lo demás (25-35 rad/s
+  frente a 12-20 de una bandeja). Se pregunta primero porque un smash suele llevar
+  también algo de efecto, y si se preguntara antes por la rotación axial se colaría como
+  víbora.
+- **Víbora** = efecto. Rotación axial alta sin la violencia del remate: el corte lateral
+  es su seña de identidad.
+- **Bandeja** = control. Plana y contenida; es el resto de golpes altos.
+
+Estos dos umbrales (`smashPeakGyroRadS`, `viboraAxialRadS`) son los más finos de todo el
+clasificador — bandeja y víbora son vecinas de verdad — y los primeros candidatos a
+mejorar con el clasificador entrenado.
 
 `axialRotation > 0` significa lado de derecha. El signo depende de dos cosas y el
 clasificador las normaliza por separado:

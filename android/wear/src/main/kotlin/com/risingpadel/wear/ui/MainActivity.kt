@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
                         onUndo = {
                             container.scoreSession.undo()?.let { container.haptics.play(it) }
                         },
+                        onStop = { PadelExerciseService.stop(this) },
                     )
                 } else {
                     PadelWearScreen(

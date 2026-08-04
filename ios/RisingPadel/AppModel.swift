@@ -69,7 +69,12 @@ final class AppModel: ObservableObject {
     // MARK: Replicación de ajustes al reloj
 
     /// Marca de tiempo de la última edición de un ajuste replicado al reloj.
-    @AppStorage("settingsUpdatedAt") private var settingsUpdatedAtMs = 0
+    ///
+    /// `Double` y no `Int` por la misma razón que en el reloj: este valor viaja a
+    /// relojes arm64_32 donde `Int` es de 32 bits y una época en milisegundos no cabe.
+    /// En el iPhone `Int` habría funcionado, pero los dos lados usan el mismo tipo para
+    /// que nadie pueda reintroducir el desbordamiento copiando código de un lado a otro.
+    @AppStorage("settingsUpdatedAt") private var settingsUpdatedAtMs: Double = 0
 
     /// Lo último que se mandó, para no reenviar en cada escritura de UserDefaults.
     private var lastReplicated: DeviceSettings?
@@ -128,7 +133,7 @@ final class AppModel: ObservableObject {
 
         // Solo se mueve la marca cuando cambia algo de verdad: es lo que decide quién gana
         // si el mismo ajuste se tocó en el reloj.
-        settingsUpdatedAtMs = Int(Date().timeIntervalSince1970 * 1000)
+        settingsUpdatedAtMs = (Date().timeIntervalSince1970 * 1000).rounded()
         current.updatedAtEpochMs = Int64(settingsUpdatedAtMs)
         receiver?.replicate(current)
     }

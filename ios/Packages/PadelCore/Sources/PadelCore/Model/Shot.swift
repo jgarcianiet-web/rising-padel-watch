@@ -6,7 +6,15 @@ public enum ShotType: String, Codable, CaseIterable, Sendable {
     case backhand
     case forehandVolley
     case backhandVolley
-    case overhead
+
+    /// Golpe alto de control, el techo defensivo del pádel.
+    case bandeja
+
+    /// Golpe alto con mucho efecto lateral: lo define la rotación axial, no la fuerza.
+    case vibora
+
+    /// El remate: máxima violencia, pico de giro por encima de todo lo demás.
+    case smash
     case serve
     case unknown
 
@@ -14,7 +22,10 @@ public enum ShotType: String, Codable, CaseIterable, Sendable {
     public var wireName: String { rawValue }
 
     public static func fromWire(_ value: String) -> ShotType {
-        ShotType(rawValue: value) ?? .unknown
+        if let type = ShotType(rawValue: value) { return type }
+        // Sesiones anteriores a separar los golpes altos: "overhead" agrupaba bandeja,
+        // víbora y smash. Se mapea a bandeja, que es el más común.
+        return value == "overhead" ? .bandeja : .unknown
     }
 }
 
