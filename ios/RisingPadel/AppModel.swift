@@ -157,6 +157,22 @@ final class AppModel: ObservableObject {
         receiver?.replicate(current)
     }
 
+    // MARK: Enviar a la liga (deep link)
+
+    /// URL `ligapadel://importar?datos=<JSON>` con el payload del contrato.
+    ///
+    /// Es el puente con la app de liga (repositorio `padel`): su pantalla de importar
+    /// consume exactamente el payload de `POST /v1/padel-sessions`. Sin eventos por
+    /// golpeo — la liga no los usa y un deep link no es sitio para decenas de KB.
+    func leagueDeepLink(for session: PadelSession) -> URL? {
+        let payload = session.toPayload(shareHealth: shareHealth, includeEvents: false)
+        guard let data = try? JSONEncoder().encode(payload),
+              let json = String(data: data, encoding: .utf8),
+              let encoded = json.addingPercentEncoding(withAllowedCharacters: .alphanumerics)
+        else { return nil }
+        return URL(string: "ligapadel://importar?datos=\(encoded)")
+    }
+
     // MARK: Datos de entrenamiento
 
     func refreshTrainingData() {

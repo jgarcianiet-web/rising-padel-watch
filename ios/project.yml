@@ -41,6 +41,10 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # Para poder comprobar si la app de la liga está instalada antes de abrir el
+        # deep link ligapadel://importar con la sesión.
+        LSApplicationQueriesSchemes:
+          - ligapadel
         # Sin esto, cada build se queda parada en App Store Connect esperando a que
         # alguien responda a mano el cuestionario de cifrado de exportación, y hasta
         # entonces los probadores no la ven.

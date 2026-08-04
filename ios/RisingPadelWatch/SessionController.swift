@@ -74,6 +74,26 @@ final class SessionController: ObservableObject {
 
     var wrongWristWarning: Bool { !profile.watchOnRacketArm }
 
+    /// Configuración del detector con el eje del antebrazo corregido para watchOS.
+    ///
+    /// En watchOS el marco de CoreMotion sigue la orientación de la pantalla, y con la
+    /// corona bien configurada las 12 del reloj miran **siempre al codo**, en las dos
+    /// muñecas: el eje codo → mano es **-Y**. El convenio por defecto del core asume +Y
+    /// para la muñeca derecha, y en pista eso salía al revés: las derechas se leían como
+    /// revés y los golpes altos nunca aparecían (la elevación salía negativa con el
+    /// brazo levantado).
+    ///
+    /// El clasificador invierte el eje él solo para la muñeca izquierda (modela el
+    /// hardware girado, cosa que watchOS ya normaliza), así que aquí se le pre-compensa
+    /// para que el eje efectivo sea -Y en las dos muñecas.
+    private func detectorConfig() -> DetectorConfig {
+        var config = DetectorConfig.default.withSensitivity(
+            Sensitivity(rawValue: sensitivityRaw) ?? .medium
+        )
+        config.forearmAxis = profile.watchWrist == .right ? Vector3(0, -1, 0) : Vector3(0, 1, 0)
+        return config
+    }
+
     init() {
         transport.onSettingsReceived = { [weak self] settings in
             Task { @MainActor in self?.applyRemoteSettings(settings) }
@@ -145,9 +165,7 @@ final class SessionController: ObservableObject {
                 appVersion: Bundle.main.appVersion
             ),
             profile: profile,
-            config: DetectorConfig.default.withSensitivity(
-                Sensitivity(rawValue: sensitivityRaw) ?? .medium
-            )
+            config: detectorConfig()
         )
         recorder.label = trainingLabel
         recorder.playerAlias = playerAlias
@@ -205,7 +223,6 @@ final class SessionController: ObservableObject {
             return
         }
 
-        let sensitivity = Sensitivity(rawValue: sensitivityRaw) ?? .medium
         let recorder = SessionRecorder(
             source: SourceInfo(
                 platform: .watchos,
@@ -213,7 +230,7 @@ final class SessionController: ObservableObject {
                 appVersion: Bundle.main.appVersion
             ),
             profile: profile,
-            config: DetectorConfig.default.withSensitivity(sensitivity)
+            config: detectorConfig()
         )
         self.recorder = recorder
         recorder.start(

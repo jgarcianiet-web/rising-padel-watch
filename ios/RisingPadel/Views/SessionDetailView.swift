@@ -23,6 +23,7 @@ struct SessionDetailView: View {
                 diagnosticsSection
             }
             if !session.health.isEmpty { healthSection }
+            sendToLeagueSection
             matchLinkSection
             syncSection
             deleteSection
@@ -249,6 +250,22 @@ struct SessionDetailView: View {
             .frame(height: 8)
         }
         .padding(.vertical, 2)
+    }
+
+    @Environment(\.openURL) private var openURL
+
+    private var sendToLeagueSection: some View {
+        Section {
+            Button {
+                if let url = model.leagueDeepLink(for: session) {
+                    openURL(url)
+                }
+            } label: {
+                Label("Enviar a Liga Pádel", systemImage: "arrow.up.forward.app")
+            }
+        } footer: {
+            Text("Abre la app de la liga con esta sesión lista para guardar como partido.")
+        }
     }
 
     private var matchLinkSection: some View {
