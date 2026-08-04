@@ -12,6 +12,16 @@ struct TrainingView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
+        // Con varios botones la columna no cabe en un reloj de 40 mm; sin scroll, lo de
+        // abajo queda directamente inalcanzable.
+        ScrollView {
+            content
+                .padding(.horizontal, 8)
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         VStack(spacing: 6) {
             if controller.trainingRecording {
                 Text("\(controller.trainingCapturedInBatch)")
@@ -53,7 +63,6 @@ struct TrainingView: View {
                     .buttonStyle(.bordered)
             }
         }
-        .padding(.horizontal, 8)
     }
 }
 

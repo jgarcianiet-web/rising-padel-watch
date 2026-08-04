@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,10 +41,13 @@ fun PadelWearScreen(
     onStop: () -> Unit,
     onDone: () -> Unit,
 ) {
+    // Con varios botones la columna no cabe en un reloj pequeño; sin scroll, lo de
+    // abajo queda directamente inalcanzable.
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 12.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

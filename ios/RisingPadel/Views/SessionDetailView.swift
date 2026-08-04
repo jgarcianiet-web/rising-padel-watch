@@ -16,6 +16,12 @@ struct SessionDetailView: View {
             if let score = session.score { scoreSection(score) }
             levelSection
             shotBreakdownSection
+            // Los rasgos crudos golpe a golpe: es la herramienta para validar en pista
+            // los convenios de ejes del giróscopo sin depurador. Solo existe en modo
+            // desarrollador.
+            if model.developerMode {
+                diagnosticsSection
+            }
             if !session.health.isEmpty { healthSection }
             matchLinkSection
             syncSection
@@ -108,6 +114,40 @@ struct SessionDetailView: View {
                 }
                 .padding(.vertical, 4)
             }
+        }
+    }
+
+    private var diagnosticsSection: some View {
+        Section {
+            ForEach(Array(session.shots.enumerated()), id: \.offset) { index, shot in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack {
+                        Text("\(index + 1). \(shot.type.label)")
+                        Spacer()
+                        Text(String(format: "conf %.2f", shot.confidence))
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.caption)
+                    // El signo del axial es el dato que valida el convenio: positivo
+                    // tiene que ser lado de derecha.
+                    Text(String(
+                        format: "elev %+.0f° · axial %+.1f rad/s · barrido %.0f° · pico %.1f rad/s",
+                        shot.features.elevationDeg,
+                        shot.features.axialRotationRadS,
+                        shot.features.sweptAngleDeg,
+                        shot.features.peakGyroRadS
+                    ))
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Diagnóstico · \(session.shots.count) golpeos")
+        } footer: {
+            Text("""
+                Para validar los convenios: da 10 golpes de un solo tipo y comprueba que \
+                el tipo, el signo del axial y la elevación cuadran con lo que jugaste.
+                """)
         }
     }
 

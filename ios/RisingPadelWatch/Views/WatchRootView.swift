@@ -21,23 +21,27 @@ struct WatchRootView: View {
                     onStop: { Task { await controller.stop() } }
                 )
             } else {
-                VStack(spacing: 6) {
-                    switch controller.status {
-                    case .idle:
-                        idleContent
-                    case .preparing:
-                        loadingContent("Preparando…")
-                    case .recording:
-                        recordingContent
-                    case .saving:
-                        loadingContent("Guardando…")
-                    case .saved:
-                        summaryContent
-                    case .error(let message):
-                        errorContent(message)
+                // Con varios botones la columna no cabe en un reloj de 40 mm; sin
+                // scroll, lo de abajo queda directamente inalcanzable.
+                ScrollView {
+                    VStack(spacing: 6) {
+                        switch controller.status {
+                        case .idle:
+                            idleContent
+                        case .preparing:
+                            loadingContent("Preparando…")
+                        case .recording:
+                            recordingContent
+                        case .saving:
+                            loadingContent("Guardando…")
+                        case .saved:
+                            summaryContent
+                        case .error(let message):
+                            errorContent(message)
+                        }
                     }
+                    .padding(.horizontal, 8)
                 }
-                .padding(.horizontal, 8)
             }
         }
     }
