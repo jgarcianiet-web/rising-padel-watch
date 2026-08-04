@@ -170,7 +170,10 @@ class ShotDetector(
         val features = ShotFeatures(
             sweptAngleDeg = Math.toDegrees(sweptAngleRad.toDouble()).toFloat(),
             peakGyroRadS = peakGyroRadS,
-            elevationDeg = classifier.elevationDeg(impact.gravity),
+            // La gravedad se promedia sobre la ventana previa, igual que el giro axial:
+            // en la muestra del impacto (5-10 g, 15+ rad/s) la estimación de gravedad
+            // del sistema se va decenas de grados y las derechas salían como "altas".
+            elevationDeg = classifier.elevationDeg(meanGravityBefore(impact)),
             axialRotationRadS = classifier.axialRotation(meanGyroBefore(impact.timestampMs)),
             swingDurationMs = durationMs,
         )
@@ -197,6 +200,22 @@ class ShotDetector(
     }
 
     /** Media vectorial del giróscopo en la ventana previa al impacto. */
+    private fun meanGravityBefore(impact: MotionSample): Vector3 {
+        // La ventana no entra en la preparación: en un golpeo corto (un smash dura
+        // ~170 ms) las muestras de antes del swing describen cómo esperaba el brazo,
+        // no cómo golpeó, y arrastran la elevación decenas de grados.
+        val from = maxOf(impact.timestampMs - config.axialWindowMs, swingStartMs)
+        var sum = Vector3.ZERO
+        var count = 0
+        for (sample in window) {
+            if (sample.timestampMs in from..impact.timestampMs) {
+                sum += sample.gravity
+                count++
+            }
+        }
+        return if (count == 0) impact.gravity else sum * (1f / count)
+    }
+
     private fun meanGyroBefore(impactMs: Long): Vector3 {
         val from = impactMs - config.axialWindowMs
         var sum = Vector3.ZERO

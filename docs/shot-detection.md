@@ -74,7 +74,7 @@ rotación se invierte si el reloj va en la muñeca contraria a la que empuña.
 
 | Rasgo | Cómo se calcula |
 |---|---|
-| `elevation` | Ángulo entre el vector de gravedad en el impacto y el eje del antebrazo. > 45° hacia arriba = brazo por encima del hombro |
+| `elevation` | Ángulo entre la gravedad **promediada en los 200 ms previos al impacto** (sin entrar en la preparación) y el eje del antebrazo. > 60° hacia arriba = brazo por encima del hombro. No se usa la muestra del impacto: con 5-10 g y 15+ rad/s la estimación de gravedad del sistema se va decenas de grados — en pista (ago 2026) las derechas planas medían +41..+77° con la muestra suelta y salían clasificadas como golpes altos |
 | `sweptAngleDeg` | Integral de `|gyro|` durante el swing, en grados |
 | `axialRotation` | Componente de `gyro` sobre el eje longitudinal del antebrazo, con signo, promediada en los 200 ms previos al impacto |
 | `peakGyro` | Máximo de `|gyro|` en el swing |
@@ -82,14 +82,19 @@ rotación se invierte si el reloj va en la muñeca contraria a la que empuña.
 Árbol de decisión:
 
 ```
-elevation > 45°  ──► sweptAngle > 220° y peakGyro > 18 rad/s ──► serve
+elevation > 60°  ──► sweptAngle > 220° y peakGyro > 18 rad/s ──► serve
                  ├─► peakGyro > 24 rad/s                      ──► smash
-                 ├─► |axialRotation| > 5 rad/s                ──► vibora
+                 ├─► |axialRotation| > 9 rad/s                ──► vibora
                  └─► resto                                    ──► bandeja
 
-elevation ≤ 45°  ──► sweptAngle < 70°  ──► axialRotation > 0 ? forehandVolley : backhandVolley
+elevation ≤ 60°  ──► sweptAngle < 70°  ──► axialRotation > 0 ? forehandVolley : backhandVolley
                  └─► sweptAngle ≥ 70°  ──► axialRotation > 0 ? forehand       : backhand
 ```
+
+Los umbrales de elevación (60°) y de víbora (9 rad/s) salen de la validación en pista:
+una derecha plana promedia 40-55° de elevación en la ventana previa y 6-11 rad/s de
+axial por la pronación natural del brazo. Con los valores antiguos (45° y 5) una tanda
+de 10 derechas salía como 6 víboras.
 
 Los tres golpes altos que no son saque se separan por lo que los define en pista, y el
 orden de las preguntas importa:

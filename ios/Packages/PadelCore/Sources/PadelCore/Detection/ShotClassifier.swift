@@ -51,10 +51,12 @@ public struct ShotClassifier: Sendable {
 
     public func classify(_ features: ShotFeatures) -> Classification {
         let isOverhead = features.elevationDeg > config.overheadElevationDeg
+        // Escala de 15°: con el umbral en 60° y la gravedad promediada, un golpe alto
+        // real mide 65-80 y un golpeo de fondo 40-55; a 15° del umbral ya no hay duda.
         let elevationMargin = margin(
             value: features.elevationDeg,
             threshold: config.overheadElevationDeg,
-            scale: 45
+            scale: 15
         )
 
         if isOverhead {
@@ -116,8 +118,10 @@ public struct ShotClassifier: Sendable {
             threshold: config.smashPeakGyroRadS,
             scale: config.smashPeakGyroRadS * 0.35
         )
+        // Media frontera, como el saque: una víbora real promedia 10-14 rad/s de axial
+        // y con la frontera entera de escala nunca pasaría de la confianza mínima.
         let axialMargin = margin(
-            value: axialAbs, threshold: config.viboraAxialRadS, scale: config.viboraAxialRadS
+            value: axialAbs, threshold: config.viboraAxialRadS, scale: config.viboraAxialRadS * 0.5
         )
 
         let type: ShotType

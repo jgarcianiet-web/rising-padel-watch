@@ -164,17 +164,21 @@ object MotionFixtures {
         swingDurationMs = 250,
         impactG = 6f,
         axialFraction = 0.2f,
-        elevationDeg = 75f,
+        elevationDeg = 78f,
     )
 
-    /** Víbora: golpe alto con mucho efecto lateral — rotación axial alta sin ser remate. */
+    /**
+     * Víbora: golpe alto con mucho efecto lateral — rotación axial alta sin ser remate.
+     * La fracción axial es alta a propósito: en pista una derecha plana ya promedia
+     * 6-11 rad/s de axial, y la víbora se define por vivir claramente por encima.
+     */
     fun vibora(startMs: Long) = swing(
         startMs = startMs,
-        peakGyroRadS = 19f,
+        peakGyroRadS = 21f,
         swingDurationMs = 240,
         impactG = 8f,
-        axialFraction = 0.6f,
-        elevationDeg = 70f,
+        axialFraction = 0.85f,
+        elevationDeg = 80f,
     )
 
     /** Smash: el remate — violento y corto, con el pico de giro por encima de todo. */
@@ -184,7 +188,7 @@ object MotionFixtures {
         swingDurationMs = 170,
         impactG = 10f,
         axialFraction = 0.3f,
-        elevationDeg = 80f,
+        elevationDeg = 85f,
     )
 
     /** Saque: brazo alto y swing completo. */
@@ -194,7 +198,7 @@ object MotionFixtures {
         swingDurationMs = 350,
         impactG = 9f,
         axialFraction = 0.6f,
-        elevationDeg = 60f,
+        elevationDeg = 70f,
     )
 
     private const val BASELINE_ACCEL_G = 0.2f

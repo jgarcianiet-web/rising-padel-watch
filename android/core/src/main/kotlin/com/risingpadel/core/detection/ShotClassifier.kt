@@ -59,10 +59,12 @@ class ShotClassifier(
 
     fun classify(features: ShotFeatures): Classification {
         val overhead = features.elevationDeg > config.overheadElevationDeg
+        // Escala de 15°: con el umbral en 60° y la gravedad promediada, un golpe alto
+        // real mide 65-80 y un golpeo de fondo 40-55; a 15° del umbral ya no hay duda.
         val elevationMargin = margin(
             value = features.elevationDeg,
             threshold = config.overheadElevationDeg,
-            scale = 45f,
+            scale = 15f,
         )
 
         if (overhead) {
@@ -113,7 +115,9 @@ class ShotClassifier(
         val axialAbs = abs(features.axialRotationRadS)
         val peakMargin =
             margin(features.peakGyroRadS, config.smashPeakGyroRadS, config.smashPeakGyroRadS * 0.35f)
-        val axialMargin = margin(axialAbs, config.viboraAxialRadS, config.viboraAxialRadS)
+        // Media frontera, como el saque: una víbora real promedia 10-14 rad/s de axial
+        // y con la frontera entera de escala nunca pasaría del confianza mínima.
+        val axialMargin = margin(axialAbs, config.viboraAxialRadS, config.viboraAxialRadS * 0.5f)
 
         val type = when {
             features.peakGyroRadS > config.smashPeakGyroRadS -> ShotType.SMASH

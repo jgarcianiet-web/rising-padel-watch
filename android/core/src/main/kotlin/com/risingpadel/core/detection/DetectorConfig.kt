@@ -47,8 +47,16 @@ data class DetectorConfig(
     val minSwingMs: Long = 80,
 
     // --- clasificación ---
-    /** Grados sobre la horizontal a partir de los cuales el golpeo es por encima de la cabeza. */
-    val overheadElevationDeg: Float = 45f,
+    /**
+     * Grados sobre la horizontal a partir de los cuales el golpeo es por encima de la
+     * cabeza.
+     *
+     * 60 y no 45: validado en pista (ago 2026), una derecha plana con final alto
+     * promedia 40-55° en la ventana previa al impacto, y con 45 la mitad de las
+     * derechas caían en la rama de golpes altos. Un golpe alto de verdad sostiene
+     * 65-80°.
+     */
+    val overheadElevationDeg: Float = 60f,
     /** Por debajo de este ángulo barrido el golpeo es una volea. */
     val volleySweptDeg: Float = 70f,
     /** Ángulo barrido a partir del cual un golpeo alto es un saque y no una bandeja. */
@@ -64,8 +72,13 @@ data class DetectorConfig(
      * Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
      * alto que no es smash se considera víbora: el efecto lateral es su seña de
      * identidad, la bandeja se pega mucho más plana.
+     *
+     * 9 y no 5: validado en pista (ago 2026), la pronación natural de una derecha
+     * plana ya promedia 6-11 rad/s de axial. Con el umbral de elevación en 60° esas
+     * derechas ya no llegan a esta rama; aquí solo compiten golpes altos de verdad, y
+     * la bandeja plana promedia 2-5 mientras la víbora vive por encima de 10.
      */
-    val viboraAxialRadS: Float = 5f,
+    val viboraAxialRadS: Float = 9f,
     /** Ventana previa al impacto sobre la que se promedia la rotación axial. */
     val axialWindowMs: Long = 200,
     /** Escala para normalizar la rotación axial al calcular la confianza. */

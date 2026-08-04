@@ -133,24 +133,26 @@ enum MotionFixtures {
     /// Bandeja: golpe alto de control, plano y sin violencia.
     static func bandeja(startMs: Int64) -> [MotionSample] {
         swing(startMs: startMs, peakGyroRadS: 15, swingDurationMs: 250, impactG: 6,
-              axialFraction: 0.2, elevationDeg: 75)
+              axialFraction: 0.2, elevationDeg: 78)
     }
 
     /// Víbora: golpe alto con mucho efecto lateral — rotación axial alta sin ser remate.
+    /// La fracción axial es alta a propósito: en pista una derecha plana ya promedia
+    /// 6-11 rad/s de axial, y la víbora se define por vivir claramente por encima.
     static func vibora(startMs: Int64) -> [MotionSample] {
-        swing(startMs: startMs, peakGyroRadS: 19, swingDurationMs: 240, impactG: 8,
-              axialFraction: 0.6, elevationDeg: 70)
+        swing(startMs: startMs, peakGyroRadS: 21, swingDurationMs: 240, impactG: 8,
+              axialFraction: 0.85, elevationDeg: 80)
     }
 
     /// Smash: el remate — violento y corto, con el pico de giro por encima de todo.
     static func smash(startMs: Int64) -> [MotionSample] {
         swing(startMs: startMs, peakGyroRadS: 30, swingDurationMs: 170, impactG: 10,
-              axialFraction: 0.3, elevationDeg: 80)
+              axialFraction: 0.3, elevationDeg: 85)
     }
 
     /// Saque: brazo alto y swing completo.
     static func serve(startMs: Int64) -> [MotionSample] {
         swing(startMs: startMs, peakGyroRadS: 28, swingDurationMs: 350, impactG: 9,
-              axialFraction: 0.6, elevationDeg: 60)
+              axialFraction: 0.6, elevationDeg: 70)
     }
 }

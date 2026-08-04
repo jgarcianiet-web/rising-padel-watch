@@ -46,7 +46,13 @@ public struct DetectorConfig: Equatable, Sendable {
 
     // MARK: Clasificación
 
-    /// Grados sobre la horizontal a partir de los cuales el golpeo es por encima de la cabeza.
+    /// Grados sobre la horizontal a partir de los cuales el golpeo es por encima de la
+    /// cabeza.
+    ///
+    /// 60 y no 45: validado en pista (ago 2026), una derecha plana con final alto
+    /// promedia 40-55° en la ventana previa al impacto, y con 45 la mitad de las
+    /// derechas caían en la rama de golpes altos. Un golpe alto de verdad sostiene
+    /// 65-80°.
     public var overheadElevationDeg: Float
     /// Por debajo de este ángulo barrido el golpeo es una volea.
     public var volleySweptDeg: Float
@@ -60,6 +66,11 @@ public struct DetectorConfig: Equatable, Sendable {
     /// Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
     /// alto que no es smash se considera víbora: el efecto lateral es su seña de
     /// identidad, la bandeja se pega mucho más plana.
+    ///
+    /// 9 y no 5: validado en pista (ago 2026), la pronación natural de una derecha
+    /// plana ya promedia 6-11 rad/s de axial. Con el umbral de elevación en 60° esas
+    /// derechas ya no llegan a esta rama; aquí solo compiten golpes altos de verdad, y
+    /// la bandeja plana promedia 2-5 mientras la víbora vive por encima de 10.
     public var viboraAxialRadS: Float
     /// Ventana previa al impacto sobre la que se promedia la rotación axial.
     public var axialWindowMs: Int64
@@ -92,12 +103,12 @@ public struct DetectorConfig: Equatable, Sendable {
         refractoryMs: Int64 = 320,
         maxSwingMs: Int64 = 900,
         minSwingMs: Int64 = 80,
-        overheadElevationDeg: Float = 45,
+        overheadElevationDeg: Float = 60,
         volleySweptDeg: Float = 70,
         serveSweptDeg: Float = 220,
         servePeakGyroRadS: Float = 18,
         smashPeakGyroRadS: Float = 24,
-        viboraAxialRadS: Float = 5,
+        viboraAxialRadS: Float = 9,
         axialWindowMs: Int64 = 200,
         axialConfidenceScaleRadS: Float = 4.0,
         minConfidence: Float = 0.45,
