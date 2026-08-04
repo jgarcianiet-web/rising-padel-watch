@@ -85,7 +85,12 @@ final class SessionController: ObservableObject {
     // MARK: Ajustes replicados desde el iPhone
 
     /// Marca de tiempo de los ajustes que tiene el reloj, para resolver la replicación.
-    @AppStorage("settingsUpdatedAt") private var settingsUpdatedAtMs = 0
+    ///
+    /// `Double` y no `Int` a propósito: en los relojes arm64_32 (Series 4-6, SE) `Int`
+    /// es de 32 bits, y una época en milisegundos no cabe — la conversión hacía trap y
+    /// la app crasheaba en cada arranque en cuanto el iPhone replicaba ajustes. Un
+    /// `Double` representa milisegundos de época exactos hasta 2^53.
+    @AppStorage("settingsUpdatedAt") private var settingsUpdatedAtMs: Double = 0
 
     /// Ajustes que llegaron a mitad de partido y esperan a que termine.
     private var pendingRemoteSettings: DeviceSettings?
@@ -125,7 +130,7 @@ final class SessionController: ObservableObject {
         shareHealth = merged.shareHealth
         collectTrainingData = merged.collectTrainingData
         playerAlias = merged.playerAlias
-        settingsUpdatedAtMs = Int(merged.updatedAtEpochMs)
+        settingsUpdatedAtMs = Double(merged.updatedAtEpochMs)
     }
 
     // MARK: Modo de recogida de datos

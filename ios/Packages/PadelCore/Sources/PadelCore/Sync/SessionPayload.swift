@@ -239,12 +239,15 @@ extension HealthMetrics {
 }
 
 /// ISO-8601 UTC truncado a segundos: `2026-07-25T18:04:12Z`.
+///
+/// Sin pasar por `Int`: en los relojes arm64_32 `Int` es de 32 bits, y aunque los
+/// segundos de época caben hoy, dejan de caber en 2038. Con épocas, siempre `Int64`.
 func isoUTC(_ epochMs: Int64) -> String {
-    let seconds = Int(floor(Double(epochMs) / 1000))
+    let seconds = (Double(epochMs) / 1000).rounded(.down)
     let formatter = ISO8601DateFormatter()
     formatter.formatOptions = [.withInternetDateTime]
     formatter.timeZone = TimeZone(secondsFromGMT: 0)
-    return formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))
+    return formatter.string(from: Date(timeIntervalSince1970: seconds))
 }
 
 func round1(_ value: Float) -> Float { (value * 10).rounded() / 10 }
