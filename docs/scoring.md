@@ -61,8 +61,13 @@ con precisión está mal.
 
 - **Media pantalla superior = punto nuestro. Media inferior = punto suyo.** Dos zonas
   enormes, sin botones que acertar. Se puede pulsar sin mirar.
-- **Mantener pulsado = deshacer.** Puntuar mal es constante y sin deshacer el marcador se
-  vuelve inservible en cuanto pasa una vez.
+- **Mantener pulsado = deshacer, directo.** Puntuar mal es constante y sin deshacer el
+  marcador se vuelve inservible en cuanto pasa una vez. En una iteración deshacer pasó
+  por un menú y se retiró tras probarlo en partido: la corrección frecuente no puede
+  costar dos toques.
+- **Finalizar tiene su propio botón pequeño** en la franja central, con confirmación.
+  Es la acción rara, así que puede costar dos toques; la confirmación existe porque un
+  punto mal anotado se deshace pero una sesión cerrada no se puede reabrir.
 - **Vibración distinta** para punto anotado, juego, set y deshacer: se nota sin mirar la
   pantalla, que es justo lo que hace falta cuando estás colocándote para el siguiente
   punto.

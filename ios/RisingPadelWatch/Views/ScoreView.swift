@@ -8,10 +8,13 @@ import WatchKit
 /// abajo, punto suyo**. No hay botones que acertar porque entre punto y punto hay tres
 /// segundos y una pala en la mano.
 ///
-/// **Mantener pulsado abre el menú** con deshacer y finalizar. No se usa deslizar, que
-/// sería más natural, porque el deslizamiento horizontal está tomado por la navegación
-/// del sistema. Finalizar pasa por el menú a propósito: un punto anotado por error se
-/// deshace, una sesión cerrada por error no se puede reabrir.
+/// **Mantener pulsado deshace el último punto**, directo y sin menús: es la corrección
+/// frecuente y en mitad de un partido no hay tiempo que perder. Finalizar tiene su
+/// propio botón pequeño en la franja central — es la acción rara, y pasa por una
+/// confirmación porque un punto mal anotado se deshace pero una sesión cerrada no.
+///
+/// No se usa deslizar para nada: el deslizamiento horizontal está tomado por la
+/// navegación del sistema.
 struct ScoreView: View {
     let score: MatchScore
     let shotCount: Int
@@ -19,7 +22,7 @@ struct ScoreView: View {
     let onUndo: () -> Void
     let onStop: () -> Void
 
-    @State private var showMenu = false
+    @State private var confirmStop = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -34,10 +37,23 @@ struct ScoreView: View {
                     pointsBlock(.them)
                 }
 
-                Text(statusLine)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
+                // El botón vive en la franja central, la zona neutra entre las dos
+                // mitades de toque: un dedo que acabe aquí ya era ambiguo como punto.
+                HStack(spacing: 6) {
+                    Text(statusLine)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    if !score.isFinished {
+                        Button {
+                            confirmStop = true
+                        } label: {
+                            Image(systemName: "stop.circle")
+                                .font(.system(size: 15))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
 
                 // El punto decisivo hay que saber que se está jugando: con star point
                 // llega sin avisar tras dos ventajas.
@@ -77,11 +93,10 @@ struct ScoreView: View {
                     }
             )
             .onLongPressGesture(minimumDuration: 0.6) {
-                showMenu = true
+                onUndo()
             }
-            .confirmationDialog("Partido", isPresented: $showMenu) {
-                Button("Deshacer último punto") { onUndo() }
-                Button("Finalizar sesión", role: .destructive) { onStop() }
+            .confirmationDialog("¿Finalizar la sesión?", isPresented: $confirmStop) {
+                Button("Finalizar", role: .destructive) { onStop() }
                 Button("Seguir jugando", role: .cancel) {}
             }
         }

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Button
 import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
+import androidx.wear.compose.material.CompactChip
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.risingpadel.core.score.DeuceFormat
@@ -43,10 +44,13 @@ import com.risingpadel.core.score.Side
  * abajo, punto suyo**. No hay botones que acertar porque entre punto y punto hay tres
  * segundos y una pala en la mano.
  *
- * **Mantener pulsado abre el menú** con deshacer y finalizar. No se usa deslizar, que
- * sería más natural, porque el deslizamiento horizontal está tomado por el gesto de
- * volver atrás del sistema. Finalizar pasa por el menú a propósito: un punto anotado por
- * error se deshace, una sesión cerrada por error no se puede reabrir.
+ * **Mantener pulsado deshace el último punto**, directo y sin menús: es la corrección
+ * frecuente y en mitad de un partido no hay tiempo que perder. Finalizar tiene su propio
+ * botón pequeño en la franja central — es la acción rara, y pasa por una confirmación
+ * porque un punto mal anotado se deshace pero una sesión cerrada no.
+ *
+ * No se usa deslizar para nada: el deslizamiento horizontal está tomado por el gesto de
+ * volver atrás del sistema.
  */
 @Composable
 fun ScoreScreen(
@@ -56,13 +60,12 @@ fun ScoreScreen(
     onUndo: () -> Unit,
     onStop: () -> Unit,
 ) {
-    var showMenu by remember { mutableStateOf(false) }
+    var confirmStop by remember { mutableStateOf(false) }
 
-    if (showMenu) {
-        ScoreMenu(
-            onUndo = { showMenu = false; onUndo() },
+    if (confirmStop) {
+        ConfirmStop(
             onStop = onStop,
-            onDismiss = { showMenu = false },
+            onDismiss = { confirmStop = false },
         )
         return
     }
@@ -75,7 +78,7 @@ fun ScoreScreen(
                     onTap = { offset: Offset ->
                         onPoint(if (offset.y < size.height / 2f) Side.US else Side.THEM)
                     },
-                    onLongPress = { showMenu = true },
+                    onLongPress = { onUndo() },
                 )
             },
     ) {
@@ -101,15 +104,27 @@ fun ScoreScreen(
                 PointsBlock(score, Side.THEM)
             }
 
-            Text(
-                text = statusLine(score, shotCount),
-                style = MaterialTheme.typography.caption3,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colors.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-            )
+            // El botón vive en la franja central, la zona neutra entre las dos mitades
+            // de toque: un dedo que acabe aquí ya era ambiguo como punto.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                Text(
+                    text = statusLine(score, shotCount),
+                    style = MaterialTheme.typography.caption3,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colors.onSurfaceVariant,
+                )
+                if (!score.isFinished) {
+                    CompactChip(
+                        onClick = { confirmStop = true },
+                        label = { Text("Fin", style = MaterialTheme.typography.caption3) },
+                        colors = ChipDefaults.secondaryChipColors(),
+                        modifier = Modifier.padding(start = 6.dp),
+                    )
+                }
+            }
 
             // El punto decisivo hay que saber que se está jugando: con star point llega
             // sin avisar tras dos ventajas.
@@ -154,13 +169,11 @@ fun ScoreScreen(
 }
 
 /**
- * El menú de mantener pulsado: deshacer un punto o finalizar la sesión.
- *
- * Es una pantalla y no un diálogo flotante porque en un reloj redondo un diálogo deja
- * zonas de toque ambiguas alrededor; a pantalla completa cada opción es inconfundible.
+ * Confirmación de finalizar, a pantalla completa: en un reloj redondo un diálogo
+ * flotante deja zonas de toque ambiguas alrededor.
  */
 @Composable
-private fun ScoreMenu(onUndo: () -> Unit, onStop: () -> Unit, onDismiss: () -> Unit) {
+private fun ConfirmStop(onStop: () -> Unit, onDismiss: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -168,19 +181,18 @@ private fun ScoreMenu(onUndo: () -> Unit, onStop: () -> Unit, onDismiss: () -> U
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Chip(
-            onClick = onUndo,
-            label = { Text("Deshacer último punto", style = MaterialTheme.typography.caption1) },
-            colors = ChipDefaults.secondaryChipColors(),
-            modifier = Modifier.fillMaxWidth(),
+        Text(
+            text = "¿Finalizar la sesión?",
+            style = MaterialTheme.typography.caption1,
+            textAlign = TextAlign.Center,
         )
         Chip(
             onClick = onStop,
-            label = { Text("Finalizar sesión", style = MaterialTheme.typography.caption1) },
+            label = { Text("Finalizar", style = MaterialTheme.typography.caption1) },
             colors = ChipDefaults.primaryChipColors(),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 6.dp),
+                .padding(top = 8.dp),
         )
         Chip(
             onClick = onDismiss,
