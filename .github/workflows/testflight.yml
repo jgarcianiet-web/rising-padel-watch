@@ -93,7 +93,13 @@ jobs:
             -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
             CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }}
+        # CODE_SIGN_IDENTITY fuerza a archivar firmando ya con Distribution. Sin ello,
+        # la firma automática archiva con Development y re-firma al exportar — y un
+        # perfil de Development exige al menos un dispositivo registrado en el equipo,
+        # que en una cuenta recién creada no hay. El perfil de App Store que usa
+        # Distribution no necesita dispositivos.
 
       # `destination: upload` hace que exportArchive suba directamente, sin pasar por
       # altool, que Apple lleva años amenazando con retirar.
