@@ -138,11 +138,17 @@ Los identificadores y los perfiles de aprovisionamiento se crean solos: el workf
 **Actions → TestFlight → Run workflow.** Tarda unos 10-15 minutos.
 
 Cuando termine, la build aparece en App Store Connect → tu app → **TestFlight**. La
-primera vez tienes que:
+primera vez solo tienes que **añadirte como probador interno**: TestFlight → **Internal
+Testing** → **+**.
 
-1. Rellenar el cuestionario de **cifrado de exportación** (esta app no usa criptografía
-   propia; solo HTTPS, así que es la respuesta estándar de exención).
-2. Añadirte como probador interno: **TestFlight → Internal Testing → +**.
+El cuestionario de **cifrado de exportación** no aparece: va declarado en el `Info.plist`
+con `ITSAppUsesNonExemptEncryption: false`, así que las builds pasan directas a los
+probadores en vez de quedarse esperando a que alguien lo responda a mano.
+
+> Usa **probadores internos**, no externos. Los internos (hasta 100, cuentas de App Store
+> Connect) **no pasan por Beta App Review**: la build está disponible en cuanto Apple
+> termina de procesarla. Los externos sí pasan revisión la primera vez, y eso son horas o
+> días.
 
 Después, instala **TestFlight** en el iPhone, acepta la invitación e instala. En el reloj
 la app aparece sola si tienes activada la instalación automática; si no, ve a la app
