@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -22,6 +26,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.wear.compose.material.Button
+import androidx.wear.compose.material.Chip
+import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.risingpadel.core.score.DeuceFormat
@@ -36,10 +43,10 @@ import com.risingpadel.core.score.Side
  * abajo, punto suyo**. No hay botones que acertar porque entre punto y punto hay tres
  * segundos y una pala en la mano.
  *
- * **Mantener pulsado deshace.** No se usa deslizar, que sería más natural, porque el
- * deslizamiento horizontal está tomado por el gesto de volver atrás del sistema en Wear
- * OS y por la navegación entre vistas en watchOS. Mantener pulsado está libre en las dos
- * plataformas y no se dispara por accidente.
+ * **Mantener pulsado abre el menú** con deshacer y finalizar. No se usa deslizar, que
+ * sería más natural, porque el deslizamiento horizontal está tomado por el gesto de
+ * volver atrás del sistema. Finalizar pasa por el menú a propósito: un punto anotado por
+ * error se deshace, una sesión cerrada por error no se puede reabrir.
  */
 @Composable
 fun ScoreScreen(
@@ -47,7 +54,19 @@ fun ScoreScreen(
     shotCount: Int,
     onPoint: (Side) -> Unit,
     onUndo: () -> Unit,
+    onStop: () -> Unit,
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    if (showMenu) {
+        ScoreMenu(
+            onUndo = { showMenu = false; onUndo() },
+            onStop = onStop,
+            onDismiss = { showMenu = false },
+        )
+        return
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -56,7 +75,7 @@ fun ScoreScreen(
                     onTap = { offset: Offset ->
                         onPoint(if (offset.y < size.height / 2f) Side.US else Side.THEM)
                     },
-                    onLongPress = { onUndo() },
+                    onLongPress = { showMenu = true },
                 )
             },
     ) {
@@ -124,8 +143,53 @@ fun ScoreScreen(
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                // Con el partido cerrado ya no hay puntos que anotar: el botón de
+                // finalizar puede ocupar el sitio sin robarle nada a nadie.
+                Button(onClick = onStop, modifier = Modifier.padding(top = 4.dp)) {
+                    Text("Finalizar", style = MaterialTheme.typography.caption1)
+                }
             }
         }
+    }
+}
+
+/**
+ * El menú de mantener pulsado: deshacer un punto o finalizar la sesión.
+ *
+ * Es una pantalla y no un diálogo flotante porque en un reloj redondo un diálogo deja
+ * zonas de toque ambiguas alrededor; a pantalla completa cada opción es inconfundible.
+ */
+@Composable
+private fun ScoreMenu(onUndo: () -> Unit, onStop: () -> Unit, onDismiss: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Chip(
+            onClick = onUndo,
+            label = { Text("Deshacer último punto", style = MaterialTheme.typography.caption1) },
+            colors = ChipDefaults.secondaryChipColors(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Chip(
+            onClick = onStop,
+            label = { Text("Finalizar sesión", style = MaterialTheme.typography.caption1) },
+            colors = ChipDefaults.primaryChipColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+        )
+        Chip(
+            onClick = onDismiss,
+            label = { Text("Seguir jugando", style = MaterialTheme.typography.caption1) },
+            colors = ChipDefaults.secondaryChipColors(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 6.dp),
+        )
     }
 }
 
@@ -176,6 +240,6 @@ private fun ScorePreview() {
             .pointTo(Side.US)
             .pointTo(Side.US)
             .pointTo(Side.THEM)
-        ScoreScreen(score = score, shotCount = 128, onPoint = {}, onUndo = {})
+        ScoreScreen(score = score, shotCount = 128, onPoint = {}, onUndo = {}, onStop = {})
     }
 }

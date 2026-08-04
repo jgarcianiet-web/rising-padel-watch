@@ -8,15 +8,18 @@ import WatchKit
 /// abajo, punto suyo**. No hay botones que acertar porque entre punto y punto hay tres
 /// segundos y una pala en la mano.
 ///
-/// **Mantener pulsado deshace.** No se usa deslizar, que sería más natural, porque el
-/// deslizamiento horizontal está tomado por la navegación del sistema en watchOS y por
-/// el gesto de volver atrás en Wear OS. Mantener pulsado está libre en las dos
-/// plataformas y no se dispara por accidente.
+/// **Mantener pulsado abre el menú** con deshacer y finalizar. No se usa deslizar, que
+/// sería más natural, porque el deslizamiento horizontal está tomado por la navegación
+/// del sistema. Finalizar pasa por el menú a propósito: un punto anotado por error se
+/// deshace, una sesión cerrada por error no se puede reabrir.
 struct ScoreView: View {
     let score: MatchScore
     let shotCount: Int
     let onPoint: (Side) -> Void
     let onUndo: () -> Void
+    let onStop: () -> Void
+
+    @State private var showMenu = false
 
     var body: some View {
         GeometryReader { geometry in
@@ -56,6 +59,11 @@ struct ScoreView: View {
                         .font(.caption)
                         .bold()
                         .foregroundStyle(.tint)
+                    // Con el partido cerrado ya no hay puntos que anotar: el botón de
+                    // finalizar puede ocupar el sitio sin robarle nada a nadie.
+                    Button("Finalizar sesión", action: onStop)
+                        .buttonStyle(.borderedProminent)
+                        .padding(.top, 2)
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -69,7 +77,12 @@ struct ScoreView: View {
                     }
             )
             .onLongPressGesture(minimumDuration: 0.6) {
-                onUndo()
+                showMenu = true
+            }
+            .confirmationDialog("Partido", isPresented: $showMenu) {
+                Button("Deshacer último punto") { onUndo() }
+                Button("Finalizar sesión", role: .destructive) { onStop() }
+                Button("Seguir jugando", role: .cancel) {}
             }
         }
     }
@@ -123,6 +136,7 @@ enum ScoreHaptics {
         score: MatchScore.start().pointTo(.us).pointTo(.us).pointTo(.them),
         shotCount: 128,
         onPoint: { _ in },
-        onUndo: {}
+        onUndo: {},
+        onStop: {}
     )
 }

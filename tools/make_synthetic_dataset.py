@@ -35,7 +35,9 @@ SHOT_PROFILES = {
     "backhand": (18.0, 300, 5.5, -0.80, 8.0),
     "forehandVolley": (7.0, 280, 4.0, 0.75, 12.0),
     "backhandVolley": (7.0, 280, 4.0, -0.75, 12.0),
-    "overhead": (18.0, 250, 8.0, 0.50, 80.0),
+    "bandeja": (15.0, 250, 6.0, 0.20, 75.0),
+    "vibora": (19.0, 240, 8.0, 0.60, 70.0),
+    "smash": (30.0, 170, 10.0, 0.30, 80.0),
     "serve": (28.0, 350, 9.0, 0.60, 60.0),
 }
 
@@ -123,8 +125,10 @@ def heuristic_guess(record: dict, label: str, rng: random.Random) -> str:
         "forehandVolley": "forehand",
         "backhand": "backhandVolley",
         "backhandVolley": "backhand",
-        "overhead": "serve",
-        "serve": "overhead",
+        "bandeja": "vibora",
+        "vibora": "bandeja",
+        "smash": "serve",
+        "serve": "smash",
     }
     return label if rng.random() > 0.18 else neighbours[label]
 

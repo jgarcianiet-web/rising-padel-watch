@@ -54,6 +54,13 @@ public struct DetectorConfig: Equatable, Sendable {
     public var serveSweptDeg: Float
     /// Pico de |gyro| adicional que exige el saque.
     public var servePeakGyroRadS: Float
+    /// Pico de |gyro| a partir del cual un golpeo alto es un smash. Una bandeja ronda
+    /// 12-20 rad/s y una víbora 16-25; el remate vive por encima de 25.
+    public var smashPeakGyroRadS: Float
+    /// Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
+    /// alto que no es smash se considera víbora: el efecto lateral es su seña de
+    /// identidad, la bandeja se pega mucho más plana.
+    public var viboraAxialRadS: Float
     /// Ventana previa al impacto sobre la que se promedia la rotación axial.
     public var axialWindowMs: Int64
     /// Escala para normalizar la rotación axial al calcular la confianza.
@@ -89,6 +96,8 @@ public struct DetectorConfig: Equatable, Sendable {
         volleySweptDeg: Float = 70,
         serveSweptDeg: Float = 220,
         servePeakGyroRadS: Float = 18,
+        smashPeakGyroRadS: Float = 24,
+        viboraAxialRadS: Float = 5,
         axialWindowMs: Int64 = 200,
         axialConfidenceScaleRadS: Float = 4.0,
         minConfidence: Float = 0.45,
@@ -108,6 +117,8 @@ public struct DetectorConfig: Equatable, Sendable {
         self.volleySweptDeg = volleySweptDeg
         self.serveSweptDeg = serveSweptDeg
         self.servePeakGyroRadS = servePeakGyroRadS
+        self.smashPeakGyroRadS = smashPeakGyroRadS
+        self.viboraAxialRadS = viboraAxialRadS
         self.axialWindowMs = axialWindowMs
         self.axialConfidenceScaleRadS = axialConfidenceScaleRadS
         self.minConfidence = minConfidence

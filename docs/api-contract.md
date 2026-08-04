@@ -61,7 +61,7 @@ repetidas.
       "backhand": 128,
       "forehandVolley": 44,
       "backhandVolley": 37,
-      "overhead": 39,
+      "bandeja": 39,
       "serve": 11,
       "unknown": 2
     },

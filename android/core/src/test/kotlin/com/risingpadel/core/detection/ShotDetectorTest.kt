@@ -154,7 +154,9 @@ class ShotDetectorTest {
             ShotType.BACKHAND to MotionFixtures.backhand(400),
             ShotType.FOREHAND_VOLLEY to MotionFixtures.forehandVolley(400),
             ShotType.BACKHAND_VOLLEY to MotionFixtures.backhandVolley(400),
-            ShotType.OVERHEAD to MotionFixtures.overhead(400),
+            ShotType.BANDEJA to MotionFixtures.bandeja(400),
+            ShotType.VIBORA to MotionFixtures.vibora(400),
+            ShotType.SMASH to MotionFixtures.smash(400),
             ShotType.SERVE to MotionFixtures.serve(400),
         )
         cases.forEach { (expected, samples) ->

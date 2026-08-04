@@ -57,7 +57,12 @@ data class LevelConfig(
             // La volea se puntúa al revés en amplitud: compacta es mejor.
             ShotType.FOREHAND_VOLLEY to ShotBand(10f, 26f, idealSweptDeg = 45f, compactIsBetter = true),
             ShotType.BACKHAND_VOLLEY to ShotBand(10f, 24f, idealSweptDeg = 45f, compactIsBetter = true),
-            ShotType.OVERHEAD to ShotBand(45f, 90f, idealSweptDeg = 200f),
+            // La bandeja es control: su banda es más corta porque pegarla muy fuerte no
+            // la hace mejor. La víbora premia algo más de velocidad, y el smash es el
+            // único golpe donde la violencia es directamente el objetivo.
+            ShotType.BANDEJA to ShotBand(32f, 58f, idealSweptDeg = 150f),
+            ShotType.VIBORA to ShotBand(38f, 68f, idealSweptDeg = 170f),
+            ShotType.SMASH to ShotBand(50f, 95f, idealSweptDeg = 210f),
             ShotType.SERVE to ShotBand(32f, 72f, idealSweptDeg = 240f),
         )
 

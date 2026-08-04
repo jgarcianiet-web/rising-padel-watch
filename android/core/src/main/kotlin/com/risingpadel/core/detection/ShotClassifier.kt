@@ -66,17 +66,7 @@ class ShotClassifier(
         )
 
         if (overhead) {
-            val isServe = features.sweptAngleDeg > config.serveSweptDeg &&
-                features.peakGyroRadS > config.servePeakGyroRadS
-            // La escala es media frontera y no la frontera entera: un smash de 140°
-            // está lejos del saque en términos prácticos aunque en valor absoluto se
-            // quede a menos de la mitad del umbral.
-            val sweptMargin =
-                margin(features.sweptAngleDeg, config.serveSweptDeg, config.serveSweptDeg * 0.5f)
-            // En la rama alta la rotación axial no participa en la decisión, así que no
-            // debe penalizar la confianza: se reparte entre los dos rasgos que sí deciden.
-            val confidence = 0.5f * sweptMargin + 0.5f * elevationMargin
-            return finalize(if (isServe) ShotType.SERVE else ShotType.OVERHEAD, confidence)
+            return classifyOverhead(features, elevationMargin)
         }
 
         val axial = features.axialRotationRadS
@@ -92,6 +82,48 @@ class ShotClassifier(
             else -> ShotType.BACKHAND
         }
         return finalize(type, confidence)
+    }
+
+    /**
+     * Los cuatro golpeos por encima de la cabeza, en orden de decisión:
+     *
+     * 1. **Saque**: swing completo (barre mucho más ángulo que cualquier otro alto).
+     * 2. **Smash**: violencia — pico de giro por encima de [DetectorConfig.smashPeakGyroRadS].
+     * 3. **Víbora**: efecto — rotación axial alta sin la violencia del smash.
+     * 4. **Bandeja**: el resto; el golpe alto de control, plano y sin exceso.
+     *
+     * El orden importa: un smash suele llevar también algo de efecto, pero la violencia
+     * lo define antes de que la rotación axial pueda confundirlo con una víbora.
+     */
+    private fun classifyOverhead(features: ShotFeatures, elevationMargin: Float): Classification {
+        // La escala del margen es media frontera y no la frontera entera: una bandeja
+        // de 140° está lejos del saque en términos prácticos aunque en valor absoluto
+        // se quede a menos de la mitad del umbral.
+        val sweptMargin =
+            margin(features.sweptAngleDeg, config.serveSweptDeg, config.serveSweptDeg * 0.5f)
+
+        val isServe = features.sweptAngleDeg > config.serveSweptDeg &&
+            features.peakGyroRadS > config.servePeakGyroRadS
+        if (isServe) {
+            // En el saque la rotación axial no participa en la decisión, así que no debe
+            // penalizar la confianza: se reparte entre los dos rasgos que sí deciden.
+            return finalize(ShotType.SERVE, 0.5f * sweptMargin + 0.5f * elevationMargin)
+        }
+
+        val axialAbs = abs(features.axialRotationRadS)
+        val peakMargin =
+            margin(features.peakGyroRadS, config.smashPeakGyroRadS, config.smashPeakGyroRadS * 0.35f)
+        val axialMargin = margin(axialAbs, config.viboraAxialRadS, config.viboraAxialRadS)
+
+        val type = when {
+            features.peakGyroRadS > config.smashPeakGyroRadS -> ShotType.SMASH
+            axialAbs > config.viboraAxialRadS -> ShotType.VIBORA
+            else -> ShotType.BANDEJA
+        }
+        // El rasgo que decidió cada tipo es el que más pesa en su confianza; la
+        // distancia al saque y la elevación completan el reparto.
+        val decisionMargin = if (type == ShotType.SMASH) peakMargin else axialMargin
+        return finalize(type, 0.4f * decisionMargin + 0.3f * sweptMargin + 0.3f * elevationMargin)
     }
 
     /**

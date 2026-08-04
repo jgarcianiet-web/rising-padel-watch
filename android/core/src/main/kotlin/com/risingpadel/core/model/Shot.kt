@@ -9,13 +9,24 @@ enum class ShotType(val wireName: String) {
     BACKHAND("backhand"),
     FOREHAND_VOLLEY("forehandVolley"),
     BACKHAND_VOLLEY("backhandVolley"),
-    OVERHEAD("overhead"),
+
+    /** Golpe alto de control, el techo defensivo del pádel. */
+    BANDEJA("bandeja"),
+
+    /** Golpe alto con mucho efecto lateral: lo define la rotación axial, no la fuerza. */
+    VIBORA("vibora"),
+
+    /** El remate: máxima violencia, pico de giro por encima de todo lo demás. */
+    SMASH("smash"),
     SERVE("serve"),
     UNKNOWN("unknown");
 
     companion object {
         fun fromWire(value: String): ShotType =
-            entries.firstOrNull { it.wireName == value } ?: UNKNOWN
+            entries.firstOrNull { it.wireName == value }
+                // Sesiones anteriores a separar los golpes altos: "overhead" agrupaba
+                // bandeja, víbora y smash. Se mapea a bandeja, que es el más común.
+                ?: if (value == "overhead") BANDEJA else UNKNOWN
     }
 }
 

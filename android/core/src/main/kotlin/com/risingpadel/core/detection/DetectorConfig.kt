@@ -55,6 +55,17 @@ data class DetectorConfig(
     val serveSweptDeg: Float = 220f,
     /** Pico de |gyro| adicional que exige el saque. */
     val servePeakGyroRadS: Float = 18f,
+    /**
+     * Pico de |gyro| a partir del cual un golpeo alto es un smash. Una bandeja ronda
+     * 12-20 rad/s y una víbora 16-25; el remate vive por encima de 25.
+     */
+    val smashPeakGyroRadS: Float = 24f,
+    /**
+     * Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
+     * alto que no es smash se considera víbora: el efecto lateral es su seña de
+     * identidad, la bandeja se pega mucho más plana.
+     */
+    val viboraAxialRadS: Float = 5f,
     /** Ventana previa al impacto sobre la que se promedia la rotación axial. */
     val axialWindowMs: Long = 200,
     /** Escala para normalizar la rotación axial al calcular la confianza. */

@@ -82,7 +82,12 @@ public struct LevelConfig: Sendable {
         .backhandVolley: ShotBand(
             speedAtLevel1: 10, speedAtLevel7: 24, idealSweptDeg: 45, compactIsBetter: true
         ),
-        .overhead: ShotBand(speedAtLevel1: 45, speedAtLevel7: 90, idealSweptDeg: 200),
+        // La bandeja es control: su banda es más corta porque pegarla muy fuerte no la
+        // hace mejor. La víbora premia algo más de velocidad, y el smash es el único
+        // golpe donde la violencia es directamente el objetivo.
+        .bandeja: ShotBand(speedAtLevel1: 32, speedAtLevel7: 58, idealSweptDeg: 150),
+        .vibora: ShotBand(speedAtLevel1: 38, speedAtLevel7: 68, idealSweptDeg: 170),
+        .smash: ShotBand(speedAtLevel1: 50, speedAtLevel7: 95, idealSweptDeg: 210),
         .serve: ShotBand(speedAtLevel1: 32, speedAtLevel7: 72, idealSweptDeg: 240),
     ]
 

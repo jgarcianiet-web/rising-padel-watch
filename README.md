@@ -19,7 +19,7 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
   sets, tie-break y cambios de pista — con el resultado sincronizado a la liga. A 40-40
   se elige entre ventajas, punto de oro y star point.
 - **Golpeos**: total, ritmo por minuto y desglose en derecha, revés, volea de derecha,
-  volea de revés, bandeja/smash y saque.
+  volea de revés, bandeja, víbora, smash y saque.
 - **Intensidad**: g de impacto y velocidad estimada de pala, media y máxima.
 - **Nivel técnico**: cada golpeo puntuado de 1 a 7 y un nivel de sesión con el desglose
   por golpe, para ver cuál va por detrás. Es una estimación sin calibrar: mide el swing,
@@ -30,7 +30,7 @@ Reloj (sensores + workout) ──► Móvil (historial + cola) ──► App de 
 ## Empezar
 
 ```bash
-# Lo único que corre sin SDK de móvil: el core y sus 153 tests
+# Lo único que corre sin SDK de móvil: el core y sus 156 tests
 cd android/core && ./gradlew test
 ```
 

@@ -15,7 +15,7 @@ cd android/core
 ./gradlew test
 ```
 
-153 tests: detección de golpeos, clasificación de los seis tipos, reglas del marcador
+156 tests: detección de golpeos, clasificación de los ocho tipos, reglas del marcador
 (puntos, los tres formatos de 40-40, tie-break, saque, cambios de pista y deshacer),
 captura de ventanas de entrenamiento, nivel técnico, replicación de ajustes al reloj,
 zonas de frecuencia cardiaca, contrato JSON, política de reintentos y almacenamiento

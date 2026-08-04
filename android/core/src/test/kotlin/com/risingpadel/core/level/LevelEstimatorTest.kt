@@ -169,7 +169,7 @@ class LevelEstimatorTest {
         // 100 derechas flojas y 10 smashes buenos. Si la media fuera por golpeo, los
         // smashes no se notarían; siendo por tipo, pesan igual que las derechas.
         val sesion = List(100) { shot(type = ShotType.FOREHAND, speedKmh = 30f) } +
-            List(10) { shot(type = ShotType.OVERHEAD, speedKmh = 88f, sweptDeg = 200f) }
+            List(10) { shot(type = ShotType.SMASH, speedKmh = 88f, sweptDeg = 210f) }
 
         val level = estimator.estimate(sesion)
         val soloDerechas = estimator.estimate(List(100) { shot(type = ShotType.FOREHAND, speedKmh = 30f) })

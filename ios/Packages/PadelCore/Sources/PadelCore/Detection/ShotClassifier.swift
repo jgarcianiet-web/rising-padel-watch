@@ -58,20 +58,7 @@ public struct ShotClassifier: Sendable {
         )
 
         if isOverhead {
-            let isServe = features.sweptAngleDeg > config.serveSweptDeg
-                && features.peakGyroRadS > config.servePeakGyroRadS
-            // La escala es media frontera y no la frontera entera: un smash de 140° está
-            // lejos del saque en términos prácticos aunque en valor absoluto se quede a
-            // menos de la mitad del umbral.
-            let sweptMargin = margin(
-                value: features.sweptAngleDeg,
-                threshold: config.serveSweptDeg,
-                scale: config.serveSweptDeg * 0.5
-            )
-            // En la rama alta la rotación axial no participa en la decisión, así que no
-            // debe penalizar la confianza: se reparte entre los dos rasgos que sí deciden.
-            let confidence = 0.5 * sweptMargin + 0.5 * elevationMargin
-            return finalize(isServe ? .serve : .overhead, confidence)
+            return classifyOverhead(features, elevationMargin: elevationMargin)
         }
 
         let axial = features.axialRotationRadS
@@ -92,6 +79,59 @@ public struct ShotClassifier: Sendable {
         case (false, false): type = .backhand
         }
         return finalize(type, confidence)
+    }
+
+    /// Los cuatro golpeos por encima de la cabeza, en orden de decisión:
+    ///
+    /// 1. **Saque**: swing completo (barre mucho más ángulo que cualquier otro alto).
+    /// 2. **Smash**: violencia — pico de giro por encima de `smashPeakGyroRadS`.
+    /// 3. **Víbora**: efecto — rotación axial alta sin la violencia del smash.
+    /// 4. **Bandeja**: el resto; el golpe alto de control, plano y sin exceso.
+    ///
+    /// El orden importa: un smash suele llevar también algo de efecto, pero la violencia
+    /// lo define antes de que la rotación axial pueda confundirlo con una víbora.
+    private func classifyOverhead(
+        _ features: ShotFeatures, elevationMargin: Float
+    ) -> Classification {
+        // La escala del margen es media frontera y no la frontera entera: una bandeja de
+        // 140° está lejos del saque en términos prácticos aunque en valor absoluto se
+        // quede a menos de la mitad del umbral.
+        let sweptMargin = margin(
+            value: features.sweptAngleDeg,
+            threshold: config.serveSweptDeg,
+            scale: config.serveSweptDeg * 0.5
+        )
+
+        let isServe = features.sweptAngleDeg > config.serveSweptDeg
+            && features.peakGyroRadS > config.servePeakGyroRadS
+        if isServe {
+            // En el saque la rotación axial no participa en la decisión, así que no debe
+            // penalizar la confianza: se reparte entre los dos rasgos que sí deciden.
+            return finalize(.serve, 0.5 * sweptMargin + 0.5 * elevationMargin)
+        }
+
+        let axialAbs = abs(features.axialRotationRadS)
+        let peakMargin = margin(
+            value: features.peakGyroRadS,
+            threshold: config.smashPeakGyroRadS,
+            scale: config.smashPeakGyroRadS * 0.35
+        )
+        let axialMargin = margin(
+            value: axialAbs, threshold: config.viboraAxialRadS, scale: config.viboraAxialRadS
+        )
+
+        let type: ShotType
+        if features.peakGyroRadS > config.smashPeakGyroRadS {
+            type = .smash
+        } else if axialAbs > config.viboraAxialRadS {
+            type = .vibora
+        } else {
+            type = .bandeja
+        }
+        // El rasgo que decidió cada tipo es el que más pesa en su confianza; la distancia
+        // al saque y la elevación completan el reparto.
+        let decisionMargin = type == .smash ? peakMargin : axialMargin
+        return finalize(type, 0.4 * decisionMargin + 0.3 * sweptMargin + 0.3 * elevationMargin)
     }
 
     /// Un golpeo poco fiable se reporta como `.unknown`, pero conserva su confianza:
