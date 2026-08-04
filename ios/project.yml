@@ -41,6 +41,14 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        # Sin esto, cada build se queda parada en App Store Connect esperando a que
+        # alguien responda a mano el cuestionario de cifrado de exportación, y hasta
+        # entonces los probadores no la ven.
+        #
+        # `false` significa "no usa cifrado no exento", que es el caso: la app solo habla
+        # HTTPS con la liga usando el cliente del sistema, y guarda el token en el
+        # Llavero. Ni criptografía propia ni bibliotecas de cifrado.
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.risingpadel.watch
