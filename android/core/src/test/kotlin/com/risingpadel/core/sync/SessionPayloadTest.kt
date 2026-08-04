@@ -214,6 +214,39 @@ class SessionPayloadTest {
         assertNotNull(score["rules"])
     }
 
+    // --- bloque analytics ---
+
+    @Test
+    fun `las series de analitica viajan en el payload`() {
+        val payload = session.toPayload(shareHealth = false, playerAverageLevel = 3.456f)
+        val analytics = assertNotNull(payload.analytics)
+
+        // La sesión dura 92.6 min → 10 intervalos de 10 min; los 3 golpeos caen en el 1º.
+        val frequency = assertNotNull(analytics.frequency)
+        assertEquals(10, frequency.intervalMinutes)
+        assertEquals(10, frequency.counts.size)
+        assertEquals(3, frequency.counts.first())
+        assertEquals(3, frequency.counts.sum(), "ningún golpeo se pierde")
+
+        val progression = assertNotNull(analytics.levelProgression)
+        assertTrue(progression.points.isNotEmpty())
+        assertTrue(progression.points.all { it.level in 1f..7f })
+
+        assertEquals(3.46f, analytics.playerAverageLevel)
+    }
+
+    @Test
+    fun `sin golpeos no viaja el bloque de analitica`() {
+        assertNull(session.copy(shots = emptyList()).toPayload(shareHealth = false).analytics)
+    }
+
+    @Test
+    fun `sin media del jugador el campo se omite y el resto viaja`() {
+        val analytics = assertNotNull(session.toPayload(shareHealth = false).analytics)
+        assertNull(analytics.playerAverageLevel)
+        assertNotNull(analytics.frequency)
+    }
+
     @Test
     fun `la URL base se compone bien con y sin barra final`() {
         assertEquals(

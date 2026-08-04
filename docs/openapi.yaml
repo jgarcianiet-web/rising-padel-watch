@@ -127,6 +127,12 @@ components:
           description: >
             Nivel técnico estimado. Se omite si ningún golpeo pudo puntuarse. Es derivado
             de shots, así que ignorarlo no pierde información.
+        analytics:
+          allOf: [{ $ref: '#/components/schemas/Analytics' }]
+          description: >
+            Series ya cocinadas para las gráficas (frecuencia y progreso del nivel).
+            Derivado y aditivo, igual que level: se omite sin golpeos y un receptor
+            viejo lo ignora sin romperse.
 
     Source:
       type: object
@@ -250,6 +256,45 @@ components:
           description: >
             false si hubo menos de 30 golpeos puntuables. El número sigue estando, pero no
             conviene apoyarse en él.
+
+    Analytics:
+      type: object
+      description: >
+        Las mismas series que pintan las apps de móvil. Decenas de números: cabe en el
+        deep link a la app de liga, donde los events no caben.
+      properties:
+        frequency:
+          type: object
+          required: [intervalMinutes, counts]
+          properties:
+            intervalMinutes: { type: integer, example: 10 }
+            counts:
+              type: array
+              items: { type: integer, minimum: 0 }
+              description: Golpeos por intervalo desde el minuto 0; los vacíos van como 0.
+              example: [78, 28, 35, 34, 42]
+        levelProgression:
+          type: object
+          required: [points]
+          properties:
+            points:
+              type: array
+              description: >
+                Nivel con ventana deslizante de 15 min evaluada cada 5. Los tramos sin
+                golpeos puntuados no emiten punto.
+              items:
+                type: object
+                required: [minute, level]
+                properties:
+                  minute: { type: number, format: float, example: 5 }
+                  level: { type: number, format: float, minimum: 1, maximum: 7, example: 3.3 }
+        playerAverageLevel:
+          type: number
+          format: float
+          minimum: 1
+          maximum: 7
+          description: Media del historial del jugador en el dispositivo emisor.
+          example: 3.45
 
     Score:
       type: object

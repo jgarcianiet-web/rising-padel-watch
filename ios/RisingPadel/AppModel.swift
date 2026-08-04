@@ -177,7 +177,13 @@ final class AppModel: ObservableObject {
     /// consume exactamente el payload de `POST /v1/padel-sessions`. Sin eventos por
     /// golpeo — la liga no los usa y un deep link no es sitio para decenas de KB.
     func leagueDeepLink(for session: PadelSession) -> URL? {
-        let payload = session.toPayload(shareHealth: shareHealth, includeEvents: false)
+        // La media del historial viaja con la sesión: es la línea "calidad media" de
+        // las gráficas de la liga, y solo este lado la conoce.
+        let payload = session.toPayload(
+            shareHealth: shareHealth,
+            includeEvents: false,
+            playerAverageLevel: playerAverageLevel
+        )
         guard let data = try? JSONEncoder().encode(payload),
               let json = String(data: data, encoding: .utf8),
               let encoded = json.addingPercentEncoding(withAllowedCharacters: .alphanumerics)

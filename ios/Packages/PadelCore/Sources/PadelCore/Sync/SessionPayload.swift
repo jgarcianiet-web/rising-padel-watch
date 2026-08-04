@@ -18,6 +18,36 @@ public struct SessionPayload: Codable, Equatable, Sendable {
     public let health: HealthPayload?
     public let score: ScorePayload?
     public let level: LevelPayload?
+    public let analytics: AnalyticsPayload?
+}
+
+/// Series agregadas para las gráficas de la liga. Opcional y **aditivo**: no sube la
+/// versión del esquema, y un receptor viejo lo ignora sin romperse.
+///
+/// Son decenas de números y no los eventos por golpeo: caben en un deep link y no
+/// exponen nada que los agregados (nivel, recuentos) no expongan ya.
+public struct AnalyticsPayload: Codable, Equatable, Sendable {
+    public let frequency: FrequencyPayload?
+    public let levelProgression: LevelProgressionPayload?
+    /// Nivel medio del jugador sobre su historial en el dispositivo emisor, si lo
+    /// conoce. Es la línea "calidad media" de las gráficas de la liga.
+    public let playerAverageLevel: Float?
+}
+
+public struct FrequencyPayload: Codable, Equatable, Sendable {
+    public let intervalMinutes: Int
+    /// Golpeos por intervalo, desde el minuto 0. Los intervalos vacíos van como 0.
+    public let counts: [Int]
+}
+
+public struct LevelProgressionPayload: Codable, Equatable, Sendable {
+    public let points: [LevelProgressionPointPayload]
+}
+
+public struct LevelProgressionPointPayload: Codable, Equatable, Sendable {
+    /// Minuto de sesión en el que se evalúa el punto (fin de la ventana).
+    public let minute: Float
+    public let level: Float
 }
 
 /// Nivel técnico estimado, en la escala de pádel de 1 a 7.
@@ -144,7 +174,13 @@ extension PadelSession {
     ///   `health` no se incluye en absoluto (no se manda vacío: se omite).
     /// - Parameter includeEvents: si es false solo se suben los agregados. Se usa para
     ///   reintentar una sesión que el servidor rechazó por tamaño.
-    public func toPayload(shareHealth: Bool, includeEvents: Bool = true) -> SessionPayload {
+    /// - Parameter playerAverageLevel: media del historial del jugador, si quien llama
+    ///   la conoce. La sesión no sabe de historial: por eso entra como parámetro.
+    public func toPayload(
+        shareHealth: Bool,
+        includeEvents: Bool = true,
+        playerAverageLevel: Float? = nil
+    ) -> SessionPayload {
         SessionPayload(
             sessionId: sessionId,
             schemaVersion: schemaVersion,
@@ -186,7 +222,36 @@ extension PadelSession {
             ),
             health: shareHealth ? health.toPayload() : nil,
             score: score.map { $0.toPayload() },
-            level: level.toPayload()
+            level: level.toPayload(),
+            analytics: analyticsPayload(playerAverageLevel: playerAverageLevel)
+        )
+    }
+
+    /// Sin golpeos no hay series que mandar: se omite el bloque entero.
+    private func analyticsPayload(playerAverageLevel: Float?) -> AnalyticsPayload? {
+        guard !shots.isEmpty else { return nil }
+        let analytics = SessionAnalytics()
+        let durationMs = durationSeconds * 1000
+
+        let buckets = analytics.shotFrequency(
+            shots, durationMs: durationMs, intervalMs: SessionAnalytics.interval10MinMs
+        )
+        let points = analytics.levelProgression(shots, durationMs: durationMs)
+
+        return AnalyticsPayload(
+            frequency: buckets.isEmpty ? nil : FrequencyPayload(
+                intervalMinutes: 10,
+                counts: buckets.map(\.count)
+            ),
+            levelProgression: points.isEmpty ? nil : LevelProgressionPayload(
+                points: points.map {
+                    LevelProgressionPointPayload(
+                        minute: round1(Float($0.offsetMs) / 60_000),
+                        level: round1($0.level)
+                    )
+                }
+            ),
+            playerAverageLevel: playerAverageLevel.map(round2)
         )
     }
 }

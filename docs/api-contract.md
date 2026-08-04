@@ -106,6 +106,19 @@ repetidas.
     "repertoire": 0.5,              // 0 a 1
     "gradedShots": 380,             // golpeos que puntuaron (los `unknown` no)
     "reliable": true                // false si hubo pocos golpeos
+  },
+  "analytics": {                    // se omite si no hubo golpeos
+    "frequency": {                  // golpeos por intervalo, desde el minuto 0
+      "intervalMinutes": 10,
+      "counts": [78, 28, 35, 34, 42, 39, 30, 32, 43, 39]
+    },
+    "levelProgression": {           // nivel con ventana deslizante de 15 min cada 5
+      "points": [
+        { "minute": 5, "level": 3.3 },
+        { "minute": 10, "level": 3.6 }
+      ]
+    },
+    "playerAverageLevel": 3.45      // media del historial del emisor; opcional
   }
 }
 ```
@@ -132,6 +145,12 @@ Notas de campos:
   sigue estando; simplemente no conviene apoyarse en él. **No lo uses para clasificar
   jugadores en una liga**: es una estimación sin calibrar hecha con el giróscopo de la
   muñeca, no ve colocación ni táctica. Ver [`level.md`](./level.md).
+- `analytics` son las series ya cocinadas para pintar las gráficas (frecuencia de golpeo
+  y progreso del nivel), las mismas que enseñan las apps de móvil. Igual que `level` es
+  **derivado y aditivo**: no sube la versión del esquema y un receptor viejo lo ignora.
+  Son decenas de números, así que viaja también por el deep link a la app de liga, donde
+  los `events` no caben. `frequency.counts` incluye los intervalos vacíos como `0`; los
+  huecos sin `points` en la progresión son tramos sin golpeos puntuados.
 
 ### Respuestas
 

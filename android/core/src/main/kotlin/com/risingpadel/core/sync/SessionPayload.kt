@@ -1,5 +1,6 @@
 package com.risingpadel.core.sync
 
+import com.risingpadel.core.analytics.SessionAnalytics
 import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.model.HealthMetrics
 import com.risingpadel.core.model.PadelSession
@@ -30,6 +31,44 @@ data class SessionPayload(
     val health: HealthPayload? = null,
     val score: ScorePayload? = null,
     val level: LevelPayload? = null,
+    val analytics: AnalyticsPayload? = null,
+)
+
+/**
+ * Series agregadas para las gráficas de la liga. Opcional y **aditivo**: no sube la
+ * versión del esquema, y un receptor viejo lo ignora sin romperse.
+ *
+ * Son decenas de números y no los eventos por golpeo: caben en un deep link y no
+ * exponen nada que los agregados (nivel, recuentos) no expongan ya.
+ */
+@Serializable
+data class AnalyticsPayload(
+    val frequency: FrequencyPayload? = null,
+    val levelProgression: LevelProgressionPayload? = null,
+    /**
+     * Nivel medio del jugador sobre su historial en el dispositivo emisor, si lo conoce.
+     * Es la línea "calidad media" de las gráficas de la liga.
+     */
+    val playerAverageLevel: Float? = null,
+)
+
+@Serializable
+data class FrequencyPayload(
+    val intervalMinutes: Int,
+    /** Golpeos por intervalo, desde el minuto 0. Los intervalos vacíos van como 0. */
+    val counts: List<Int>,
+)
+
+@Serializable
+data class LevelProgressionPayload(
+    val points: List<LevelProgressionPointPayload>,
+)
+
+@Serializable
+data class LevelProgressionPointPayload(
+    /** Minuto de sesión en el que se evalúa el punto (fin de la ventana). */
+    val minute: Float,
+    val level: Float,
 )
 
 /**
@@ -163,10 +202,13 @@ data class MatchSummary(
  *   incluye en absoluto (no se manda vacío: se omite).
  * @param includeEvents si es false solo se suben los agregados. Se usa para reintentar
  *   una sesión que el servidor rechazó por tamaño.
+ * @param playerAverageLevel media del historial del jugador, si quien llama la conoce.
+ *   La sesión no sabe de historial: por eso entra como parámetro.
  */
 fun PadelSession.toPayload(
     shareHealth: Boolean,
     includeEvents: Boolean = true,
+    playerAverageLevel: Float? = null,
 ): SessionPayload = SessionPayload(
     sessionId = sessionId,
     schemaVersion = schemaVersion,
@@ -204,7 +246,35 @@ fun PadelSession.toPayload(
     health = if (shareHealth) health.toPayloadOrNull() else null,
     score = score?.toPayload(),
     level = level.toPayloadOrNull(),
+    analytics = analyticsPayloadOrNull(playerAverageLevel),
 )
+
+/** Sin golpeos no hay series que mandar: se omite el bloque entero. */
+private fun PadelSession.analyticsPayloadOrNull(playerAverageLevel: Float?): AnalyticsPayload? {
+    if (shots.isEmpty()) return null
+    val analytics = SessionAnalytics()
+    val durationMs = durationSeconds * 1000
+
+    val buckets = analytics.shotFrequency(shots, durationMs, SessionAnalytics.INTERVAL_10_MIN_MS)
+    val points = analytics.levelProgression(shots, durationMs)
+
+    return AnalyticsPayload(
+        frequency = buckets.takeIf { it.isNotEmpty() }?.let { list ->
+            FrequencyPayload(intervalMinutes = 10, counts = list.map { it.count })
+        },
+        levelProgression = points.takeIf { it.isNotEmpty() }?.let { list ->
+            LevelProgressionPayload(
+                points = list.map {
+                    LevelProgressionPointPayload(
+                        minute = round1(it.offsetMs / 60_000f),
+                        level = round1(it.level),
+                    )
+                }
+            )
+        },
+        playerAverageLevel = playerAverageLevel?.let { round2(it) },
+    )
+}
 
 /** Sin golpeos puntuables no hay nivel que mandar: se omite en vez de mandar un 1 falso. */
 private fun SessionLevel.toPayloadOrNull(): LevelPayload? {
