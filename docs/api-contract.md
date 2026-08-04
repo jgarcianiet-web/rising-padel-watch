@@ -5,6 +5,12 @@ La app de reloj no conoce el esquema interno de la liga. Habla este contrato con
 `rising-padel-manager` / `app-liga-padel` basta con implementar este endpoint o poner
 un adaptador delante.
 
+> **Adaptador local (sin servidor):** para ligas que viven en el mismo iPhone —como
+> Liga Personal Pádel (`padel`)— existe un volcado por deep link con este mismo payload:
+> `ligapadel://importar?datos=<JSON percent-encoded>`, siempre sin `shots.events`.
+> Emisor: `LeagueDeepLink` en PadelCore + botón "Enviar a Liga Personal Pádel" en el
+> detalle de sesión. Receptor: `docs/INTEGRACION-RELOJ.md` del repo `padel`.
+
 La especificación formal está en [`openapi.yaml`](./openapi.yaml). Este documento es la
 versión legible.
 
