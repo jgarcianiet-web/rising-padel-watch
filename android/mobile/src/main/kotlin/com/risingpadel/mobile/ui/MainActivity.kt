@@ -132,6 +132,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                     onSensitivityChange = viewModel::setSensitivity,
                     onCollectTrainingDataChange = viewModel::setCollectTrainingData,
                     onPlayerAliasChange = viewModel::setPlayerAlias,
+                    onVersionTapped = viewModel::onVersionTapped,
                     onExportTrainingData = { shareTrainingData(context, viewModel) },
                     onDeleteTrainingData = viewModel::deleteTrainingData,
                 )

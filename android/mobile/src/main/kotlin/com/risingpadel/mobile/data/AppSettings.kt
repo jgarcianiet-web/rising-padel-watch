@@ -41,6 +41,13 @@ data class AppPreferences(
     val trainingDataBytes: Long = 0,
     /** Marca de tiempo de la última edición de un ajuste replicado al reloj. */
     val updatedAtEpochMs: Long = 0,
+    /**
+     * Desbloquea el modo de recogida de datos de entrenamiento. Es una herramienta de
+     * quien construye el dataset, no de quien juega: para un usuario normal no existe.
+     * Se activa con siete toques en la versión, y cuando haya cuentas de la liga pasará
+     * a depender de un rol de verdad.
+     */
+    val developerMode: Boolean = false,
 ) {
     /** Lo que se replica al reloj. Ni credenciales ni ajustes de marcador. */
     fun toDeviceSettings(): DeviceSettings = DeviceSettings(
@@ -94,6 +101,7 @@ class AppSettings(private val context: Context) {
             playerAlias = prefs[KEY_PLAYER_ALIAS] ?: DeviceSettings.DEFAULT_ALIAS,
             updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
             trainingDataBytes = trainingDataFile.let { if (it.exists()) it.length() else 0L },
+            developerMode = prefs[KEY_DEVELOPER_MODE] ?: false,
         )
     }
 
@@ -117,6 +125,11 @@ class AppSettings(private val context: Context) {
 
     suspend fun setShareHealth(share: Boolean) {
         editReplicated { it[KEY_SHARE_HEALTH] = share }
+    }
+
+    /** No se replica: el modo desarrollador es de este móvil, no del jugador. */
+    suspend fun setDeveloperMode(enabled: Boolean) {
+        context.dataStore.edit { it[KEY_DEVELOPER_MODE] = enabled }
     }
 
     /** No se replica: es política de subida del móvil, el reloj no la usa. */
@@ -182,6 +195,7 @@ class AppSettings(private val context: Context) {
         val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
         val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
         val KEY_UPDATED_AT = longPreferencesKey("settings_updated_at")
+        val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         const val KEY_TOKEN = "league_token"
     }
 }

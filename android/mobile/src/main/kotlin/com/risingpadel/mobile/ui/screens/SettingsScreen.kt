@@ -1,5 +1,6 @@
 package com.risingpadel.mobile.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,6 +53,7 @@ fun SettingsScreen(
     onPlayerAliasChange: (String) -> Unit,
     onExportTrainingData: () -> Unit,
     onDeleteTrainingData: () -> Unit,
+    onVersionTapped: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -77,12 +79,22 @@ fun SettingsScreen(
             PrivacyCard(preferences, onShareHealthChange, onShareEventsChange)
             PlayerCard(preferences, onHandChange, onWristChange)
             SensitivityCard(preferences, onSensitivityChange)
-            TrainingDataCard(
-                preferences = preferences,
-                onCollectChange = onCollectTrainingDataChange,
-                onAliasChange = onPlayerAliasChange,
-                onExport = onExportTrainingData,
-                onDelete = onDeleteTrainingData,
+            // El modo de recogida de datos es una herramienta de quien construye el
+            // dataset, no de quien juega: para un usuario normal no existe. Se
+            // desbloquea con siete toques en la versión, y cuando la app tenga cuentas
+            // de la liga pasará a depender de un rol de verdad.
+            if (preferences.developerMode) {
+                TrainingDataCard(
+                    preferences = preferences,
+                    onCollectChange = onCollectTrainingDataChange,
+                    onAliasChange = onPlayerAliasChange,
+                    onExport = onExportTrainingData,
+                    onDelete = onDeleteTrainingData,
+                )
+            }
+            AboutCard(
+                developerMode = preferences.developerMode,
+                onVersionTapped = onVersionTapped,
             )
         }
     }
@@ -305,6 +317,24 @@ private fun TrainingDataCard(
                     modifier = Modifier.padding(top = 8.dp),
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun AboutCard(developerMode: Boolean, onVersionTapped: () -> Unit) {
+    SettingsCard("Acerca de") {
+        Text(
+            text = "Rising Padel ${com.risingpadel.mobile.BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.clickable(onClick = onVersionTapped),
+        )
+        if (developerMode) {
+            Text(
+                "Modo desarrollador activado. Siete toques en la versión lo desactivan.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

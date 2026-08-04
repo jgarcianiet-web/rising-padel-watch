@@ -14,7 +14,14 @@ struct SettingsView: View {
                 privacySection
                 playerSection
                 sensitivitySection
-                trainingDataSection
+                // El modo de recogida de datos es una herramienta de quien construye el
+                // dataset, no de quien juega: para un usuario normal no existe. Se
+                // desbloquea con siete toques en la versión, y cuando la app tenga
+                // cuentas de la liga pasará a depender de un rol de verdad.
+                if model.developerMode {
+                    trainingDataSection
+                }
+                aboutSection
             }
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
@@ -77,6 +84,20 @@ struct SettingsView: View {
             }
         } header: {
             Text("Jugador")
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            Text("Rising Padel \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
+                .onTapGesture { model.versionTapped() }
+            if model.developerMode {
+                Text("Modo desarrollador activado. Siete toques en la versión lo desactivan.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            Text("Acerca de")
         }
     }
 

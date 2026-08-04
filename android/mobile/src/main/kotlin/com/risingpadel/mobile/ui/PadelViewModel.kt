@@ -142,6 +142,22 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
         container.settings.setCollectTrainingData(collect)
     }
 
+    /** Siete toques en la versión. Apagarlo apaga también la recogida de datos. */
+    private var versionTaps = 0
+    fun onVersionTapped() = viewModelScope.launch {
+        versionTaps += 1
+        if (versionTaps < 7) return@launch
+        versionTaps = 0
+        val enabling = !preferences.value.developerMode
+        container.settings.setDeveloperMode(enabling)
+        if (!enabling) {
+            // Al salir del modo desarrollador no puede quedar la grabación activa
+            // escondida: se apaga y la replicación quita el botón del reloj.
+            container.settings.setCollectTrainingData(false)
+        }
+        _message.value = if (enabling) "Modo desarrollador activado" else "Modo desarrollador desactivado"
+    }
+
     fun setPlayerAlias(alias: String) = viewModelScope.launch {
         container.settings.setPlayerAlias(alias)
         _message.value = "Alias guardado"

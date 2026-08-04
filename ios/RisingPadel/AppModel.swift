@@ -16,6 +16,10 @@ final class AppModel: ObservableObject {
     @AppStorage("watchWrist") var watchWristRaw = Hand.right.rawValue
     @AppStorage("sensitivity") var sensitivityRaw = Sensitivity.medium.rawValue
     @AppStorage("collectTrainingData") var collectTrainingData = false
+    /// Desbloquea el modo de recogida de datos. Es una herramienta de quien construye
+    /// el dataset, no de quien juega: para un usuario normal no existe. Siete toques en
+    /// la versión lo activan; con cuentas de la liga pasará a depender de un rol real.
+    @AppStorage("developerMode") var developerMode = false
     @AppStorage("playerAlias") var playerAlias = "anon"
 
     /// Fichero de datos de entrenamiento recibido del reloj. **Nunca se sube a la liga**:
@@ -64,6 +68,21 @@ final class AppModel: ObservableObject {
 
     func refresh() {
         sessions = store.all()
+    }
+
+    /// Siete toques en la versión. Apagarlo apaga también la recogida de datos, para
+    /// que no quede la grabación activa escondida — la replicación quita el botón del
+    /// reloj al propagarse el cambio.
+    private var versionTaps = 0
+    func versionTapped() {
+        versionTaps += 1
+        guard versionTaps >= 7 else { return }
+        versionTaps = 0
+        developerMode.toggle()
+        if !developerMode {
+            collectTrainingData = false
+        }
+        message = developerMode ? "Modo desarrollador activado" : "Modo desarrollador desactivado"
     }
 
     // MARK: Replicación de ajustes al reloj
