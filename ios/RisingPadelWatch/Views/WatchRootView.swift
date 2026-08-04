@@ -88,27 +88,36 @@ struct WatchRootView: View {
             Text("¿A 40-40?")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // El estilo se decide con un if y no con un ternario: `.bordered` y
+            // `.borderedProminent` son tipos distintos y el ternario no compila.
             ForEach(DeuceFormat.allCases, id: \.self) { format in
-                Button {
-                    deuceFormatRaw = format.rawValue
-                    trackScore = true
-                    choosingFormat = false
-                    Task { await controller.start() }
-                } label: {
-                    HStack {
-                        Text(format.label).font(.caption)
-                        if format == currentDeuceFormat {
-                            Spacer()
-                            Image(systemName: "checkmark").font(.system(size: 10))
-                        }
-                    }
+                if format == currentDeuceFormat {
+                    formatButton(format).buttonStyle(.borderedProminent)
+                } else {
+                    formatButton(format).buttonStyle(.bordered)
                 }
-                .buttonStyle(format == currentDeuceFormat ? .borderedProminent : .bordered)
             }
             Button("Atrás") { choosingFormat = false }
                 .font(.caption2)
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatButton(_ format: DeuceFormat) -> some View {
+        Button {
+            deuceFormatRaw = format.rawValue
+            trackScore = true
+            choosingFormat = false
+            Task { await controller.start() }
+        } label: {
+            HStack {
+                Text(format.label).font(.caption)
+                if format == currentDeuceFormat {
+                    Spacer()
+                    Image(systemName: "checkmark").font(.system(size: 10))
+                }
+            }
         }
     }
 
