@@ -164,7 +164,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = "Abre Rising Padel en el reloj y pulsa Empezar antes del partido. " +
+            text = "Abre Rising Padel en el reloj y elige Partido o Entreno. " +
                 "Al terminar, la sesión aparecerá aquí sola.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,

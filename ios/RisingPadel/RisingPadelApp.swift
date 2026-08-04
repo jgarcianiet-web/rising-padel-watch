@@ -6,7 +6,7 @@ struct RisingPadelApp: App {
 
     var body: some Scene {
         WindowGroup {
-            SessionListView()
+            RootTabView()
                 .environmentObject(model)
         }
     }

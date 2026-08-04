@@ -209,21 +209,34 @@ struct SessionDetailView: View {
     @ViewBuilder
     private var healthSection: some View {
         Section("Salud") {
-            HStack {
+            // Rejilla y no fila: con siete métricas posibles una HStack se sale de la
+            // pantalla justo cuando la sesión trae todos los datos.
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 3),
+                alignment: .leading,
+                spacing: 14
+            ) {
                 if let heartRate = session.health.heartRate {
                     stat("FC media", "\(heartRate.meanBpm) ppm")
-                    Spacer()
                     stat("FC máx", "\(heartRate.maxBpm) ppm")
+                    if let resting = heartRate.restingBpm {
+                        stat("FC reposo", "\(resting) ppm")
+                    }
                 }
                 if let kcal = session.health.activeEnergyKcal {
-                    Spacer()
                     stat("Activas", String(format: "%.0f kcal", kcal))
                 }
+                if let kcal = session.health.totalEnergyKcal {
+                    stat("Totales", String(format: "%.0f kcal", kcal))
+                }
+                if let steps = session.health.steps {
+                    stat("Pasos", "\(steps)")
+                }
                 if let meters = session.health.distanceMeters {
-                    Spacer()
                     stat("Distancia", String(format: "%.1f km", meters / 1000))
                 }
             }
+            .padding(.vertical, 4)
 
             let zones = session.health.zones.secondsPerZone
             if !zones.isEmpty {

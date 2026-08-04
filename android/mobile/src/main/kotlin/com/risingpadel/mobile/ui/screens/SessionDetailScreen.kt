@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -54,18 +57,29 @@ fun SessionDetailScreen(
     session: PadelSession,
     /** Nivel medio del jugador en su historial, para la línea de referencia. */
     playerAverageLevel: Float?,
-    onBack: () -> Unit,
+    /** Null cuando la pantalla es la portada "Última sesión": ahí no hay atrás. */
+    onBack: (() -> Unit)?,
     onRetrySync: () -> Unit,
     onLinkMatch: (matchId: String, leagueId: String?) -> Unit,
     onDelete: () -> Unit,
+    onOpenSettings: (() -> Unit)? = null,
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(formatSessionDate(session.startedAtEpochMs)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        }
+                    }
+                },
+                actions = {
+                    if (onOpenSettings != null) {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
+                        }
                     }
                 },
             )
@@ -246,21 +260,34 @@ private fun ShotBreakdown(session: PadelSession) {
 
 @Composable
 private fun HealthCard(session: PadelSession) {
+    // Rejilla por filas de tres y no una fila única: con siete métricas posibles una
+    // Row se sale de la pantalla justo cuando la sesión trae todos los datos.
+    val stats = buildList {
+        session.health.heartRate?.let {
+            add("FC media" to "${it.meanBpm} ppm")
+            add("FC máx" to "${it.maxBpm} ppm")
+            it.restingBpm?.let { resting -> add("FC reposo" to "$resting ppm") }
+        }
+        session.health.activeEnergyKcal?.let { add("Activas" to "%.0f kcal".format(it)) }
+        session.health.totalEnergyKcal?.let { add("Totales" to "%.0f kcal".format(it)) }
+        session.health.steps?.let { add("Pasos" to "$it") }
+        session.health.distanceMeters?.let { add("Distancia" to "%.1f km".format(it / 1000f)) }
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("Salud", style = MaterialTheme.typography.titleMedium)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                session.health.heartRate?.let {
-                    Stat("FC media", "${it.meanBpm} ppm")
-                    Stat("FC máx", "${it.maxBpm} ppm")
+            stats.chunked(3).forEach { fila ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    fila.forEach { (label, value) -> Stat(label, value) }
+                    // Relleno para que una fila corta no reparta sus huecos raro.
+                    repeat(3 - fila.size) { Spacer(modifier = Modifier.width(1.dp)) }
                 }
-                session.health.activeEnergyKcal?.let { Stat("Activas", "%.0f kcal".format(it)) }
-                session.health.distanceMeters?.let { Stat("Distancia", "%.1f km".format(it / 1000f)) }
             }
 
             val zones = session.health.zones.secondsPerZone

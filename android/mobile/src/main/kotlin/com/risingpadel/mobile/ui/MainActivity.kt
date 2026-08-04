@@ -5,10 +5,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.SportsTennis
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -16,8 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.risingpadel.mobile.ui.screens.SessionDetailScreen
 import com.risingpadel.mobile.ui.screens.SessionListScreen
@@ -37,6 +46,7 @@ class MainActivity : ComponentActivity() {
 }
 
 private object Routes {
+    const val LAST = "last"
     const val SESSIONS = "sessions"
     const val SETTINGS = "settings"
     const val DETAIL = "sessions/{sessionId}"
@@ -63,6 +73,15 @@ private fun shareTrainingData(context: android.content.Context, viewModel: Padel
     context.startActivity(android.content.Intent.createChooser(intent, "Exportar datos"))
 }
 
+/** Cambio de pestaña sin apilar: volver atrás desde una pestaña sale de la app. */
+private fun NavHostController.navigateTab(route: String) {
+    navigate(route) {
+        popUpTo(graph.startDestinationId) { saveState = true }
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
 @Composable
 private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
     val navController = rememberNavController()
@@ -79,15 +98,71 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
         }
     }
 
+    // La media del historial alimenta la línea de referencia de las gráficas.
+    val playerAverageLevel = sessions
+        .map { it.level }
+        .filter { it.gradedShots > 0 }
+        .map { it.overall }
+        .takeIf { it.isNotEmpty() }
+        ?.average()?.toFloat()
+
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            // Las pestañas solo se ven en las dos raíces: dentro de un detalle o de
+            // ajustes la navegación es volver, no cambiar de pestaña.
+            if (currentRoute == Routes.LAST || currentRoute == Routes.SESSIONS) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = currentRoute == Routes.LAST,
+                        onClick = { navController.navigateTab(Routes.LAST) },
+                        icon = { Icon(Icons.Default.SportsTennis, contentDescription = null) },
+                        label = { Text("Última sesión") },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Routes.SESSIONS,
+                        onClick = { navController.navigateTab(Routes.SESSIONS) },
+                        icon = { Icon(Icons.Default.History, contentDescription = null) },
+                        label = { Text("Histórico") },
+                    )
+                }
+            }
+        },
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = Routes.SESSIONS,
+            startDestination = Routes.LAST,
             modifier = Modifier.padding(padding),
         ) {
+            // Lo primero al abrir: la última sesión con todo su detalle — resultado,
+            // nivel, gráficas y salud. Es lo que se viene a mirar al salir de la pista.
+            composable(Routes.LAST) {
+                val last = sessions.firstOrNull()
+                if (last == null) {
+                    SessionListScreen(
+                        sessions = emptyList(),
+                        onOpenSession = {},
+                        onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                        onSyncNow = viewModel::syncNow,
+                    )
+                } else {
+                    SessionDetailScreen(
+                        session = last,
+                        playerAverageLevel = playerAverageLevel,
+                        onBack = null,
+                        onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                        onRetrySync = { viewModel.retrySession(last.sessionId) },
+                        onLinkMatch = { matchId, leagueId ->
+                            viewModel.linkToMatch(last.sessionId, matchId, leagueId)
+                        },
+                        onDelete = { viewModel.deleteSession(last.sessionId) },
+                    )
+                }
+            }
+
             composable(Routes.SESSIONS) {
                 SessionListScreen(
                     sessions = sessions,
@@ -107,12 +182,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                 }
                 SessionDetailScreen(
                     session = session,
-                    playerAverageLevel = sessions
-                        .map { it.level }
-                        .filter { it.gradedShots > 0 }
-                        .map { it.overall }
-                        .takeIf { it.isNotEmpty() }
-                        ?.average()?.toFloat(),
+                    playerAverageLevel = playerAverageLevel,
                     onBack = { navController.popBackStack() },
                     onRetrySync = { viewModel.retrySession(session.sessionId) },
                     onLinkMatch = { matchId, leagueId ->

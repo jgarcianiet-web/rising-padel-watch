@@ -42,15 +42,6 @@ struct SessionListView: View {
                 SettingsView().environmentObject(model)
             }
             .refreshable { await model.syncNow() }
-            .alert(
-                model.message ?? "",
-                isPresented: Binding(
-                    get: { model.message != nil },
-                    set: { if !$0 { model.message = nil } }
-                )
-            ) {
-                Button("Vale", role: .cancel) { model.message = nil }
-            }
         }
     }
 
@@ -125,7 +116,7 @@ struct SessionListView: View {
         ContentUnavailableView {
             Label("Todavía no hay sesiones", systemImage: "figure.tennis")
         } description: {
-            Text("Abre Rising Padel en el reloj y pulsa Empezar antes del partido. "
+            Text("Abre Rising Padel en el reloj y elige Partido o Entreno. "
                  + "Al terminar, la sesión aparecerá aquí sola.")
         }
     }
