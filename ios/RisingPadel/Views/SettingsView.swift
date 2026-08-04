@@ -110,6 +110,13 @@ struct SettingsView: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
 
+                // El nivel viaja con cada golpe grabado: ponerle el reloj a un jugador
+                // de nivel 6-7 media hora es el "esto es un 7" que ancla la escala.
+                Picker("Nivel del jugador que graba", selection: $model.playerLevelRaw) {
+                    Text("Sin indicar").tag(0)
+                    ForEach(1...7, id: \.self) { Text("\($0)").tag($0) }
+                }
+
                 if let url = model.trainingDataURL {
                     // ShareLink en vez de subir a ningún sitio: el fichero solo sale del
                     // móvil si el usuario lo comparte a mano.

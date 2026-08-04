@@ -115,7 +115,14 @@ def extract_features(record: dict) -> list[float] | None:
     wrist_sign = -1.0 if record.get("watchWrist") == "left" else 1.0
     hand_sign = -1.0 if record.get("hand") == "left" else 1.0
 
-    forearm = np.array([0.0, wrist_sign, 0.0])
+    # En watchOS el marco de CoreMotion sigue la orientación de pantalla y las 12 del
+    # reloj miran siempre al codo: el eje codo → mano es -Y en las dos muñecas
+    # (validado en pista; ver docs/shot-detection.md). En Wear se mantiene el convenio
+    # por muñeca hasta validarlo con un dispositivo real.
+    if record.get("platform") == "watchos":
+        forearm = np.array([0.0, -1.0, 0.0])
+    else:
+        forearm = np.array([0.0, wrist_sign, 0.0])
     axial = (gyro @ forearm) * hand_sign
 
     # Elevación del antebrazo: ángulo sobre la horizontal, igual que en la heurística.

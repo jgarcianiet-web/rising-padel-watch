@@ -110,6 +110,7 @@ class PadelExerciseService : LifecycleService() {
                 profile = preferences.profile,
                 config = DetectorConfig.DEFAULT.withSensitivity(preferences.sensitivity),
                 playerAlias = preferences.playerAlias,
+                playerLevel = preferences.playerLevel,
                 monotonicMs = SystemClock.elapsedRealtime(),
             )
 

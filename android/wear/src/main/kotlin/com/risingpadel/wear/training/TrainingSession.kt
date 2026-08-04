@@ -57,6 +57,7 @@ class TrainingSession(context: Context) {
         profile: PlayerProfile,
         config: DetectorConfig,
         playerAlias: String,
+        playerLevel: Int?,
         monotonicMs: Long,
     ) {
         val newRecorder = TrainingRecorder(
@@ -68,6 +69,7 @@ class TrainingSession(context: Context) {
         ).apply {
             label = _state.value.label
             this.playerAlias = playerAlias
+            this.playerLevel = playerLevel
         }
         newRecorder.start(monotonicMs)
         recorder = newRecorder

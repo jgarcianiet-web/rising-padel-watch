@@ -27,8 +27,10 @@ gráficas. Nadie distingue un revés de una volea alta en una serie de aceleróm
 
 Lo que sí: **una tanda por tipo de golpe, con la etiqueta puesta antes de golpear.**
 
-1. Ajustes del móvil → activa "Recoger datos de entrenamiento" y pon tu alias. El ajuste
-   se replica al reloj solo; si el reloj estaba apagado, lo recibe al encenderlo.
+1. Ajustes del móvil → activa "Recoger datos de entrenamiento", pon tu alias y, si lo
+   sabes, el **nivel del jugador** (1-7). El nivel viaja con cada golpe grabado y es lo
+   que permite calibrar la escala: ponerle el reloj a un jugador de nivel 6-7 media hora
+   es el "esto es un 7" de verdad. Todo se replica al reloj solo.
 2. En el reloj, pantalla inicial → **Datos de entrenamiento**. Este botón **solo aparece
    con el modo activado**: si no lo ves, el ajuste todavía no ha llegado — comprueba que el
    reloj esté emparejado y que las dos apps estén firmadas con la misma clave.
@@ -128,6 +130,7 @@ Una línea por golpeo:
   "label": "backhand",            // lo que eligió el jugador: es la verdad
   "recordedAtEpochMs": 1785002652000,
   "playerAlias": "marta",
+  "playerLevel": 6,               // nivel de pádel (1-7) del jugador, si se configuró
   "hand": "right",
   "watchWrist": "right",
   "platform": "wearos",

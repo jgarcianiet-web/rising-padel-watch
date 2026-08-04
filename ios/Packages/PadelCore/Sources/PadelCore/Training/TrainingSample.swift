@@ -16,6 +16,8 @@ public struct TrainingSample: Codable, Equatable, Sendable {
     /// dos lados de la partición, el modelo memoriza al jugador y la precisión que mides
     /// es mentira.
     public let playerAlias: String
+    /// Nivel de pádel del jugador (1-7) si se conoce, para calibrar la escala de nivel.
+    public let playerLevel: Int?
     public let hand: Hand
     public let watchWrist: Hand
     public let platform: Platform
@@ -42,6 +44,7 @@ public struct TrainingSample: Codable, Equatable, Sendable {
         label: ShotType,
         recordedAtEpochMs: Int64,
         playerAlias: String,
+        playerLevel: Int? = nil,
         hand: Hand,
         watchWrist: Hand,
         platform: Platform,
@@ -60,6 +63,7 @@ public struct TrainingSample: Codable, Equatable, Sendable {
         self.label = label
         self.recordedAtEpochMs = recordedAtEpochMs
         self.playerAlias = playerAlias
+        self.playerLevel = playerLevel
         self.hand = hand
         self.watchWrist = watchWrist
         self.platform = platform

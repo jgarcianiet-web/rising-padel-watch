@@ -51,6 +51,7 @@ fun SettingsScreen(
     onSensitivityChange: (Sensitivity) -> Unit,
     onCollectTrainingDataChange: (Boolean) -> Unit,
     onPlayerAliasChange: (String) -> Unit,
+    onPlayerLevelChange: (Int?) -> Unit,
     onExportTrainingData: () -> Unit,
     onDeleteTrainingData: () -> Unit,
     onVersionTapped: () -> Unit,
@@ -88,6 +89,7 @@ fun SettingsScreen(
                     preferences = preferences,
                     onCollectChange = onCollectTrainingDataChange,
                     onAliasChange = onPlayerAliasChange,
+                    onLevelChange = onPlayerLevelChange,
                     onExport = onExportTrainingData,
                     onDelete = onDeleteTrainingData,
                 )
@@ -263,6 +265,7 @@ private fun TrainingDataCard(
     preferences: AppPreferences,
     onCollectChange: (Boolean) -> Unit,
     onAliasChange: (String) -> Unit,
+    onLevelChange: (Int?) -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -296,6 +299,26 @@ private fun TrainingDataCard(
                 onClick = { onAliasChange(alias) },
                 modifier = Modifier.align(Alignment.End),
             ) { Text("Guardar alias") }
+
+            // El nivel del jugador (1-7) viaja con cada muestra grabada: es el ancla
+            // para calibrar la escala con jugadores de nivel conocido. Ponerle el reloj
+            // a alguien de nivel 6-7 media hora es el "esto es un 7" de verdad.
+            Text(
+                "Nivel del jugador que graba (opcional)",
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                (1..7).forEach { level ->
+                    FilterChip(
+                        selected = preferences.playerLevel == level,
+                        onClick = {
+                            onLevelChange(if (preferences.playerLevel == level) null else level)
+                        },
+                        label = { Text("$level") },
+                    )
+                }
+            }
 
             if (preferences.trainingDataBytes > 0) {
                 Text(

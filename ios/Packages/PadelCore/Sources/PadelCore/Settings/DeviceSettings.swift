@@ -22,6 +22,9 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
     public var collectTrainingData: Bool
     /// Alias del jugador, para poder validar el modelo dejándolo fuera.
     public var playerAlias: String
+    /// Nivel de pádel del jugador (1-7) si se conoce. Viaja con las muestras de
+    /// entrenamiento para calibrar la escala con jugadores de nivel conocido.
+    public var playerLevel: Int?
     /// Cuándo se editaron estos ajustes en el dispositivo de origen.
     ///
     /// Es lo que hace que la replicación sea segura: `updateApplicationContext` **reentrega**
@@ -35,6 +38,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         shareHealth: Bool = false,
         collectTrainingData: Bool = false,
         playerAlias: String = DeviceSettings.defaultAlias,
+        playerLevel: Int? = nil,
         updatedAtEpochMs: Int64 = 0
     ) {
         self.profile = profile
@@ -42,6 +46,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         self.shareHealth = shareHealth
         self.collectTrainingData = collectTrainingData
         self.playerAlias = playerAlias
+        self.playerLevel = playerLevel
         self.updatedAtEpochMs = updatedAtEpochMs
     }
 
@@ -62,6 +67,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         ) ?? false
         playerAlias = try container.decodeIfPresent(String.self, forKey: .playerAlias)
             ?? DeviceSettings.defaultAlias
+        playerLevel = try container.decodeIfPresent(Int.self, forKey: .playerLevel)
         updatedAtEpochMs = try container.decodeIfPresent(
             Int64.self, forKey: .updatedAtEpochMs
         ) ?? 0

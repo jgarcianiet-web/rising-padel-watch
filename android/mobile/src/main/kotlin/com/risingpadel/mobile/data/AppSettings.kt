@@ -37,6 +37,8 @@ data class AppPreferences(
     val collectTrainingData: Boolean = false,
     /** Alias del jugador, para validar el modelo dejándolo fuera. */
     val playerAlias: String = DeviceSettings.DEFAULT_ALIAS,
+    /** Nivel de pádel del jugador (1-7), si se conoce. Para calibrar la escala. */
+    val playerLevel: Int? = null,
     /** Tamaño del fichero recibido del reloj. 0 si todavía no ha llegado nada. */
     val trainingDataBytes: Long = 0,
     /** Marca de tiempo de la última edición de un ajuste replicado al reloj. */
@@ -56,6 +58,7 @@ data class AppPreferences(
         shareHealth = shareHealth,
         collectTrainingData = collectTrainingData,
         playerAlias = playerAlias,
+        playerLevel = playerLevel,
         updatedAtEpochMs = updatedAtEpochMs,
     )
 }
@@ -99,6 +102,7 @@ class AppSettings(private val context: Context) {
             hasToken = token() != null,
             collectTrainingData = prefs[KEY_COLLECT_TRAINING] ?: false,
             playerAlias = prefs[KEY_PLAYER_ALIAS] ?: DeviceSettings.DEFAULT_ALIAS,
+            playerLevel = prefs[KEY_PLAYER_LEVEL],
             updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
             trainingDataBytes = trainingDataFile.let { if (it.exists()) it.length() else 0L },
             developerMode = prefs[KEY_DEVELOPER_MODE] ?: false,
@@ -143,6 +147,14 @@ class AppSettings(private val context: Context) {
 
     suspend fun setPlayerAlias(alias: String) {
         editReplicated { it[KEY_PLAYER_ALIAS] = DeviceSettings.sanitizeAlias(alias) }
+    }
+
+    /** Nivel de pádel (1-7) del jugador que graba. Null lo borra. */
+    suspend fun setPlayerLevel(level: Int?) {
+        editReplicated { prefs ->
+            level?.coerceIn(1, 7)?.let { prefs[KEY_PLAYER_LEVEL] = it }
+                ?: prefs.remove(KEY_PLAYER_LEVEL)
+        }
     }
 
     /**
@@ -194,6 +206,7 @@ class AppSettings(private val context: Context) {
         val KEY_SHARE_EVENTS = booleanPreferencesKey("share_shot_events")
         val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
         val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
+        val KEY_PLAYER_LEVEL = intPreferencesKey("player_level")
         val KEY_UPDATED_AT = longPreferencesKey("settings_updated_at")
         val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
         const val KEY_TOKEN = "league_token"

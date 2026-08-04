@@ -40,6 +40,8 @@ final class SessionController: ObservableObject {
     @AppStorage("setsToWin") private var setsToWin = 2
     @AppStorage("collectTrainingData") var collectTrainingData = false
     @AppStorage("playerAlias") private var playerAlias = "anon"
+    /// Nivel de pádel del jugador (1-7); 0 = sin configurar. Viaja con cada muestra.
+    @AppStorage("playerLevel") private var playerLevelRaw = 0
 
     private let motionRecorder = MotionRecorder()
     private let workoutManager = WorkoutManager()
@@ -128,6 +130,7 @@ final class SessionController: ObservableObject {
             shareHealth: shareHealth,
             collectTrainingData: collectTrainingData,
             playerAlias: playerAlias,
+            playerLevel: playerLevelRaw > 0 ? playerLevelRaw : nil,
             updatedAtEpochMs: Int64(settingsUpdatedAtMs)
         )
         let merged = local.merged(with: incoming)
@@ -150,6 +153,7 @@ final class SessionController: ObservableObject {
         shareHealth = merged.shareHealth
         collectTrainingData = merged.collectTrainingData
         playerAlias = merged.playerAlias
+        playerLevelRaw = merged.playerLevel ?? 0
         settingsUpdatedAtMs = Double(merged.updatedAtEpochMs)
     }
 
@@ -169,6 +173,7 @@ final class SessionController: ObservableObject {
         )
         recorder.label = trainingLabel
         recorder.playerAlias = playerAlias
+        recorder.playerLevel = playerLevelRaw > 0 ? playerLevelRaw : nil
         recorder.start(monotonicMs: Self.monotonicMs())
         trainingRecorder = recorder
         trainingRecording = true

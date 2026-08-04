@@ -21,6 +21,9 @@ final class AppModel: ObservableObject {
     /// la versión lo activan; con cuentas de la liga pasará a depender de un rol real.
     @AppStorage("developerMode") var developerMode = false
     @AppStorage("playerAlias") var playerAlias = "anon"
+    /// Nivel de pádel del jugador (1-7); 0 = sin configurar. Es el ancla para calibrar
+    /// la escala: los golpes grabados llevan el nivel de quien los dio.
+    @AppStorage("playerLevel") var playerLevelRaw = 0
 
     /// Fichero de datos de entrenamiento recibido del reloj. **Nunca se sube a la liga**:
     /// solo se exporta cuando el usuario lo comparte a mano. Ver `docs/training-data.md`.
@@ -109,6 +112,7 @@ final class AppModel: ObservableObject {
             // Se normaliza aquí y no en el campo de texto: reescribir mientras el usuario
             // teclea es hostil, y lo que importa es que lo que viaja sea consistente.
             playerAlias: DeviceSettings.sanitizeAlias(playerAlias),
+            playerLevel: playerLevelRaw > 0 ? playerLevelRaw : nil,
             updatedAtEpochMs: Int64(settingsUpdatedAtMs)
         )
     }

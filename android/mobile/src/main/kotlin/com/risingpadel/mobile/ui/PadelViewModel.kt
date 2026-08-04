@@ -163,6 +163,10 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
         _message.value = "Alias guardado"
     }
 
+    fun setPlayerLevel(level: Int?) = viewModelScope.launch {
+        container.settings.setPlayerLevel(level)
+    }
+
     fun deleteTrainingData() = viewModelScope.launch {
         container.settings.trainingDataFile.delete()
         _message.value = "Datos de entrenamiento borrados"

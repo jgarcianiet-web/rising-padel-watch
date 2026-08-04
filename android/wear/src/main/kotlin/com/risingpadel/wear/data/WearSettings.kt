@@ -36,6 +36,8 @@ data class WearPreferences(
     val collectTrainingData: Boolean = false,
     /** Alias del jugador, para poder validar el modelo dejándolo fuera. */
     val playerAlias: String = DeviceSettings.DEFAULT_ALIAS,
+    /** Nivel de pádel del jugador (1-7), si se conoce. Para calibrar la escala. */
+    val playerLevel: Int? = null,
     /** Marca de tiempo de la última edición, para resolver la replicación. */
     val updatedAtEpochMs: Long = 0L,
 ) {
@@ -46,6 +48,7 @@ data class WearPreferences(
         shareHealth = shareHealth,
         collectTrainingData = collectTrainingData,
         playerAlias = playerAlias,
+        playerLevel = playerLevel,
         updatedAtEpochMs = updatedAtEpochMs,
     )
 
@@ -56,6 +59,7 @@ data class WearPreferences(
         shareHealth = settings.shareHealth,
         collectTrainingData = settings.collectTrainingData,
         playerAlias = settings.playerAlias,
+        playerLevel = settings.playerLevel,
         updatedAtEpochMs = settings.updatedAtEpochMs,
     )
 }
@@ -83,6 +87,7 @@ class WearSettings(private val context: Context) {
             setsToWin = prefs[KEY_SETS_TO_WIN] ?: 2,
             collectTrainingData = prefs[KEY_COLLECT_TRAINING] ?: false,
             playerAlias = prefs[KEY_PLAYER_ALIAS] ?: DeviceSettings.DEFAULT_ALIAS,
+            playerLevel = prefs[KEY_PLAYER_LEVEL],
             updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
         )
     }
@@ -115,6 +120,8 @@ class WearSettings(private val context: Context) {
             prefs[KEY_SETS_TO_WIN] = preferences.setsToWin
             prefs[KEY_COLLECT_TRAINING] = preferences.collectTrainingData
             prefs[KEY_PLAYER_ALIAS] = preferences.playerAlias
+            preferences.playerLevel?.let { prefs[KEY_PLAYER_LEVEL] = it }
+                ?: prefs.remove(KEY_PLAYER_LEVEL)
             prefs[KEY_UPDATED_AT] = preferences.updatedAtEpochMs
         }
     }
@@ -132,6 +139,7 @@ class WearSettings(private val context: Context) {
         val KEY_SETS_TO_WIN = intPreferencesKey("sets_to_win")
         val KEY_COLLECT_TRAINING = booleanPreferencesKey("collect_training_data")
         val KEY_PLAYER_ALIAS = stringPreferencesKey("player_alias")
+        val KEY_PLAYER_LEVEL = intPreferencesKey("player_level")
         val KEY_UPDATED_AT = longPreferencesKey("settings_updated_at")
     }
 }

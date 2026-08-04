@@ -30,6 +30,9 @@ public final class TrainingRecorder {
     /// Alias del jugador, para poder validar dejando fuera a una persona entera.
     public var playerAlias: String = "anon"
 
+    /// Nivel de pádel (1-7) del jugador que graba, si se conoce.
+    public var playerLevel: Int?
+
     public var capturedCount: Int { captured }
     public var isRecording: Bool { recording }
 
@@ -91,6 +94,7 @@ public final class TrainingRecorder {
             label: label,
             recordedAtEpochMs: nowEpochMs(),
             playerAlias: playerAlias,
+            playerLevel: playerLevel,
             hand: profile.hand,
             watchWrist: profile.watchWrist,
             platform: source.platform,

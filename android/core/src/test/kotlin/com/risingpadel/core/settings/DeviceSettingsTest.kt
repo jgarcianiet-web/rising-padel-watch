@@ -77,6 +77,7 @@ class DeviceSettingsTest {
             shareHealth = true,
             collectTrainingData = true,
             playerAlias = "marta",
+            playerLevel = 6,
             updatedAtEpochMs = 1_785_002_652_000,
         )
 

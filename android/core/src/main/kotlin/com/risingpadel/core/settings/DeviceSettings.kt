@@ -30,6 +30,12 @@ data class DeviceSettings(
     /** Alias del jugador, para poder validar el modelo dejándolo fuera. */
     val playerAlias: String = DEFAULT_ALIAS,
     /**
+     * Nivel de pádel del jugador (1-7) si se conoce. Viaja con las muestras de
+     * entrenamiento para poder calibrar la escala de nivel con jugadores de nivel
+     * conocido. Null = sin configurar.
+     */
+    val playerLevel: Int? = null,
+    /**
      * Cuándo se editaron estos ajustes en el dispositivo de origen.
      *
      * Es lo que hace que la replicación sea segura: el Data Layer y WatchConnectivity

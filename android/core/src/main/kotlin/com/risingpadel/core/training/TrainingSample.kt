@@ -30,6 +30,11 @@ data class TrainingSample(
     val label: ShotType,
     val recordedAtEpochMs: Long,
     val playerAlias: String,
+    /**
+     * Nivel de pádel del jugador (1-7) si se conoce, para calibrar la escala de nivel
+     * con jugadores de nivel conocido. Null si no se ha configurado.
+     */
+    val playerLevel: Int? = null,
     val hand: Hand,
     val watchWrist: Hand,
     val platform: Platform,
