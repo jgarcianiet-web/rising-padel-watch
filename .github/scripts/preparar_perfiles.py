@@ -123,8 +123,10 @@ def ensure_bundle_id(identifier: str, name: str) -> str:
 
 
 def ensure_capability(bundle_internal_id: str, capability: str) -> None:
+    # Este endpoint de relación no admite `limit`, a diferencia de las colecciones
+    # de primer nivel: con él responde PARAMETER_ERROR.ILLEGAL (run #3).
     current = call(
-        "GET", f"/v1/bundleIds/{bundle_internal_id}/bundleIdCapabilities?limit=200"
+        "GET", f"/v1/bundleIds/{bundle_internal_id}/bundleIdCapabilities"
     )["data"]
     if any(item["attributes"]["capabilityType"] == capability for item in current):
         return
