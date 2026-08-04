@@ -41,6 +41,8 @@ import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.score.MatchScore
 import com.risingpadel.core.score.Side
 import com.risingpadel.core.model.SyncState
+import com.risingpadel.mobile.ui.FrequencyChartCard
+import com.risingpadel.mobile.ui.ProgressChartCard
 import com.risingpadel.mobile.ui.formatDuration
 import com.risingpadel.mobile.ui.formatSessionDate
 import com.risingpadel.mobile.ui.label
@@ -50,6 +52,8 @@ import com.risingpadel.mobile.ui.zoneLabel
 @Composable
 fun SessionDetailScreen(
     session: PadelSession,
+    /** Nivel medio del jugador en su historial, para la línea de referencia. */
+    playerAverageLevel: Float?,
     onBack: () -> Unit,
     onRetrySync: () -> Unit,
     onLinkMatch: (matchId: String, leagueId: String?) -> Unit,
@@ -78,6 +82,8 @@ fun SessionDetailScreen(
             HeadlineStats(session)
             session.score?.let { ScoreCard(it) }
             session.level.takeIf { it.gradedShots > 0 }?.let { LevelCard(it) }
+            FrequencyChartCard(session)
+            ProgressChartCard(session, playerAverageLevel)
             ShotBreakdown(session)
             if (!session.health.isEmpty) HealthCard(session)
             MatchLinkCard(session, onLinkMatch)

@@ -115,3 +115,23 @@ jugador**.
 Si al ordenarlos falla, antes de complicar el modelo conviene revisar si el problema es de
 **detección**: un detector que se deja voleas hace que el repertorio salga pobre y el nivel
 baje por una razón que no tiene que ver con el jugador.
+
+## Las gráficas en el móvil
+
+Las dos apps de móvil enseñan tres gráficas construidas sobre esta escala. Los datos los
+calcula `SessionAnalytics` en el core (con tests en Kotlin que fijan el comportamiento);
+las apps solo dibujan, para que ambas plataformas enseñen las mismas curvas.
+
+- **Frecuencia de golpeo** (detalle de sesión): golpeos por intervalo de 5 o 10 minutos.
+  Los intervalos vacíos también salen: un hueco es información (descanso, set de paliza),
+  no un dato que falte.
+- **Progreso de la sesión** (detalle de sesión): el nivel a lo largo del partido, con una
+  ventana deslizante de 15 minutos evaluada cada 5. Es ventana y no acumulado a propósito:
+  el acumulado converge a la media y se aplana, y lo que se quiere ver es el bajón del
+  segundo set o la remontada. La línea de referencia es la media del jugador sobre su
+  historial. Los tramos sin golpeos puntuados no dibujan punto: sería inventar.
+- **Nivel últimos partidos** (encima del historial): el nivel de las últimas 15 sesiones,
+  con filtro por tipo de golpe (usa la nota media de ese golpe en cada sesión).
+
+Vale la advertencia de siempre: mientras la escala esté sin calibrar, lo fiable de estas
+curvas es la **forma** (mejora, empeora, se mantiene), no el número absoluto.

@@ -55,11 +55,20 @@ struct SessionListView: View {
     }
 
     private var list: some View {
-        List(model.sessions) { session in
-            NavigationLink {
-                SessionDetailView(session: session).environmentObject(model)
-            } label: {
-                row(session)
+        List {
+            // La evolución vive encima de la lista: es la respuesta a "¿estoy
+            // mejorando?", que es lo primero que se viene a mirar.
+            Section("Nivel últimos partidos") {
+                LevelHistoryChart(sessions: model.sessions)
+            }
+            Section {
+                ForEach(model.sessions) { session in
+                    NavigationLink {
+                        SessionDetailView(session: session).environmentObject(model)
+                    } label: {
+                        row(session)
+                    }
+                }
             }
         }
     }

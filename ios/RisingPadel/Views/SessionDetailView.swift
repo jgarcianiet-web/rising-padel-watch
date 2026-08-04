@@ -15,6 +15,14 @@ struct SessionDetailView: View {
             headlineSection
             if let score = session.score { scoreSection(score) }
             levelSection
+            if !session.shots.isEmpty {
+                Section("Frecuencia de golpeo") {
+                    SessionFrequencyChart(session: session)
+                }
+                Section("Progreso de la sesión") {
+                    SessionProgressChart(session: session, playerAverage: model.playerAverageLevel)
+                }
+            }
             shotBreakdownSection
             // Los rasgos crudos golpe a golpe: es la herramienta para validar en pista
             // los convenios de ejes del giróscopo sin depurador. Solo existe en modo

@@ -73,6 +73,14 @@ final class AppModel: ObservableObject {
         sessions = store.all()
     }
 
+    /// Nivel medio del jugador sobre su historial: la línea de referencia de las
+    /// gráficas ("calidad media"). Nil sin sesiones puntuables.
+    var playerAverageLevel: Float? {
+        let levels = sessions.map(\.level).filter { $0.gradedShots > 0 }.map(\.overall)
+        guard !levels.isEmpty else { return nil }
+        return levels.reduce(0, +) / Float(levels.count)
+    }
+
     /// Siete toques en la versión. Apagarlo apaga también la recogida de datos, para
     /// que no quede la grabación activa escondida — la replicación quita el botón del
     /// reloj al propagarse el cambio.

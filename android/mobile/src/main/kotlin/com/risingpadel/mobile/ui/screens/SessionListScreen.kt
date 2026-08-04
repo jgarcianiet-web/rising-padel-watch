@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.model.SyncState
+import com.risingpadel.mobile.ui.LevelHistoryCard
 import com.risingpadel.mobile.ui.formatDuration
 import com.risingpadel.mobile.ui.formatSessionDate
 import com.risingpadel.mobile.ui.label
@@ -72,6 +73,11 @@ fun SessionListScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // La evolución vive encima de la lista: es la respuesta a "¿estoy
+            // mejorando?", que es lo primero que se viene a mirar.
+            item(key = "nivel-historico") {
+                LevelHistoryCard(sessions)
+            }
             items(sessions, key = { it.sessionId }) { session ->
                 SessionCard(session = session, onClick = { onOpenSession(session.sessionId) })
             }

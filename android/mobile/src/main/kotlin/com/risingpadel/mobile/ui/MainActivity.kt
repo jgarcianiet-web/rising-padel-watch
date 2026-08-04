@@ -107,6 +107,12 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                 }
                 SessionDetailScreen(
                     session = session,
+                    playerAverageLevel = sessions
+                        .map { it.level }
+                        .filter { it.gradedShots > 0 }
+                        .map { it.overall }
+                        .takeIf { it.isNotEmpty() }
+                        ?.average()?.toFloat(),
                     onBack = { navController.popBackStack() },
                     onRetrySync = { viewModel.retrySession(session.sessionId) },
                     onLinkMatch = { matchId, leagueId ->
