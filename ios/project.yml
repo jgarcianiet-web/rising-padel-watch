@@ -53,6 +53,16 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.risingpadel.watch
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+      configs:
+        # Firma manual solo en Release, que es lo que archiva CI. La automática
+        # archiva con un perfil de desarrollo, que exige un dispositivo registrado
+        # en el equipo; los perfiles de App Store no, y los crea el propio workflow
+        # (.github/scripts/preparar_perfiles.py). Debug queda en automático para
+        # poder desarrollar desde Xcode con un Mac.
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: RisingPadel AppStore
 
   RisingPadelWatch:
     type: application
@@ -83,6 +93,12 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.risingpadel.watch.watchkitapp
+      configs:
+        # Misma razón que en el target de iOS: ver el comentario de arriba.
+        Release:
+          CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: Apple Distribution
+          PROVISIONING_PROFILE_SPECIFIER: RisingPadelWatch AppStore
     entitlements:
       path: RisingPadelWatch/RisingPadelWatch.entitlements
       properties:

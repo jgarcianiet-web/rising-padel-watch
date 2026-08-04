@@ -73,12 +73,31 @@ jobs:
           mkdir -p $RUNNER_TEMP/claves
           echo -n "$APPSTORE_PRIVATE_KEY" > $RUNNER_TEMP/claves/AuthKey_$APPSTORE_KEY_ID.p8
 
+      # El archivado firma en modo manual (ver ios/project.yml), y en manual
+      # xcodebuild no crea perfiles: se crean aquí contra la API de App Store
+      # Connect. Los perfiles de App Store no exigen dispositivos registrados, que
+      # es lo que hizo fallar la firma automática en los dos primeros intentos.
+      - name: Crear e instalar los perfiles de aprovisionamiento
+        env:
+          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          # El python del runner puede venir gestionado por brew (PEP 668), de ahí
+          # la cadena de alternativas.
+          python3 -m pip install --quiet PyJWT cryptography \
+            || python3 -m pip install --quiet --user PyJWT cryptography \
+            || python3 -m pip install --quiet --break-system-packages PyJWT cryptography
+          APPSTORE_KEY_PATH=$RUNNER_TEMP/claves/AuthKey_$APPSTORE_KEY_ID.p8 \
+            python3 .github/scripts/preparar_perfiles.py
+
+      # La configuración de firma (manual, Apple Distribution, nombre del perfil)
+      # vive en ios/project.yml, no aquí: así el archivado no necesita hablar con
+      # Apple y falla rápido y claro si falta el certificado o el perfil.
       - name: Archivar
         working-directory: ios
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPSTORE_KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
-          APPSTORE_ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
         run: |
           set -euo pipefail
           xcodebuild archive \
@@ -87,19 +106,8 @@ jobs:
             -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath $RUNNER_TEMP/RisingPadel.xcarchive \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath $RUNNER_TEMP/claves/AuthKey_$APPSTORE_KEY_ID.p8 \
-            -authenticationKeyID "$APPSTORE_KEY_ID" \
-            -authenticationKeyIssuerID "$APPSTORE_ISSUER_ID" \
             DEVELOPMENT_TEAM="$TEAM_ID" \
-            CODE_SIGN_STYLE=Automatic \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }}
-        # CODE_SIGN_IDENTITY fuerza a archivar firmando ya con Distribution. Sin ello,
-        # la firma automática archiva con Development y re-firma al exportar — y un
-        # perfil de Development exige al menos un dispositivo registrado en el equipo,
-        # que en una cuenta recién creada no hay. El perfil de App Store que usa
-        # Distribution no necesita dispositivos.
 
       # `destination: upload` hace que exportArchive suba directamente, sin pasar por
       # altool, que Apple lleva años amenazando con retirar.
@@ -115,7 +123,13 @@ jobs:
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
             <key>teamID</key><string>$TEAM_ID</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.risingpadel.watch</key><string>RisingPadel AppStore</string>
+              <key>com.risingpadel.watch.watchkitapp</key><string>RisingPadelWatch AppStore</string>
+            </dict>
             <key>uploadSymbols</key><true/>
           </dict>
           </plist>

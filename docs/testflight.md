@@ -130,8 +130,14 @@ uno invalida las builds firmadas con él.
 - Plataforma: iOS.
 - Nombre y SKU: los que quieras.
 
-Los identificadores y los perfiles de aprovisionamiento se crean solos: el workflow pasa
-`-allowProvisioningUpdates` con la clave de API, y Xcode los genera en el portal.
+Los identificadores y los perfiles de aprovisionamiento los crea el propio workflow
+contra la API de App Store Connect (`.github/scripts/preparar_perfiles.py`), incluida la
+capability de HealthKit del reloj. No hay que crear nada a mano en el portal.
+
+Se hace así y no con la firma automática de Xcode porque la automática archiva con un
+perfil de desarrollo, y esos exigen **un dispositivo registrado en el equipo** — que en
+una cuenta sin Mac ni cable no hay forma cómoda de registrar. Los perfiles de App Store
+no piden dispositivos.
 
 ## Lanzar una build
 
