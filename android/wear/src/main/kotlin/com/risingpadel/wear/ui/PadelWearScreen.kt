@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -18,9 +22,7 @@ import androidx.wear.compose.material.Chip
 import androidx.wear.compose.material.ChipDefaults
 import androidx.wear.compose.material.CircularProgressIndicator
 import androidx.wear.compose.material.MaterialTheme
-import androidx.wear.compose.material.Switch
 import androidx.wear.compose.material.Text
-import androidx.wear.compose.material.ToggleChip
 import com.risingpadel.core.level.label
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.score.DeuceFormat
@@ -31,13 +33,11 @@ import com.risingpadel.wear.service.SessionUiState
 fun PadelWearScreen(
     state: SessionUiState,
     healthPermissionDenied: Boolean,
-    trackScore: Boolean,
     deuceFormat: DeuceFormat,
-    onTrackScoreChange: (Boolean) -> Unit,
-    onDeuceFormatChange: (DeuceFormat) -> Unit,
     collectTrainingData: Boolean,
     onOpenTraining: () -> Unit,
-    onStart: () -> Unit,
+    onStartMatch: (DeuceFormat) -> Unit,
+    onStartFree: () -> Unit,
     onStop: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -54,13 +54,11 @@ fun PadelWearScreen(
         when (state.status) {
             SessionStatus.IDLE -> IdleContent(
                 healthPermissionDenied = healthPermissionDenied,
-                trackScore = trackScore,
                 deuceFormat = deuceFormat,
-                onTrackScoreChange = onTrackScoreChange,
-                onDeuceFormatChange = onDeuceFormatChange,
                 collectTrainingData = collectTrainingData,
                 onOpenTraining = onOpenTraining,
-                onStart = onStart,
+                onStartMatch = onStartMatch,
+                onStartFree = onStartFree,
             )
             SessionStatus.PREPARING -> LoadingContent("Preparando…")
             SessionStatus.RECORDING -> RecordingContent(state, onStop)
@@ -71,17 +69,33 @@ fun PadelWearScreen(
     }
 }
 
+/**
+ * Dos decisiones y ya: Partido (elige el 40-40 y arranca con marcador) o Entreno
+ * (arranca sin marcador al momento). Nada de interruptores ni formularios: en la
+ * puerta de la pista se elige qué se va a jugar, no se configura nada.
+ */
 @Composable
 private fun IdleContent(
     healthPermissionDenied: Boolean,
-    trackScore: Boolean,
     deuceFormat: DeuceFormat,
-    onTrackScoreChange: (Boolean) -> Unit,
-    onDeuceFormatChange: (DeuceFormat) -> Unit,
     collectTrainingData: Boolean,
     onOpenTraining: () -> Unit,
-    onStart: () -> Unit,
+    onStartMatch: (DeuceFormat) -> Unit,
+    onStartFree: () -> Unit,
 ) {
+    // Al salir del estado IDLE este composable abandona la composición, así que la
+    // subpantalla de formato se resetea sola al volver: no hace falta limpiarla.
+    var choosingFormat by remember { mutableStateOf(false) }
+
+    if (choosingFormat) {
+        FormatChooser(
+            lastUsed = deuceFormat,
+            onPick = onStartMatch,
+            onBack = { choosingFormat = false },
+        )
+        return
+    }
+
     Text(
         text = "Rising Padel",
         style = MaterialTheme.typography.title3,
@@ -95,37 +109,22 @@ private fun IdleContent(
             modifier = Modifier.padding(vertical = 6.dp),
         )
     }
-    // El marcador se decide aquí, al empezar: un entreno suelto no lo necesita y un
-    // partido de liga sí.
-    ToggleChip(
-        checked = trackScore,
-        onCheckedChange = onTrackScoreChange,
-        label = { Text("Llevar marcador", style = MaterialTheme.typography.caption1) },
-        toggleControl = { Switch(checked = trackScore) },
+    Chip(
+        onClick = { choosingFormat = true },
+        label = { Text("Partido", style = MaterialTheme.typography.button) },
+        colors = ChipDefaults.primaryChipColors(),
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 8.dp),
     )
-
-    // El formato de 40-40 solo importa si se lleva marcador, así que solo aparece
-    // entonces. En una pantalla de reloj cada fila que sobra es una que estorba.
-    if (trackScore) {
-        // Toque = siguiente formato. Un selector de tres opciones no cabe en una pantalla
-        // redonda sin comerse el botón de empezar, y es un ajuste que se toca una vez.
-        Chip(
-            onClick = { onDeuceFormatChange(deuceFormat.next()) },
-            label = { Text(deuceFormat.label, style = MaterialTheme.typography.caption1) },
-            secondaryLabel = { Text("A 40-40", style = MaterialTheme.typography.caption3) },
-            colors = ChipDefaults.secondaryChipColors(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 4.dp),
-        )
-    }
-
-    Button(onClick = onStart, modifier = Modifier.padding(top = 8.dp)) {
-        Text("Empezar")
-    }
+    Chip(
+        onClick = onStartFree,
+        label = { Text("Entreno", style = MaterialTheme.typography.button) },
+        colors = ChipDefaults.secondaryChipColors(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+    )
 
     // Solo aparece si el usuario ha activado la recogida de datos en el móvil: es un
     // modo para quien está construyendo el dataset, no para jugar.
@@ -141,9 +140,44 @@ private fun IdleContent(
     }
 }
 
-/** Siguiente formato en la rueda, para el chip que cicla. */
-private fun DeuceFormat.next(): DeuceFormat =
-    DeuceFormat.entries[(ordinal + 1) % DeuceFormat.entries.size]
+/**
+ * Elegir el formato ES arrancar el partido: un toque, sin pantalla extra de
+ * confirmación. El último formato usado va resaltado.
+ */
+@Composable
+private fun FormatChooser(
+    lastUsed: DeuceFormat,
+    onPick: (DeuceFormat) -> Unit,
+    onBack: () -> Unit,
+) {
+    Text(
+        text = "¿A 40-40?",
+        style = MaterialTheme.typography.caption1,
+        textAlign = TextAlign.Center,
+    )
+    DeuceFormat.entries.forEach { format ->
+        Chip(
+            onClick = { onPick(format) },
+            label = { Text(format.label, style = MaterialTheme.typography.caption1) },
+            colors = if (format == lastUsed) {
+                ChipDefaults.primaryChipColors()
+            } else {
+                ChipDefaults.secondaryChipColors()
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 4.dp),
+        )
+    }
+    Chip(
+        onClick = onBack,
+        label = { Text("Atrás", style = MaterialTheme.typography.caption2) },
+        colors = ChipDefaults.childChipColors(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+    )
+}
 
 @Composable
 private fun LoadingContent(label: String) {
@@ -271,13 +305,11 @@ private fun RecordingPreview() {
                 lastShotType = ShotType.FOREHAND,
             ),
             healthPermissionDenied = false,
-            trackScore = true,
             deuceFormat = DeuceFormat.STAR_POINT,
-            onTrackScoreChange = {},
-            onDeuceFormatChange = {},
             collectTrainingData = false,
             onOpenTraining = {},
-            onStart = {},
+            onStartMatch = {},
+            onStartFree = {},
             onStop = {},
             onDone = {},
         )

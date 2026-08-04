@@ -86,21 +86,26 @@ class MainActivity : ComponentActivity() {
                     PadelWearScreen(
                         state = state,
                         healthPermissionDenied = bodySensorsDenied,
-                        trackScore = preferences.trackScore,
                         deuceFormat = preferences.deuceFormat,
-                        onTrackScoreChange = { enabled ->
-                            lifecycleScope.launch {
-                                container.settings.update(preferences.copy(trackScore = enabled))
-                            }
-                        },
-                        onDeuceFormatChange = { format ->
-                            lifecycleScope.launch {
-                                container.settings.update(preferences.copy(deuceFormat = format))
-                            }
-                        },
                         collectTrainingData = preferences.collectTrainingData,
                         onOpenTraining = { showTraining = true },
-                        onStart = { requestPermissions.launch(requiredPermissions()) },
+                        // Los ajustes se escriben ANTES de pedir permisos: el servicio
+                        // lee las preferencias al arrancar, y si la escritura fuera en
+                        // paralelo podría ver todavía el modo anterior.
+                        onStartMatch = { format ->
+                            lifecycleScope.launch {
+                                container.settings.update(
+                                    preferences.copy(trackScore = true, deuceFormat = format)
+                                )
+                                requestPermissions.launch(requiredPermissions())
+                            }
+                        },
+                        onStartFree = {
+                            lifecycleScope.launch {
+                                container.settings.update(preferences.copy(trackScore = false))
+                                requestPermissions.launch(requiredPermissions())
+                            }
+                        },
                         onStop = { PadelExerciseService.stop(this) },
                         onDone = { PadelExerciseService.acknowledge() },
                     )

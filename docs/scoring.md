@@ -85,8 +85,13 @@ toque, y no exige precisión. Es la elección correcta aunque sea menos vistosa.
 
 ## Convivencia con el conteo de golpeos
 
-El marcador es **opcional**: se activa al empezar la sesión. Una sesión sin marcador
-sigue siendo válida, es el caso del entreno suelto.
+El marcador es **opcional**, y la pantalla inicial del reloj lo plantea como la única
+decisión: **Partido** (elige el formato de 40-40 y arranca con marcador; tocar un formato
+ya es empezar) o **Entreno** (arranca sin marcador al momento). Antes había un
+interruptor "Llevar marcador" más un chip de formato: dos ajustes que configurar en la
+puerta de la pista, y con la fila de datos de entrenamiento todo aparecía junto. Se
+sustituyó por la pareja Partido/Entreno tras el aviso de que la pantalla estaba
+sobrecargada. Una sesión sin marcador sigue siendo válida, es el caso del entreno suelto.
 
 Cuando está activo, la pantalla principal del reloj pasa a ser el marcador y el conteo de
 golpeos sigue corriendo por debajo. Al terminar, ambos viajan en la misma `PadelSession`.

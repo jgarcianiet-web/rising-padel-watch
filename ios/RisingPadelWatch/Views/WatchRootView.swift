@@ -6,6 +6,8 @@ struct WatchRootView: View {
     @AppStorage("trackScore") private var trackScore = false
     @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
     @State private var showTraining = false
+    /// La pantalla inicial es una decisión (¿partido o entreno?), no un formulario.
+    @State private var choosingFormat = false
 
     var body: some View {
         Group {
@@ -46,43 +48,67 @@ struct WatchRootView: View {
         }
     }
 
+    /// Dos decisiones y ya: Partido (elige el 40-40 y arranca con marcador) o Entreno
+    /// (arranca sin marcador al momento). Nada de interruptores ni formularios: en la
+    /// puerta de la pista se elige qué se va a jugar, no se configura nada.
+    @ViewBuilder
     private var idleContent: some View {
-        VStack(spacing: 8) {
-            Text("Rising Padel")
-                .font(.headline)
-            // El marcador se decide aquí, al empezar: un entreno suelto no lo necesita y
-            // un partido de liga sí.
-            Toggle("Llevar marcador", isOn: $trackScore)
-                .font(.caption)
-            // El formato de 40-40 solo importa si se lleva marcador, así que solo
-            // aparece entonces. Toque = siguiente formato: un selector de tres opciones
-            // no cabe sin comerse el botón de empezar, y se toca una vez.
-            if trackScore {
-                Button {
-                    deuceFormatRaw = currentDeuceFormat.next().rawValue
-                } label: {
-                    VStack(spacing: 0) {
-                        Text(currentDeuceFormat.label).font(.caption2)
-                        Text("A 40-40").font(.system(size: 9)).foregroundStyle(.secondary)
-                    }
+        if choosingFormat {
+            formatChooser
+        } else {
+            VStack(spacing: 8) {
+                Text("Rising Padel")
+                    .font(.headline)
+                Button("Partido") { choosingFormat = true }
+                    .buttonStyle(.borderedProminent)
+                Button("Entreno") {
+                    trackScore = false
+                    Task { await controller.start() }
                 }
                 .buttonStyle(.bordered)
-            }
-            Button("Empezar") {
-                Task { await controller.start() }
-            }
-            .buttonStyle(.borderedProminent)
 
-            // Solo aparece si el usuario ha activado la recogida de datos en el iPhone:
-            // es un modo para quien está construyendo el dataset, no para jugar.
-            if controller.collectTrainingData {
-                Button("Datos de entrenamiento") { showTraining = true }
-                    .font(.caption2)
-                    .buttonStyle(.bordered)
+                // Solo con la recogida de datos activada en el iPhone: es un modo para
+                // quien construye el dataset, no para jugar.
+                if controller.collectTrainingData {
+                    Button("Datos de entrenamiento") { showTraining = true }
+                        .font(.caption2)
+                        .buttonStyle(.bordered)
+                }
+            }
+            .sheet(isPresented: $showTraining) {
+                TrainingView().environmentObject(controller)
             }
         }
-        .sheet(isPresented: $showTraining) {
-            TrainingView().environmentObject(controller)
+    }
+
+    /// Elegir el formato ES arrancar el partido: un toque, sin pantalla extra de
+    /// confirmación. El último formato usado va marcado.
+    private var formatChooser: some View {
+        VStack(spacing: 6) {
+            Text("¿A 40-40?")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ForEach(DeuceFormat.allCases, id: \.self) { format in
+                Button {
+                    deuceFormatRaw = format.rawValue
+                    trackScore = true
+                    choosingFormat = false
+                    Task { await controller.start() }
+                } label: {
+                    HStack {
+                        Text(format.label).font(.caption)
+                        if format == currentDeuceFormat {
+                            Spacer()
+                            Image(systemName: "checkmark").font(.system(size: 10))
+                        }
+                    }
+                }
+                .buttonStyle(format == currentDeuceFormat ? .borderedProminent : .bordered)
+            }
+            Button("Atrás") { choosingFormat = false }
+                .font(.caption2)
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -171,15 +197,6 @@ struct WatchRootView: View {
 
     private func formatDuration(_ seconds: Int64) -> String {
         String(format: "%d:%02d", seconds / 60, seconds % 60)
-    }
-}
-
-private extension DeuceFormat {
-    /// Siguiente formato en la rueda, para el botón que cicla.
-    func next() -> DeuceFormat {
-        let all = DeuceFormat.allCases
-        let index = all.firstIndex(of: self) ?? 0
-        return all[(index + 1) % all.count]
     }
 }
 
