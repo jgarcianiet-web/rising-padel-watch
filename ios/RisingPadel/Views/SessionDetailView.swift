@@ -16,6 +16,10 @@ struct SessionDetailView: View {
             VStack(spacing: 12) {
                 heroCard
                 if let score = session.score { scoreCard(score) }
+                // Las ideas van arriba, antes que las gráficas: son la conclusión, y las
+                // gráficas son la prueba. Quien solo mira diez segundos el móvil al salir
+                // de la pista se lleva lo importante.
+                InsightsCard(session: session)
                 levelCard
                 if !session.shots.isEmpty {
                     PadelCard(title: "Frecuencia de golpeo", icon: "chart.bar.fill") {

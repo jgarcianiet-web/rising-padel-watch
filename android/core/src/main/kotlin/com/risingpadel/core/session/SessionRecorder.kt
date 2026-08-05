@@ -3,6 +3,7 @@ package com.risingpadel.core.session
 import com.risingpadel.core.detection.DetectorConfig
 import com.risingpadel.core.detection.ShotDetector
 import com.risingpadel.core.model.HealthMetrics
+import com.risingpadel.core.model.HeartRateSample
 import com.risingpadel.core.model.HeartRateSummary
 import com.risingpadel.core.model.HeartRateZones
 import com.risingpadel.core.model.MatchRef
@@ -47,6 +48,7 @@ class SessionRecorder(
     private var weightedBpmSum = 0.0
     private var weightedSeconds = 0.0
     private val zoneSeconds = mutableMapOf<String, Double>()
+    private val heartRateSeries = mutableListOf<HeartRateSample>()
 
     private var activeEnergyKcal: Float? = null
     private var totalEnergyKcal: Float? = null
@@ -76,6 +78,7 @@ class SessionRecorder(
         weightedBpmSum = 0.0
         weightedSeconds = 0.0
         zoneSeconds.clear()
+        heartRateSeries.clear()
         activeEnergyKcal = null
         totalEnergyKcal = null
         steps = null
@@ -108,6 +111,14 @@ class SessionRecorder(
         lastHeartRateBpm = bpm
         lastHeartRateAtMs = monotonicMs
         if (bpm > maxObservedBpm) maxObservedBpm = bpm
+
+        // Una lectura por minuto para la serie: suficiente para cruzar pulso con
+        // rendimiento y dos órdenes de magnitud menos de datos que guardarlas todas.
+        val offset = (monotonicMs - startedAtMonotonicMs).coerceAtLeast(0)
+        val last = heartRateSeries.lastOrNull()
+        if (last == null || offset - last.offsetMs >= HR_SERIES_INTERVAL_MS) {
+            heartRateSeries.add(HeartRateSample(offsetMs = offset, bpm = bpm))
+        }
     }
 
     /** Valores acumulados del workout; se sustituyen, no se suman. */
@@ -179,7 +190,12 @@ class SessionRecorder(
             steps = steps,
             distanceMeters = distanceMeters,
             zones = HeartRateZones(zoneSeconds.mapValues { it.value.roundToInt() }),
+            heartRateSeries = heartRateSeries.toList(),
         )
+    }
+
+    private companion object {
+        const val HR_SERIES_INTERVAL_MS = 60_000L
     }
 }
 

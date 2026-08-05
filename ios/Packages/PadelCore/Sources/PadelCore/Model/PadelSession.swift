@@ -99,6 +99,21 @@ public struct HeartRateSummary: Codable, Equatable, Sendable {
     }
 }
 
+/// Una lectura de pulso dentro de la sesión, con su minuto.
+///
+/// Se guarda una por minuto, no todas: con una por minuto ya se puede cruzar el pulso con
+/// el rendimiento —que es lo que hace útil la serie— y una sesión de dos horas ocupa 120
+/// números en vez de siete mil.
+public struct HeartRateSample: Codable, Equatable, Sendable {
+    public let offsetMs: Int64
+    public let bpm: Int
+
+    public init(offsetMs: Int64, bpm: Int) {
+        self.offsetMs = offsetMs
+        self.bpm = bpm
+    }
+}
+
 /// Métricas de salud del entrenamiento. Se omiten por completo del payload si el usuario
 /// no ha dado el consentimiento de compartir datos de salud.
 public struct HealthMetrics: Codable, Equatable, Sendable {
@@ -108,6 +123,8 @@ public struct HealthMetrics: Codable, Equatable, Sendable {
     public let steps: Int?
     public let distanceMeters: Float?
     public let zones: HeartRateZones
+    /// Pulso a lo largo de la sesión, una lectura por minuto.
+    public let heartRateSeries: [HeartRateSample]
 
     public static let empty = HealthMetrics()
 
@@ -117,7 +134,8 @@ public struct HealthMetrics: Codable, Equatable, Sendable {
         totalEnergyKcal: Float? = nil,
         steps: Int? = nil,
         distanceMeters: Float? = nil,
-        zones: HeartRateZones = .empty
+        zones: HeartRateZones = .empty,
+        heartRateSeries: [HeartRateSample] = []
     ) {
         self.heartRate = heartRate
         self.activeEnergyKcal = activeEnergyKcal
@@ -125,6 +143,20 @@ public struct HealthMetrics: Codable, Equatable, Sendable {
         self.steps = steps
         self.distanceMeters = distanceMeters
         self.zones = zones
+        self.heartRateSeries = heartRateSeries
+    }
+
+    /// Las sesiones guardadas antes de que existiera la serie no la traen.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        heartRate = try c.decodeIfPresent(HeartRateSummary.self, forKey: .heartRate)
+        activeEnergyKcal = try c.decodeIfPresent(Float.self, forKey: .activeEnergyKcal)
+        totalEnergyKcal = try c.decodeIfPresent(Float.self, forKey: .totalEnergyKcal)
+        steps = try c.decodeIfPresent(Int.self, forKey: .steps)
+        distanceMeters = try c.decodeIfPresent(Float.self, forKey: .distanceMeters)
+        zones = try c.decodeIfPresent(HeartRateZones.self, forKey: .zones) ?? .empty
+        heartRateSeries =
+            try c.decodeIfPresent([HeartRateSample].self, forKey: .heartRateSeries) ?? []
     }
 
     public var isEmpty: Bool {

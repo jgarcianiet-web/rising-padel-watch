@@ -51,6 +51,7 @@ public final class SessionRecorder {
     private var weightedBpmSum: Double = 0
     private var weightedSeconds: Double = 0
     private var zoneSeconds: [String: Double] = [:]
+    private var heartRateSeries: [HeartRateSample] = []
 
     private var activeEnergyKcal: Float?
     private var totalEnergyKcal: Float?
@@ -92,6 +93,7 @@ public final class SessionRecorder {
         weightedBpmSum = 0
         weightedSeconds = 0
         zoneSeconds.removeAll()
+        heartRateSeries.removeAll()
         activeEnergyKcal = nil
         totalEnergyKcal = nil
         steps = nil
@@ -124,7 +126,17 @@ public final class SessionRecorder {
         lastHeartRateBpm = bpm
         lastHeartRateAtMs = monotonicMs
         if bpm > maxObservedBpm { maxObservedBpm = bpm }
+
+        // Una lectura por minuto para la serie: suficiente para cruzar pulso con
+        // rendimiento y dos órdenes de magnitud menos de datos que guardarlas todas.
+        let offset = max(monotonicMs - startedAtMonotonicMs, 0)
+        if let last = heartRateSeries.last, offset - last.offsetMs < Self.hrSeriesIntervalMs {
+            return
+        }
+        heartRateSeries.append(HeartRateSample(offsetMs: offset, bpm: bpm))
     }
+
+    private static let hrSeriesIntervalMs: Int64 = 60_000
 
     /// Valores acumulados del workout; se sustituyen, no se suman.
     public func onEnergy(activeKcal: Float?, totalKcal: Float? = nil) {
@@ -196,7 +208,8 @@ public final class SessionRecorder {
             totalEnergyKcal: totalEnergyKcal,
             steps: steps,
             distanceMeters: distanceMeters,
-            zones: HeartRateZones(secondsPerZone: zoneSeconds.mapValues { Int($0.rounded()) })
+            zones: HeartRateZones(secondsPerZone: zoneSeconds.mapValues { Int($0.rounded()) }),
+            heartRateSeries: heartRateSeries
         )
     }
 }

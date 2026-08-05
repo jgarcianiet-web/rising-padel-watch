@@ -74,6 +74,16 @@ data class HeartRateSummary(
 )
 
 /**
+ * Una lectura de pulso dentro de la sesión, con su minuto.
+ *
+ * Se guarda una por minuto, no todas: con una por minuto ya se puede cruzar el pulso con
+ * el rendimiento —que es lo que hace útil la serie— y una sesión de dos horas ocupa 120
+ * números en vez de siete mil.
+ */
+@Serializable
+data class HeartRateSample(val offsetMs: Long, val bpm: Int)
+
+/**
  * Métricas de salud del entrenamiento. Se omiten por completo del payload si el
  * usuario no ha dado el consentimiento de compartir datos de salud.
  */
@@ -85,6 +95,8 @@ data class HealthMetrics(
     val steps: Int? = null,
     val distanceMeters: Float? = null,
     val zones: HeartRateZones = HeartRateZones.EMPTY,
+    /** Pulso a lo largo de la sesión, una lectura por minuto. */
+    val heartRateSeries: List<HeartRateSample> = emptyList(),
 ) {
     val isEmpty: Boolean
         get() = heartRate == null && activeEnergyKcal == null && totalEnergyKcal == null &&
