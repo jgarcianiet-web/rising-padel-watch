@@ -6,10 +6,12 @@ import SwiftUI
 /// app Expo, con las tarjetas de esta app.
 struct LigaMatchDetailView: View {
     @EnvironmentObject private var liga: LigaModel
+    @EnvironmentObject private var comunidad: ComunidadModel
     /// Se guarda el id y no el partido: si se edita, la ficha se redibuja con lo nuevo.
     let matchId: Int64
 
     @State private var editing = false
+    @State private var escribiendoCronica = false
 
     var body: some View {
         Group {
@@ -68,6 +70,24 @@ struct LigaMatchDetailView: View {
                     }
                 }
                 goalsCard(m)
+                // La crónica: el entrenador redacta dos líneas con los datos del
+                // partido y las publica en el muro con la tarjeta. IA con freno: solo
+                // con cuenta de comunidad y clave de API puestas.
+                if comunidad.tieneCuenta, CoachKeyStore.read() != nil {
+                    Button {
+                        cronica(m)
+                    } label: {
+                        if escribiendoCronica {
+                            ProgressView().frame(maxWidth: .infinity)
+                        } else {
+                            Label("Crónica IA al muro", systemImage: "sparkles")
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(escribiendoCronica)
+                }
                 Button {
                     editing = true
                 } label: {
@@ -83,6 +103,20 @@ struct LigaMatchDetailView: View {
         .sheet(isPresented: $editing) {
             LigaMatchFormView(editing: m)
                 .environmentObject(liga)
+        }
+    }
+
+    private func cronica(_ match: LigaMatch) {
+        escribiendoCronica = true
+        Task {
+            do {
+                let texto = try await CoachService().cronica(de: match)
+                await comunidad.publicar(texto: texto, tarjeta: match)
+                liga.message = "Crónica publicada en el muro"
+            } catch {
+                liga.message = error.localizedDescription
+            }
+            escribiendoCronica = false
         }
     }
 

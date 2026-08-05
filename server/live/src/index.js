@@ -111,6 +111,21 @@ export default {
       const existente = await env.LIVE.get(key);
       if (existente) return json(200, ref);
       await env.LIVE.put(key, JSON.stringify(sesion));
+      // La sesión completa trae el desglose por golpe: se enriquece el resultado, que
+      // es lo que arbitra los retos de "más bandejas". El won del vivo no se pisa.
+      if (user && sesion.shots?.byType) {
+        await env.DB.prepare(
+          `INSERT INTO results (user, session, date, won, shots, by_type)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+           ON CONFLICT(session) DO UPDATE SET by_type = ?6, shots = ?5`
+        ).bind(
+          user.id, id.toLowerCase(),
+          String(sesion.startedAt ?? "").slice(0, 10) || new Date().toISOString().slice(0, 10),
+          sesion.score?.winner === "us" ? 1 : 0,
+          sesion.shots?.total ?? 0,
+          JSON.stringify(sesion.shots.byType).slice(0, 2048)
+        ).run();
+      }
       return json(201, ref);
     }
 

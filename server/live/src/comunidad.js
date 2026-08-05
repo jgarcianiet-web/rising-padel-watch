@@ -185,7 +185,7 @@ export async function comunidad(request, env, path) {
   if (ruta === "/muro" && metodo === "GET") {
     // Lo mío y lo de quien sigo, sin bloqueados; las etiquetas van aparte por post.
     const { results } = await env.DB.prepare(
-      `SELECT p.id, u.alias, p.text, p.card, p.created_at AS creado,
+      `SELECT p.id, u.alias, p.text, p.card, p.photo, p.created_at AS creado,
               (SELECT GROUP_CONCAT(u2.alias) FROM post_tags t
                  JOIN users u2 ON u2.id = t.user WHERE t.post = p.id) AS etiquetas,
               (SELECT COUNT(*) FROM reactions r WHERE r.post = p.id) AS reacciones,
@@ -267,12 +267,17 @@ export async function comunidad(request, env, path) {
   }
 
   if (ruta === "/publicar" && metodo === "POST") {
-    const { texto, tarjeta, etiquetas } = await request.json().catch(() => ({}));
+    const { texto, tarjeta, etiquetas, foto } = await request.json().catch(() => ({}));
     const text = (texto || "").trim().slice(0, 500);
     if (!text) return error(400, "vacio", "Escribe algo");
     const insercion = await env.DB.prepare(
-      "INSERT INTO posts (user, text, card, created_at) VALUES (?, ?, ?, ?)"
-    ).bind(yo.id, text, tarjeta ? JSON.stringify(tarjeta).slice(0, 4096) : null, ahora()).run();
+      "INSERT INTO posts (user, text, card, photo, created_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(
+      yo.id, text,
+      tarjeta ? JSON.stringify(tarjeta).slice(0, 4096) : null,
+      typeof foto === "string" && /^[a-f0-9]{48}$/.test(foto) ? foto : null,
+      ahora()
+    ).run();
     const postId = insercion.meta.last_row_id;
 
     const avisados = [];
@@ -341,6 +346,219 @@ export async function comunidad(request, env, path) {
       if (sessionId) jugando.push({ alias, sessionId });
     }
     return json(200, { jugando });
+  }
+
+  // ─── retos ───
+
+  if (ruta === "/reto" && metodo === "POST") {
+    const { alias, metrica, dias } = await request.json().catch(() => ({}));
+    const METRICAS = ["golpes", "victorias", "bandeja", "vibora", "smash"];
+    if (!METRICAS.includes(metrica)) return error(400, "metrica", "Métrica desconocida");
+    const otro = await env.DB.prepare("SELECT id FROM users WHERE alias = ?")
+      .bind(String(alias || "").toLowerCase()).first();
+    if (!otro || otro.id === yo.id) return error(404, "no_existe", "No hay nadie con ese alias");
+    const hoy = new Date();
+    const fin = new Date(hoy);
+    fin.setUTCDate(hoy.getUTCDate() + Math.min(30, Math.max(1, Number(dias) || 7)));
+    await env.DB.prepare(
+      `INSERT INTO challenges (challenger, challenged, metric, start_date, end_date, created_at)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(yo.id, otro.id, metrica, hoy.toISOString().slice(0, 10),
+           fin.toISOString().slice(0, 10), ahora()).run();
+    await push(env, [otro.id], "Te han retado",
+      `${yo.alias} te reta: más ${metrica} hasta el ${fin.toISOString().slice(0, 10)}.`);
+    return json(201, {});
+  }
+
+  if (ruta === "/retos" && metodo === "GET") {
+    const { results } = await env.DB.prepare(
+      `SELECT c.id, c.metric, c.start_date AS desde, c.end_date AS hasta,
+              u1.alias AS retador, u2.alias AS retado
+         FROM challenges c
+         JOIN users u1 ON u1.id = c.challenger JOIN users u2 ON u2.id = c.challenged
+        WHERE c.challenger = ?1 OR c.challenged = ?1
+        ORDER BY c.id DESC LIMIT 20`
+    ).bind(yo.id).all();
+    // El progreso sale de los resultados reales del rango; el reloj es el árbitro.
+    const retos = [];
+    for (const reto of results ?? []) {
+      const cuenta = async (alias) => {
+        const fila = await env.DB.prepare(
+          `SELECT SUM(CASE ?1
+                    WHEN 'golpes' THEN r.shots
+                    WHEN 'victorias' THEN r.won
+                    ELSE COALESCE(json_extract(r.by_type, '$.' || ?1), 0) END) AS total
+             FROM results r JOIN users u ON u.id = r.user
+            WHERE u.alias = ?2 AND r.date >= ?3 AND r.date <= ?4`
+        ).bind(reto.metric, alias, reto.desde, reto.hasta).first();
+        return fila?.total ?? 0;
+      };
+      retos.push({
+        ...reto,
+        marcadorRetador: await cuenta(reto.retador),
+        marcadorRetado: await cuenta(reto.retado),
+        terminado: reto.hasta < new Date().toISOString().slice(0, 10),
+      });
+    }
+    return json(200, { retos });
+  }
+
+  // ─── torneos ───
+
+  if (ruta === "/torneo" && metodo === "POST") {
+    const { nombre, jugadores } = await request.json().catch(() => ({}));
+    const aliases = [...new Set([yo.alias, ...(jugadores ?? []).map((a) => String(a).toLowerCase())])];
+    if (![2, 4, 8].includes(aliases.length)) {
+      return error(400, "jugadores", "Un torneo es de 2, 4 u 8 jugadores (contándote a ti)");
+    }
+    const ids = [];
+    for (const alias of aliases) {
+      const u = await env.DB.prepare("SELECT id FROM users WHERE alias = ?").bind(alias).first();
+      if (!u) return error(404, "no_existe", `No existe @${alias}`);
+      ids.push(u.id);
+    }
+    const t = await env.DB.prepare(
+      "INSERT INTO tournaments (name, creator, status, created_at) VALUES (?, ?, 'activo', ?)"
+    ).bind((nombre || "Torneo").slice(0, 60), yo.id, ahora()).run();
+    const torneoId = t.meta.last_row_id;
+    // Ronda 1 emparejada en orden; las siguientes se crean vacías y se van rellenando.
+    for (let ronda = 1, cruces = ids.length / 2; cruces >= 1; ronda++, cruces /= 2) {
+      for (let slot = 0; slot < cruces; slot++) {
+        const p1 = ronda === 1 ? ids[slot * 2] : null;
+        const p2 = ronda === 1 ? ids[slot * 2 + 1] : null;
+        await env.DB.prepare(
+          "INSERT INTO tmatches (t, round, slot, p1, p2) VALUES (?, ?, ?, ?, ?)"
+        ).bind(torneoId, ronda, slot, p1, p2).run();
+      }
+    }
+    await push(env, ids.filter((id) => id !== yo.id), "Torneo nuevo",
+      `${yo.alias} te ha metido en «${(nombre || "Torneo").slice(0, 40)}».`);
+    return json(201, { id: torneoId });
+  }
+
+  if (ruta === "/torneo" && metodo === "GET") {
+    const torneo = await env.DB.prepare(
+      `SELECT t.id, t.name AS nombre, t.status FROM tournaments t
+        WHERE t.id IN (SELECT tm.t FROM tmatches tm WHERE tm.p1 = ?1 OR tm.p2 = ?1)
+        ORDER BY t.id DESC LIMIT 1`
+    ).bind(yo.id).first();
+    if (!torneo) return json(200, { torneo: null });
+    const { results } = await env.DB.prepare(
+      `SELECT m.id, m.round AS ronda, m.slot,
+              (SELECT alias FROM users WHERE id = m.p1) AS p1,
+              (SELECT alias FROM users WHERE id = m.p2) AS p2,
+              (SELECT alias FROM users WHERE id = m.winner) AS ganador
+         FROM tmatches m WHERE m.t = ? ORDER BY m.round, m.slot`
+    ).bind(torneo.id).all();
+    return json(200, { torneo: { ...torneo, cruces: results ?? [] } });
+  }
+
+  if (ruta === "/torneo/ganador" && metodo === "POST") {
+    const { matchId, alias } = await request.json().catch(() => ({}));
+    const cruce = await env.DB.prepare("SELECT * FROM tmatches WHERE id = ?")
+      .bind(matchId).first();
+    if (!cruce || cruce.winner) return error(400, "cruce", "Ese cruce no está pendiente");
+    const ganador = await env.DB.prepare("SELECT id FROM users WHERE alias = ?")
+      .bind(String(alias || "").toLowerCase()).first();
+    if (!ganador || ![cruce.p1, cruce.p2].includes(ganador.id)) {
+      return error(400, "ganador", "El ganador tiene que ser uno de los dos");
+    }
+    // Solo los implicados reportan: es su cruce.
+    if (![cruce.p1, cruce.p2].includes(yo.id)) {
+      return error(403, "ajeno", "Solo los jugadores del cruce reportan su resultado");
+    }
+    await env.DB.prepare("UPDATE tmatches SET winner = ? WHERE id = ?")
+      .bind(ganador.id, matchId).run();
+    // El ganador sube a su hueco de la siguiente ronda; si no la hay, torneo acabado.
+    const campo = cruce.slot % 2 === 0 ? "p1" : "p2";
+    const siguiente = await env.DB.prepare(
+      "SELECT id FROM tmatches WHERE t = ? AND round = ? AND slot = ?"
+    ).bind(cruce.t, cruce.round + 1, Math.floor(cruce.slot / 2)).first();
+    if (siguiente) {
+      await env.DB.prepare(`UPDATE tmatches SET ${campo} = ? WHERE id = ?`)
+        .bind(ganador.id, siguiente.id).run();
+    } else {
+      await env.DB.prepare("UPDATE tournaments SET status = 'terminado' WHERE id = ?")
+        .bind(cruce.t).run();
+    }
+    return new Response(null, { status: 204 });
+  }
+
+  // ─── perfil público (con el duelo de retos incluido) ───
+
+  const perfil = ruta.match(/^\/perfil\/([a-z0-9-]+)$/);
+  if (perfil && metodo === "GET") {
+    const otro = await env.DB.prepare("SELECT id, alias, created_at FROM users WHERE alias = ?")
+      .bind(perfil[1]).first();
+    if (!otro) return error(404, "no_existe", "No hay nadie con ese alias");
+    const stats = await env.DB.prepare(
+      `SELECT COUNT(*) AS partidos, COALESCE(SUM(won), 0) AS victorias,
+              COALESCE(SUM(shots), 0) AS golpeos, MAX(date) AS ultimo
+         FROM results WHERE user = ?`
+    ).bind(otro.id).first();
+    // El duelo: retos terminados entre los dos, contados por quién ganó cada uno.
+    const { results: retos } = await env.DB.prepare(
+      `SELECT c.metric, c.start_date AS desde, c.end_date AS hasta,
+              c.challenger, c.challenged
+         FROM challenges c
+        WHERE ((c.challenger = ?1 AND c.challenged = ?2)
+            OR (c.challenger = ?2 AND c.challenged = ?1))
+          AND c.end_date < ?3`
+    ).bind(yo.id, otro.id, new Date().toISOString().slice(0, 10)).all();
+    let duelo = { yo: 0, el: 0 };
+    for (const reto of retos ?? []) {
+      const total = async (userId) => {
+        const fila = await env.DB.prepare(
+          `SELECT SUM(CASE ?1 WHEN 'golpes' THEN shots WHEN 'victorias' THEN won
+                    ELSE COALESCE(json_extract(by_type, '$.' || ?1), 0) END) AS t
+             FROM results WHERE user = ?2 AND date >= ?3 AND date <= ?4`
+        ).bind(reto.metric, userId, reto.desde, reto.hasta).first();
+        return fila?.t ?? 0;
+      };
+      const mio = await total(yo.id);
+      const suyo = await total(otro.id);
+      if (mio > suyo) duelo.yo++;
+      else if (suyo > mio) duelo.el++;
+    }
+    const sigo = await env.DB.prepare(
+      "SELECT 1 AS s FROM follows WHERE follower = ? AND followed = ?"
+    ).bind(yo.id, otro.id).first();
+    return json(200, {
+      alias: otro.alias,
+      desde: String(otro.created_at).slice(0, 10),
+      partidos: stats?.partidos ?? 0,
+      victorias: stats?.victorias ?? 0,
+      golpeos: stats?.golpeos ?? 0,
+      ultimo: stats?.ultimo,
+      duelo,
+      siguiendo: !!sigo,
+    });
+  }
+
+  // ─── fotos (R2) ───
+
+  if (ruta === "/foto" && metodo === "POST") {
+    if (!env.FOTOS) return error(500, "sin_r2", "El servidor no tiene R2 configurado");
+    const tipo = request.headers.get("content-type") || "image/jpeg";
+    if (!tipo.startsWith("image/")) return error(400, "tipo", "Solo imágenes");
+    const cuerpo = await request.arrayBuffer();
+    if (cuerpo.byteLength > 3_000_000) return error(413, "grande", "Máximo 3 MB");
+    const id = tokenAleatorio();
+    await env.FOTOS.put(id, cuerpo, { httpMetadata: { contentType: tipo } });
+    return json(201, { id });
+  }
+
+  const foto = ruta.match(/^\/foto\/([a-f0-9]{48})$/);
+  if (foto && metodo === "GET") {
+    if (!env.FOTOS) return error(404, "sin_r2", "Sin fotos");
+    const objeto = await env.FOTOS.get(foto[1]);
+    if (!objeto) return error(404, "no_existe", "No hay foto");
+    return new Response(objeto.body, {
+      headers: {
+        "content-type": objeto.httpMetadata?.contentType || "image/jpeg",
+        "cache-control": "public, max-age=31536000, immutable",
+      },
+    });
   }
 
   return error(404, "ruta_desconocida", "Nada por aquí");

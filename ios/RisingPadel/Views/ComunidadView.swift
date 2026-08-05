@@ -1,5 +1,12 @@
 import PadelCore
+import PhotosUI
 import SwiftUI
+
+/// Envoltorio Identifiable para abrir el perfil de un alias en un sheet.
+struct PerfilRef: Identifiable {
+    let alias: String
+    var id: String { alias }
+}
 
 /// La comunidad: el muro, quién está jugando ahora mismo y la gente que sigues.
 struct ComunidadView: View {
@@ -10,6 +17,11 @@ struct ComunidadView: View {
     @State private var adjuntarPartido = false
     @State private var buscando = false
     @State private var comentando: ComunidadPost?
+    @State private var retando = false
+    @State private var torneando = false
+    @State private var perfilDe: PerfilRef?
+    @State private var fotoElegida: PhotosPickerItem?
+    @State private var fotoData: Data?
 
     var body: some View {
         NavigationStack {
@@ -32,6 +44,18 @@ struct ComunidadView: View {
                         }
                         .accessibilityLabel("Buscar gente")
                     }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button { retando = true } label: {
+                                Label("Retos", systemImage: "bolt.fill")
+                            }
+                            Button { torneando = true } label: {
+                                Label("Torneo", systemImage: "trophy")
+                            }
+                        } label: {
+                            Image(systemName: "gamecontroller")
+                        }
+                    }
                 }
             }
             .sheet(isPresented: $buscando) {
@@ -42,6 +66,15 @@ struct ComunidadView: View {
             }
             .sheet(item: $comentando) { post in
                 ComentariosView(post: post).environmentObject(comunidad)
+            }
+            .sheet(isPresented: $retando) {
+                RetosView().environmentObject(comunidad)
+            }
+            .sheet(isPresented: $torneando) {
+                TorneoView().environmentObject(comunidad)
+            }
+            .sheet(item: $perfilDe) { ref in
+                PerfilView(alias: ref.alias).environmentObject(comunidad)
             }
             .alert(
                 comunidad.message ?? "",
@@ -154,23 +187,55 @@ struct ComunidadView: View {
             VStack(alignment: .leading, spacing: 8) {
                 TextField("Cuenta algo… (@alias para etiquetar)", text: $texto, axis: .vertical)
                     .font(.system(size: 14, design: .rounded))
+                if let fotoData, let imagen = UIImage(data: fotoData) {
+                    Image(uiImage: imagen)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(alignment: .topTrailing) {
+                            Button {
+                                self.fotoData = nil
+                                fotoElegida = nil
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.white)
+                                    .padding(6)
+                            }
+                        }
+                }
                 HStack {
                     if liga.matches.first != nil {
                         Toggle(isOn: $adjuntarPartido) {
-                            Label("Adjuntar mi último partido", systemImage: "trophy")
+                            Label("Partido", systemImage: "trophy")
                                 .font(.system(size: 12, design: .rounded))
                         }
                         .toggleStyle(.button)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
+                    PhotosPicker(selection: $fotoElegida, matching: .images) {
+                        Label("Foto", systemImage: "photo")
+                            .font(.system(size: 12, design: .rounded))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .onChange(of: fotoElegida) {
+                        Task {
+                            fotoData = try? await fotoElegida?
+                                .loadTransferable(type: Data.self)
+                        }
+                    }
                     Spacer()
                     Button {
                         let tarjeta = adjuntarPartido ? liga.matches.first : nil
                         let contenido = texto
+                        let foto = fotoData
                         texto = ""
                         adjuntarPartido = false
-                        Task { await comunidad.publicar(texto: contenido, tarjeta: tarjeta) }
+                        fotoData = nil
+                        fotoElegida = nil
+                        Task { await comunidad.publicar(texto: contenido, tarjeta: tarjeta, foto: foto) }
                     } label: {
                         Label("Publicar", systemImage: "paperplane.fill")
                             .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -186,9 +251,15 @@ struct ComunidadView: View {
         PadelCard {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
-                    Text("@\(post.alias)")
-                        .font(.system(size: 13, weight: .heavy, design: .rounded))
-                        .foregroundStyle(T.pista)
+                    // El alias abre su perfil: números, duelo de retos y seguir.
+                    Button {
+                        perfilDe = PerfilRef(alias: post.alias)
+                    } label: {
+                        Text("@\(post.alias)")
+                            .font(.system(size: 13, weight: .heavy, design: .rounded))
+                            .foregroundStyle(T.pista)
+                    }
+                    .buttonStyle(.plain)
                     Spacer()
                     Text(post.creado)
                         .font(.system(size: 11, design: .rounded))
@@ -198,6 +269,16 @@ struct ComunidadView: View {
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(T.tinta)
                     .fixedSize(horizontal: false, vertical: true)
+                if let foto = post.foto, let url = comunidad.fotoURL(foto) {
+                    AsyncImage(url: url) { imagen in
+                        imagen.resizable().scaledToFill()
+                    } placeholder: {
+                        Rectangle().fill(T.borde)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
                 if let tarjeta = post.tarjeta {
                     MatchShareCard(match: tarjeta)
                         .scaleEffect(0.78, anchor: .topLeading)

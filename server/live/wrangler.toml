@@ -27,5 +27,11 @@ database_id = "PON_AQUI_EL_ID_DE_D1"
 #   APNS_KEY_ID    su Key ID
 #   APNS_TEAM_ID   el Team ID de Apple
 # Y una variable normal:
+# Las fotos del muro. Crear con `wrangler r2 bucket create rising-padel-fotos`
+# (R2 hay que activarlo una vez en el panel de Cloudflare; el plan gratuito llega).
+[[r2_buckets]]
+binding = "FOTOS"
+bucket_name = "rising-padel-fotos"
+
 [vars]
 APNS_TOPIC = "com.risingpadel.watch"

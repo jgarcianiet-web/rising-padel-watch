@@ -13,6 +13,7 @@ struct ComunidadPost: Identifiable, Equatable {
     let tarjeta: LigaMatch?
     let etiquetas: [String]
     let creado: String
+    let foto: String?
     var reacciones: Int
     var miReaccion: String?
     var comentarios: Int
@@ -30,6 +31,45 @@ struct ComunidadRankingFila: Identifiable, Equatable {
     let victorias: Int
     let golpeos: Int
     var id: String { alias }
+}
+
+struct ComunidadReto: Identifiable, Equatable, Decodable {
+    let id: Int
+    let metric: String
+    let desde: String
+    let hasta: String
+    let retador: String
+    let retado: String
+    let marcadorRetador: Int
+    let marcadorRetado: Int
+    let terminado: Bool
+}
+
+struct ComunidadPerfil: Decodable {
+    struct Duelo: Decodable { let yo: Int; let el: Int }
+    let alias: String
+    let desde: String
+    let partidos: Int
+    let victorias: Int
+    let golpeos: Int
+    let ultimo: String?
+    let duelo: Duelo
+    let siguiendo: Bool
+}
+
+struct ComunidadTorneo: Decodable, Equatable {
+    struct Cruce: Decodable, Equatable, Identifiable {
+        let id: Int
+        let ronda: Int
+        let slot: Int
+        let p1: String?
+        let p2: String?
+        let ganador: String?
+    }
+    let id: Int
+    let nombre: String
+    let status: String
+    let cruces: [Cruce]
 }
 
 struct ComunidadUsuario: Identifiable, Equatable {
@@ -159,6 +199,7 @@ final class ComunidadModel: ObservableObject {
                 let card: String?
                 let creado: String
                 let etiquetas: String?
+                let photo: String?
                 let reacciones: Int?
                 let miReaccion: String?
                 let comentarios: Int?
@@ -176,6 +217,7 @@ final class ComunidadModel: ObservableObject {
                     },
                     etiquetas: fila.etiquetas?.split(separator: ",").map(String.init) ?? [],
                     creado: String(fila.creado.prefix(10)),
+                    foto: fila.photo,
                     reacciones: fila.reacciones ?? 0,
                     miReaccion: fila.miReaccion,
                     comentarios: fila.comentarios ?? 0
@@ -229,7 +271,7 @@ final class ComunidadModel: ObservableObject {
 
     /// Publica en el muro. La tarjeta es un partido de la liga tal cual: quien lo
     /// recibe lo pinta con la misma tarjeta compartible.
-    func publicar(texto: String, tarjeta: LigaMatch?) async {
+    func publicar(texto: String, tarjeta: LigaMatch?, foto: Data? = nil) async {
         // Las @etiquetas se sacan del propio texto, como en cualquier red.
         let etiquetas = texto.split(separator: " ")
             .filter { $0.hasPrefix("@") }
@@ -238,8 +280,84 @@ final class ComunidadModel: ObservableObject {
         if let tarjeta, let data = try? JSONEncoder().encode(tarjeta) {
             body["tarjeta"] = try? JSONSerialization.jsonObject(with: data)
         }
+        if let foto, let id = await subirFoto(foto) {
+            body["foto"] = id
+        }
         let _: [String: Int]? = await llamarCrudo("POST", "v1/comunidad/publicar", json: body)
         await refrescar()
+    }
+
+    /// Sube una foto y devuelve su id, o nil si el servidor no tiene R2.
+    private func subirFoto(_ data: Data) async -> String? {
+        var raiz = baseURL.trimmingCharacters(in: .whitespaces)
+        while raiz.hasSuffix("/") { raiz.removeLast() }
+        guard let url = URL(string: raiz + "/v1/comunidad/foto") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("image/jpeg", forHTTPHeaderField: "Content-Type")
+        if let token = ComunidadCuenta.read("token") {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = data
+        guard let (respuesta, http) = try? await URLSession.shared.data(for: request),
+              (http as? HTTPURLResponse)?.statusCode == 201,
+              let json = try? JSONDecoder().decode([String: String].self, from: respuesta)
+        else {
+            message = "No se pudo subir la foto"
+            return nil
+        }
+        return json["id"]
+    }
+
+    /// La URL pública de una foto del muro.
+    func fotoURL(_ id: String) -> URL? {
+        var raiz = baseURL.trimmingCharacters(in: .whitespaces)
+        while raiz.hasSuffix("/") { raiz.removeLast() }
+        return URL(string: raiz + "/v1/comunidad/foto/\(id)")
+    }
+
+    // MARK: Retos, torneo y perfil
+
+    func retos() async -> [ComunidadReto] {
+        struct Lista: Decodable { let retos: [ComunidadReto] }
+        let lista: Lista? = await llamar("GET", "v1/comunidad/retos")
+        return lista?.retos ?? []
+    }
+
+    func retar(alias: String, metrica: String, dias: Int) async {
+        let _: [String: String]? = await llamarCrudo(
+            "POST", "v1/comunidad/reto",
+            json: ["alias": alias, "metrica": metrica, "dias": dias]
+        )
+        message = "Reto lanzado a @\(alias)"
+    }
+
+    func torneo() async -> ComunidadTorneo? {
+        struct Caja: Decodable { let torneo: ComunidadTorneo? }
+        let caja: Caja? = await llamar("GET", "v1/comunidad/torneo")
+        return caja?.torneo
+    }
+
+    func crearTorneo(nombre: String, jugadores: [String]) async {
+        let _: [String: Int]? = await llamarCrudo(
+            "POST", "v1/comunidad/torneo",
+            json: ["nombre": nombre, "jugadores": jugadores]
+        )
+    }
+
+    func reportarGanador(cruce: ComunidadTorneo.Cruce, alias: String) async {
+        let _: [String: String]? = await llamarCrudo(
+            "POST", "v1/comunidad/torneo/ganador",
+            json: ["matchId": cruce.id, "alias": alias]
+        )
+    }
+
+    func perfil(de alias: String) async -> ComunidadPerfil? {
+        await llamar("GET", "v1/comunidad/perfil/\(alias)")
+    }
+
+    func seguirAlias(_ alias: String) async {
+        let _: [String: String]? = await llamar("POST", "v1/comunidad/seguir/\(alias)")
     }
 
     /// Reacciona (o quita la reacción repitiéndola). El estado local se adelanta al

@@ -277,6 +277,31 @@ struct CoachService {
         value == value.rounded() ? String(Int(value)) : String(format: "%.1f", value)
     }
 
+    // MARK: Crónica para el muro
+
+    /// Dos líneas de crónica de un partido, con el tono del entrenador, listas para
+    /// publicar en la comunidad. Datos del partido y nada más: la regla de siempre.
+    func cronica(de match: LigaMatch) async throws -> String {
+        let encoder = JSONEncoder()
+        let datos = String(
+            data: (try? encoder.encode(Self.datos(match, objetivos: []))) ?? Data(),
+            encoding: .utf8
+        ) ?? "{}"
+        let prompt = """
+        Eres un cronista deportivo de pádel, chispeante pero sin inventar. Con los datos \
+        de este partido escribe una crónica de DOS frases (máximo 45 palabras en total) \
+        en primera persona del jugador, citando al menos un dato concreto (resultado, \
+        sets, un golpe con su nota, el pulso...). Sin hashtags ni emojis. Responde SOLO \
+        con la crónica.
+
+        DATOS: \(datos)
+        """
+        let texto = try await callAnthropic(prompt, maxTokens: 1000)
+        let limpio = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !limpio.isEmpty else { throw CoachError.respuestaVacia }
+        return limpio
+    }
+
     // MARK: Hechos del reloj
 
     /// Lo que la app Expo no podía tener: los hechos que el `InsightEngine` calcula

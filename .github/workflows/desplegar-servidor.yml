@@ -55,6 +55,9 @@ jobs:
           # de Cloudflare tiene los suyos y no se versionan.
           sed -i "s/PON_AQUI_EL_ID_DEL_NAMESPACE/$KV_ID/; s/PON_AQUI_EL_ID_DE_D1/$D1_ID/" wrangler.toml
 
+      - name: Crear el bucket de fotos si no existe
+        run: wrangler r2 bucket create rising-padel-fotos 2>/dev/null || true
+
       - name: Aplicar el esquema de la comunidad
         run: wrangler d1 execute rising-padel --file=schema.sql --remote -y
 
