@@ -35,7 +35,7 @@ struct SessionFrequencyChart: View {
                     x: .value("Tiempo", offsetLabel(bucket.endMs)),
                     y: .value("Golpeos", bucket.count)
                 )
-                .foregroundStyle(.tint)
+                .foregroundStyle(T.pista)
                 .cornerRadius(3)
             }
             .chartYAxisLabel("golpeos")
@@ -65,7 +65,7 @@ struct SessionProgressChart: View {
         if points.count < 2 {
             Text("Hacen falta más de \(Int(SessionAnalytics.defaultStepMs / 60_000)) minutos de juego para dibujar el progreso.")
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(T.tintaSuave)
         } else {
             Chart {
                 ForEach(points, id: \.offsetMs) { point in
@@ -74,23 +74,23 @@ struct SessionProgressChart: View {
                         y: .value("Nivel", point.level)
                     )
                     .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.tint.opacity(0.15))
+                    .foregroundStyle(T.pista.opacity(0.15))
                     LineMark(
                         x: .value("Tiempo", minutes(point.offsetMs)),
                         y: .value("Nivel", point.level)
                     )
                     .interpolationMethod(.catmullRom)
-                    .foregroundStyle(.tint)
+                    .foregroundStyle(T.pista)
                     .lineStyle(StrokeStyle(lineWidth: 2.5))
                 }
                 if let playerAverage {
                     RuleMark(y: .value("Tu media", playerAverage))
-                        .foregroundStyle(.yellow)
+                        .foregroundStyle(T.bola)
                         .lineStyle(StrokeStyle(lineWidth: 2))
                         .annotation(position: .top, alignment: .trailing) {
                             Text(String(format: "tu media %.2f", playerAverage))
                                 .font(.caption2)
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(T.tintaSuave)
                         }
                 }
             }
@@ -167,7 +167,7 @@ struct LevelHistoryChart: View {
             if points.count < 2 {
                 Text("Con dos o más sesiones aparecerá aquí la evolución de tu nivel.")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(T.tintaSuave)
             } else {
                 Chart {
                     ForEach(points) { point in
@@ -176,19 +176,19 @@ struct LevelHistoryChart: View {
                             y: .value("Nivel", point.level)
                         )
                         .interpolationMethod(.catmullRom)
-                        .foregroundStyle(.tint.opacity(0.15))
+                        .foregroundStyle(T.pista.opacity(0.15))
                         LineMark(
                             x: .value("Fecha", point.date),
                             y: .value("Nivel", point.level)
                         )
                         .interpolationMethod(.catmullRom)
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(T.pista)
                         .lineStyle(StrokeStyle(lineWidth: 2.5))
                         PointMark(
                             x: .value("Fecha", point.date),
                             y: .value("Nivel", point.level)
                         )
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(T.pista)
                     }
                 }
                 .chartYScale(domain: yDomain(points))

@@ -14,6 +14,8 @@ struct RootTabView: View {
             SessionListView()
                 .tabItem { Label("Histórico", systemImage: "clock.arrow.circlepath") }
         }
+        // El azul de pista es el color de marca: tiñe pestañas, enlaces y controles.
+        .tint(T.pista)
         // El aviso vive en la raíz y no en una pestaña: un mensaje de sincronización
         // tiene que verse igual desde cualquiera de las dos.
         .alert(
@@ -43,6 +45,7 @@ struct LastSessionView: View {
                     emptyState
                 }
             }
+            .background(T.fondo)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

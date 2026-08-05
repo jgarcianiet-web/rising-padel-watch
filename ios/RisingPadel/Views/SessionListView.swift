@@ -18,6 +18,7 @@ struct SessionListView: View {
                     list
                 }
             }
+            .background(T.fondo)
             .navigationTitle("Mis sesiones")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -46,69 +47,92 @@ struct SessionListView: View {
     }
 
     private var list: some View {
-        List {
-            // La evolución vive encima de la lista: es la respuesta a "¿estoy
-            // mejorando?", que es lo primero que se viene a mirar.
-            Section("Nivel últimos partidos") {
-                LevelHistoryChart(sessions: model.sessions)
-            }
-            Section {
+        ScrollView {
+            VStack(spacing: 12) {
+                // La evolución vive encima de la lista: es la respuesta a "¿estoy
+                // mejorando?", que es lo primero que se viene a mirar.
+                PadelCard(title: "Nivel últimos partidos", icon: "chart.xyaxis.line") {
+                    LevelHistoryChart(sessions: model.sessions)
+                }
+
                 ForEach(model.sessions) { session in
                     NavigationLink {
                         SessionDetailView(session: session).environmentObject(model)
                     } label: {
                         row(session)
                     }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private func row(_ session: PadelSession) -> some View {
+        PadelCard {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(formatSessionDate(session.startedAtEpochMs))
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .kerning(1.2)
+                            .foregroundStyle(T.tintaSuave)
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text("\(session.totalShots)")
+                                .font(.padelDisplay(28))
+                                .monospacedDigit()
+                                .foregroundStyle(T.pista)
+                            Text("golpeos")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                        }
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if let score = session.score {
+                            Text(score.allSets.map { "\($0.us)-\($0.them)" }.joined(separator: "  "))
+                                .font(.system(size: 15, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(T.tinta)
+                        }
+                        let level = session.level
+                        if level.gradedShots > 0 {
+                            Text("nivel \(String(format: "%.1f", level.rounded))")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .foregroundStyle(T.bola)
+                        }
+                    }
+                }
+
+                HStack(spacing: 12) {
+                    tag(formatDuration(session.durationSeconds), icon: "clock")
+                    tag(String(format: "%.1f/min", session.shotsPerMinute), icon: "metronome")
+                    if let heartRate = session.health.heartRate {
+                        tag("\(heartRate.meanBpm) ppm", icon: "heart.fill")
+                    }
+                    Spacer()
+                    Circle()
+                        .fill(color(for: session.sync.state))
+                        .frame(width: 7, height: 7)
                 }
             }
         }
     }
 
-    private func row(_ session: PadelSession) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(formatSessionDate(session.startedAtEpochMs))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack(alignment: .firstTextBaseline) {
-                Text("\(session.totalShots) golpeos")
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Text(formatDuration(session.durationSeconds))
-                    .font(.subheadline)
-            }
-
-            if let score = session.score {
-                Text(score.allSets.map { "\($0.us)-\($0.them)" }.joined(separator: "  "))
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(.tint)
-                    .monospacedDigit()
-            }
-
-            Text(subtitle(session))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Text(session.sync.state.label)
-                .font(.caption2)
-                .foregroundStyle(color(for: session.sync.state))
+    private func tag(_ text: String, icon: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon).font(.system(size: 9))
+            Text(text).font(.system(size: 12, weight: .medium, design: .rounded)).monospacedDigit()
         }
-        .padding(.vertical, 4)
-    }
-
-    private func subtitle(_ session: PadelSession) -> String {
-        var parts = [String(format: "%.1f golpeos/min", session.shotsPerMinute)]
-        if let heartRate = session.health.heartRate {
-            parts.append("\(heartRate.meanBpm) ppm medias")
-        }
-        return parts.joined(separator: " · ")
+        .foregroundStyle(T.tintaSuave)
     }
 
     private func color(for state: SyncState) -> Color {
         switch state {
-        case .synced: return .green
-        case .pending: return .secondary
-        case .failed, .needsAuth: return .red
+        case .synced: return T.verde
+        case .pending: return T.tintaSuave
+        case .failed, .needsAuth: return T.rojo
         }
     }
 

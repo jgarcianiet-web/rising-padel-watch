@@ -23,6 +23,11 @@ struct SettingsView: View {
                 }
                 aboutSection
             }
+            // Mismo fondo crema que el resto de la app: un Form con el gris del sistema
+            // se veía como una pantalla de otra aplicación.
+            .scrollContentBackground(.hidden)
+            .background(T.fondo)
+            .tint(T.pista)
             .navigationTitle("Ajustes")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
