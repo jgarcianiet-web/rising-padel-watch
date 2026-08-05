@@ -85,6 +85,30 @@ jobs:
       - name: Aplicar el esquema de la comunidad
         run: wrangler d1 execute rising-padel --file=schema.sql --remote -y
 
+      - name: Registrar el subdominio workers.dev si falta
+        run: |
+          set -euo pipefail
+          # La cuenta elige su subdominio una sola vez; sin él no se puede publicar en
+          # workers.dev y wrangler solo sabe pedirlo interactivamente. Se registra por
+          # API con un nombre único derivado del Account ID.
+          API="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain"
+          ACTUAL=$(curl -s -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "$API" \
+            | python3 -c "import json,sys; d=json.load(sys.stdin); print((d.get('result') or {}).get('subdomain') or '')")
+          if [ -z "$ACTUAL" ]; then
+            NUEVO="rising-padel-${CLOUDFLARE_ACCOUNT_ID:0:10}"
+            curl -s -X PUT -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"subdomain\": \"$NUEVO\"}" "$API" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          if not d.get('success'):
+              print('No se pudo registrar el subdominio:', d.get('errors'))
+              raise SystemExit(1)
+          print('Subdominio registrado:', d['result'].get('subdomain'))"
+          else
+            echo "Subdominio ya registrado: $ACTUAL"
+          fi
+
       - name: Desplegar
         run: |
           set -euo pipefail
