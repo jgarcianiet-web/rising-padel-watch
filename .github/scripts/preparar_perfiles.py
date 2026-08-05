@@ -45,6 +45,8 @@ TARGETS = [
         # declara la app del reloj y la firma falla al validar.
         ["HEALTHKIT"],
     ),
+    # La extensión de widgets (Live Activity). Sin entitlements especiales.
+    ("com.risingpadel.watch.widgets", "Rising Padel Widgets", "RisingPadelWidgets AppStore", []),
 ]
 
 # Xcode 16+ busca los perfiles en la ruta nueva; las versiones anteriores en la

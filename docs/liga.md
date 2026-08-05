@@ -39,6 +39,13 @@ decodificación tolerante para backups viejos de la web-app.
 | Formulario completo de partido: alta a mano y edición de todo | Hecho — calco de `PartidoScreen`; las series del reloj se conservan al editar |
 | Objetivos por partido y perfil de la temporada | Hecho — con el catálogo de ideas de la web-app original |
 | Panel de temporada: rachas, meta, evolución del nivel, stats por posición/tipo/compañero, golpes repetidos, cumplimiento de objetivos | Hecho — puerto de `metrics.ts` y `PanelScreen` |
+| Objetivos medidos por el reloj | Hecho — `ObjectiveEvaluator` en los dos cores (tests en Kotlin): "hacer 15 bandejas" se marca solo al guardar la sesión; lo que el reloj no ve (puntos, fallos, colocación) se deja a mano — antes en silencio que inventado |
+| Live Activity: el marcador en la pantalla de bloqueo y la Dynamic Island | Hecho — extensión `RisingPadelWidgets`, alimentada en local con cada punto del reloj |
+| Historial de análisis del entrenador | Hecho — desde la tarjeta del entrenador |
+| Ficha de evolución por golpe (nota y volumen por sesión) | Hecho — tocando el chip del golpe en la ficha o en el panel |
+| Resumen mensual (mes en curso vs anterior) | Hecho — en el panel de temporada |
+| Liga en Android: dominio Kotlin (modelos + backup + métricas, con tests) | Hecho en el core; las pantallas Compose son el siguiente tramo |
+| Complicación / widget del reloj | Pendiente — necesita otra extensión con su perfil de firma; mismo camino que la de widgets |
 
 ### Sobre el nombre "Band"
 

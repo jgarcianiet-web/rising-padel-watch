@@ -14,6 +14,7 @@ struct LigaSeasonView: View {
         ScrollView {
             VStack(spacing: 12) {
                 headlineCard(matches, perfil)
+                mensualCard(matches)
                 metaCard(matches, perfil)
                 evolutionCard(matches)
                 objetivosCard(matches)
@@ -68,6 +69,47 @@ struct LigaSeasonView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    // MARK: Mes en curso contra el anterior
+
+    @ViewBuilder
+    private func mensualCard(_ matches: [LigaMatch]) -> some View {
+        if let resumen = LigaMetrics.resumenMensual(matches, hoyISO: LigaFechas.hoy()),
+           resumen.actual.n + resumen.anterior.n > 0 {
+            PadelCard(title: "Este mes", icon: "calendar") {
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("").frame(maxWidth: .infinity, alignment: .leading)
+                        Text("PJ").frame(width: 36)
+                        Text("V").frame(width: 48)
+                        Text("Bien").frame(width: 48)
+                    }
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                    filaMes(resumen.actual, destacada: true)
+                    filaMes(resumen.anterior, destacada: false)
+                }
+            }
+        }
+    }
+
+    private func filaMes(_ mes: LigaMetrics.ResumenMes, destacada: Bool) -> some View {
+        HStack {
+            Text(mes.clave)
+                .font(.system(size: 13, weight: destacada ? .bold : .medium, design: .rounded))
+                .foregroundStyle(destacada ? T.tinta : T.tintaSuave)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(mes.n)").frame(width: 36)
+            Text(mes.pctVictorias.map { "\($0)%" } ?? "–")
+                .foregroundStyle(T.verde)
+                .frame(width: 48)
+            Text(mes.pctBienJugados.map { "\($0)%" } ?? "–")
+                .foregroundStyle(T.pista)
+                .frame(width: 48)
+        }
+        .font(.system(size: 13, weight: .medium, design: .rounded))
+        .monospacedDigit()
     }
 
     // MARK: Meta de la temporada
@@ -253,15 +295,23 @@ struct LigaSeasonView: View {
     }
 
     private func filaGolpe(_ golpe: LigaGolpeAgregado, color: Color) -> some View {
-        HStack {
-            Text(golpe.golpe)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(T.tinta)
-            Spacer()
-            Text("\(golpe.veces)× · media \(String(format: "%.1f", golpe.media))/7")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(color)
+        NavigationLink {
+            LigaGolpeDetalleView(nombre: golpe.golpe)
+        } label: {
+            HStack {
+                Text(golpe.golpe)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(T.tinta)
+                Spacer()
+                Text("\(golpe.veces)× · media \(String(format: "%.1f", golpe.media))/7")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(color)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(T.tintaSuave)
+            }
         }
+        .buttonStyle(.plain)
     }
 }

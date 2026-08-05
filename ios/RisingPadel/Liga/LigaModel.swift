@@ -126,6 +126,20 @@ final class LigaModel: ObservableObject {
             intervalMs: SessionAnalytics.interval10MinMs
         )
 
+        // Los objetivos que el reloj puede medir se marcan solos: "hacer 15 bandejas"
+        // se comprueba contra el recuento real. Los no medibles quedan en false y se
+        // marcan a mano al editar, como siempre.
+        var objetivosMedidos = 0
+        let checks = state.objetivos.map { objetivo -> Bool in
+            guard let medida = ObjectiveEvaluator.evaluate(
+                objetivo,
+                shotsByType: session.shotsByType,
+                totalShots: session.totalShots
+            ) else { return false }
+            objetivosMedidos += 1
+            return medida.met
+        }
+
         let score = session.score
         let match = LigaMatch(
             // El id es la fecha de inicio de la sesión: guardar dos veces la misma
@@ -140,6 +154,7 @@ final class LigaModel: ObservableObject {
             },
             nivelBand: level.gradedShots > 0 && level.reliable ? round1(Double(level.overall)) : nil,
             golpesSesion: golpes.isEmpty ? nil : golpes.sorted { $0.nota > $1.nota },
+            objetivos: checks,
             bandInicio: progression.first.map { round1(Double($0.level)) },
             bandFin: progression.last.map { round1(Double($0.level)) },
             bandMediaJugador: playerAverage.map { round1(Double($0)) },
@@ -159,7 +174,9 @@ final class LigaModel: ObservableObject {
             )
         )
         upsert(match)
-        message = "Partido guardado en la liga"
+        message = objetivosMedidos > 0
+            ? "Partido guardado (\(objetivosMedidos) de \(checks.count) objetivos medidos por el reloj)"
+            : "Partido guardado en la liga"
     }
 
     // MARK: Entrenador

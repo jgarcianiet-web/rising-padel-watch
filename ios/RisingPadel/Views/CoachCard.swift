@@ -25,6 +25,14 @@ struct CoachCard: View {
                         .foregroundStyle(T.tintaSuave)
                 }
                 generateButton
+                if liga.state.analisisHistorial.count > 1 {
+                    NavigationLink {
+                        LigaAnalisisHistorialView()
+                    } label: {
+                        Label("Ver análisis anteriores", systemImage: "clock.arrow.circlepath")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    }
+                }
             }
         }
     }

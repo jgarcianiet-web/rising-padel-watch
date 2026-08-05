@@ -129,6 +129,7 @@ jobs:
             <dict>
               <key>com.risingpadel.watch</key><string>RisingPadel AppStore</string>
               <key>com.risingpadel.watch.watchkitapp</key><string>RisingPadelWatch AppStore</string>
+              <key>com.risingpadel.watch.widgets</key><string>RisingPadelWidgets AppStore</string>
             </dict>
             <key>uploadSymbols</key><true/>
           </dict>

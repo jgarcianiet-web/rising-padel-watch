@@ -91,12 +91,17 @@ final class AppModel: ObservableObject {
         }
         liveMatch = state
 
+        // El marcador también vive en la pantalla de bloqueo y la Dynamic Island.
+        liveActivity.update(with: state)
+
         // Si hay liga configurada, el estado se republica para que otros lo sigan.
         // Fuego y olvido: sin cola, la siguiente actualización corrige sola.
         if let config = leagueConfig() {
             Task { await LiveScorePublisher().publish(state, config: config) }
         }
     }
+
+    private let liveActivity = LiveActivityController()
 
     /// Enlace público para seguir el partido: la página de espectador del servidor de
     /// la liga (`server/live`), que vive en la misma URL base. Nil sin liga configurada.

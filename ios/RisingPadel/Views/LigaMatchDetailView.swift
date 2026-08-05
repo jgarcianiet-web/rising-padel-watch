@@ -142,7 +142,18 @@ struct LigaMatchDetailView: View {
                 }
                 if let golpes = m.golpesSesion, !golpes.isEmpty {
                     SectionLabel("Notas de la sesión")
-                    chips(golpes.map { ($0.nombre, String(format: "%.1f", $0.nota)) })
+                    // Cada chip abre la trayectoria del golpe por las sesiones.
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 6, alignment: .leading)],
+                              alignment: .leading, spacing: 6) {
+                        ForEach(Array(golpes.enumerated()), id: \.offset) { _, golpe in
+                            NavigationLink {
+                                LigaGolpeDetalleView(nombre: golpe.nombre)
+                            } label: {
+                                chip(golpe.nombre, String(format: "%.1f", golpe.nota))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
                 }
                 if let volumen = m.golpesVolumen, !volumen.isEmpty {
                     SectionLabel("Volumen de golpeo")
@@ -204,21 +215,25 @@ struct LigaMatchDetailView: View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 6, alignment: .leading)],
                   alignment: .leading, spacing: 6) {
             ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(spacing: 4) {
-                    Text(item.0)
-                        .font(.system(size: 12, design: .rounded))
-                        .foregroundStyle(T.tinta)
-                    Text(item.1)
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .monospacedDigit()
-                        .foregroundStyle(T.pista)
-                }
-                .padding(.vertical, 4)
-                .padding(.horizontal, 9)
-                .background(T.fondo, in: Capsule())
-                .overlay(Capsule().stroke(T.borde, lineWidth: 1))
+                chip(item.0, item.1)
             }
         }
+    }
+
+    private func chip(_ nombre: String, _ valor: String) -> some View {
+        HStack(spacing: 4) {
+            Text(nombre)
+                .font(.system(size: 12, design: .rounded))
+                .foregroundStyle(T.tinta)
+            Text(valor)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(T.pista)
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 9)
+        .background(T.fondo, in: Capsule())
+        .overlay(Capsule().stroke(T.borde, lineWidth: 1))
     }
 
     private func hayCurva(_ m: LigaMatch) -> Bool {

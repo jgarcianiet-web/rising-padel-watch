@@ -197,6 +197,88 @@ enum LigaMetrics {
             }
     }
 
+    // MARK: Evolución de un golpe
+
+    struct PuntoGolpe: Identifiable {
+        let fechaISO: String
+        let fecha: String
+        let nota: Double
+        let cantidad: Int?
+        var id: String { fechaISO }
+    }
+
+    struct EvolucionGolpe {
+        let puntos: [PuntoGolpe]
+        var veces: Int { puntos.count }
+        var media: Double? { promedia(puntos.map(\.nota)) }
+        var mejor: Double? { puntos.map(\.nota).max() }
+        var peor: Double? { puntos.map(\.nota).min() }
+    }
+
+    /// Trayectoria de un golpe a través de las sesiones: su nota media y cuántos se
+    /// dieron cada día que aparece. El puerto de `calcEvolucionGolpe`.
+    static func evolucionGolpe(_ matches: [LigaMatch], nombre: String) -> EvolucionGolpe {
+        let clave = nombre.lowercased()
+        let puntos: [PuntoGolpe] = cronologico(matches).compactMap { m in
+            let notas = (m.golpesSesion ?? [])
+                .filter { $0.nombre.lowercased() == clave }
+                .map(\.nota)
+            guard !notas.isEmpty else { return nil }
+            let cantidades = (m.golpesVolumen ?? [])
+                .filter { $0.nombre.lowercased() == clave }
+                .map(\.cantidad)
+            return PuntoGolpe(
+                fechaISO: m.fecha,
+                fecha: LigaFechas.corta(m.fecha),
+                nota: ((notas.reduce(0, +) / Double(notas.count)) * 10).rounded() / 10,
+                cantidad: cantidades.isEmpty ? nil : cantidades.reduce(0, +)
+            )
+        }
+        return EvolucionGolpe(puntos: puntos)
+    }
+
+    // MARK: Resumen mensual
+
+    struct ResumenMes {
+        let clave: String
+        let n: Int
+        let pctVictorias: Int?
+        let pctBienJugados: Int?
+        let nivelCierre: Double?
+    }
+
+    /// Mes en curso contra el anterior, para ver de un vistazo si el mes va mejor.
+    static func resumenMensual(_ matches: [LigaMatch], hoyISO: String) -> (actual: ResumenMes, anterior: ResumenMes)? {
+        let trozos = hoyISO.split(separator: "-").compactMap { Int($0) }
+        guard trozos.count >= 2 else { return nil }
+        let (ano, mes) = (trozos[0], trozos[1])
+        let actualKey = String(format: "%04d-%02d", ano, mes)
+        let prevKey = mes == 1
+            ? String(format: "%04d-12", ano - 1)
+            : String(format: "%04d-%02d", ano, mes - 1)
+        return (
+            resumenDeMes(matches, anoMes: actualKey),
+            resumenDeMes(matches, anoMes: prevKey)
+        )
+    }
+
+    private static func resumenDeMes(_ matches: [LigaMatch], anoMes: String) -> ResumenMes {
+        let ms = cronologico(matches).filter { $0.fecha.hasPrefix(anoMes) }
+        let victorias = ms.filter { $0.resultado == "victoria" }.count
+        let bien = ms.filter(\.bienJugado).count
+        return ResumenMes(
+            clave: LigaFechas.mes("\(anoMes)-15"),
+            n: ms.count,
+            pctVictorias: ms.isEmpty ? nil : Int((Double(victorias) * 100 / Double(ms.count)).rounded()),
+            pctBienJugados: ms.isEmpty ? nil : Int((Double(bien) * 100 / Double(ms.count)).rounded()),
+            nivelCierre: ms.last(where: { $0.nivel != nil })?.nivel
+        )
+    }
+
+    private static func promedia(_ valores: [Double]) -> Double? {
+        valores.isEmpty ? nil : valores.reduce(0, +) / Double(valores.count)
+    }
+
     /// Orden cronológico ascendente, el que usan racha y evolución.
     private static func cronologico(_ matches: [LigaMatch]) -> [LigaMatch] {
         matches.sorted { $0.fecha < $1.fecha }
