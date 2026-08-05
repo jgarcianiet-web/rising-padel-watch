@@ -118,6 +118,10 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         companero: String = "",
         nivel: Double? = nil,
         nivelBand: Double? = nil,
+        mejorGolpe: String? = nil,
+        mejorPunt: Double? = nil,
+        peorGolpe: String? = nil,
+        peorPunt: Double? = nil,
         golpesSesion: [LigaGolpeSesion]? = nil,
         objetivos: [Bool] = [false, false, false],
         nota: String = "",
@@ -141,10 +145,10 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         self.companero = companero
         self.nivel = nivel
         self.nivelBand = nivelBand
-        self.mejorGolpe = nil
-        self.mejorPunt = nil
-        self.peorGolpe = nil
-        self.peorPunt = nil
+        self.mejorGolpe = mejorGolpe
+        self.mejorPunt = mejorPunt
+        self.peorGolpe = peorGolpe
+        self.peorPunt = peorPunt
         self.golpesSesion = golpesSesion
         self.objetivos = objetivos
         self.nota = nota

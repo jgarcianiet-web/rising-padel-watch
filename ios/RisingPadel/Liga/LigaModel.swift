@@ -19,11 +19,45 @@ final class LigaModel: ObservableObject {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         self.fileURL = fileURL ?? base.appendingPathComponent("liga/estado.json")
         load()
+        seedObjetivos()
     }
 
     var matches: [LigaMatch] {
         // La más nueva primero, como el historial de sesiones.
         state.matches.sorted { $0.fecha > $1.fecha }
+    }
+
+    /// Los objetivos por defecto de la web-app original: sin ellos, la ficha de un
+    /// partido enseñaría checks sin texto. Un backup con objetivos propios los pisa.
+    private func seedObjetivos() {
+        if state.objetivos.isEmpty {
+            state.objetivos = LigaCatalogos.defaultObjetivos
+        }
+    }
+
+    /// Clubes ya usados, para rellenar con un toque (los 6 últimos, como en la Expo).
+    var clubesPrevios: [String] { previos(\.club) }
+    var companerosPrevios: [String] { previos(\.companero) }
+
+    private func previos(_ campo: (LigaMatch) -> String) -> [String] {
+        var vistos = Set<String>()
+        let unicos = state.matches.map(campo)
+            .filter { !$0.isEmpty && vistos.insert($0).inserted }
+        return Array(unicos.suffix(6).reversed())
+    }
+
+    // MARK: Perfil y objetivos
+
+    func savePerfil(_ perfil: LigaPerfil) {
+        state.perfil = perfil
+        save()
+        message = "Perfil guardado"
+    }
+
+    func saveObjetivos(_ objetivos: [String]) {
+        state.objetivos = objetivos
+        save()
+        message = "Objetivos guardados"
     }
 
     // MARK: Partidos
@@ -155,6 +189,7 @@ final class LigaModel: ObservableObject {
         do {
             let imported = try JSONDecoder().decode(LigaState.self, from: data)
             state = imported
+            seedObjetivos()
             save()
             message = "Liga importada: \(imported.matches.count) partidos"
         } catch {

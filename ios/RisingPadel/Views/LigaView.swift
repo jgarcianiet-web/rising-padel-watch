@@ -12,6 +12,8 @@ struct LigaView: View {
     @EnvironmentObject private var liga: LigaModel
     @State private var importing = false
     @State private var exportURL: ExportItem?
+    @State private var creating = false
+    @State private var editingAjustes = false
 
     var body: some View {
         NavigationStack {
@@ -24,9 +26,25 @@ struct LigaView: View {
             }
             .background(T.fondo)
             .navigationTitle("Liga")
+            .navigationDestination(for: Int64.self) { matchId in
+                LigaMatchDetailView(matchId: matchId)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        creating = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .accessibilityLabel("Nuevo partido")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu {
+                        Button {
+                            editingAjustes = true
+                        } label: {
+                            Label("Objetivos y perfil", systemImage: "person.crop.circle")
+                        }
                         Button {
                             importing = true
                         } label: {
@@ -41,6 +59,12 @@ struct LigaView: View {
                         Image(systemName: "ellipsis.circle")
                     }
                 }
+            }
+            .sheet(isPresented: $creating) {
+                LigaMatchFormView().environmentObject(liga)
+            }
+            .sheet(isPresented: $editingAjustes) {
+                LigaAjustesView(liga: liga).environmentObject(liga)
             }
             .fileImporter(
                 isPresented: $importing,
@@ -75,7 +99,12 @@ struct LigaView: View {
                 summaryCard
                 CoachCard()
                 ForEach(liga.matches) { match in
-                    matchCard(match)
+                    // NavigationLink por valor: la ficha busca el partido por id, así
+                    // que editarlo desde dentro la redibuja sin volver atrás.
+                    NavigationLink(value: match.id) {
+                        matchCard(match)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 16)
@@ -131,6 +160,10 @@ struct LigaView: View {
                     }
                     Spacer()
                     OutcomeBadge(text: badge(match.resultado), color: badgeColor(match.resultado))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(T.tintaSuave)
+                        .padding(.top, 6)
                 }
 
                 HStack(spacing: 12) {
@@ -184,9 +217,16 @@ struct LigaView: View {
         ContentUnavailableView {
             Label("La liga, todavía vacía", systemImage: "trophy")
         } description: {
-            Text("Guarda una sesión como partido desde su detalle, o importa la copia "
-                 + "de seguridad de tu app Liga Pádel con el menú de arriba: todo tu "
-                 + "historial aparecerá aquí.")
+            Text("Guarda una sesión como partido desde su detalle, apunta uno a mano "
+                 + "con el botón +, o importa la copia de seguridad de tu app Liga "
+                 + "Pádel con el menú de arriba: todo tu historial aparecerá aquí.")
+        } actions: {
+            Button {
+                creating = true
+            } label: {
+                Label("Apuntar un partido", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 }

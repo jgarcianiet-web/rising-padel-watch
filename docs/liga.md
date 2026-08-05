@@ -35,7 +35,9 @@ decodificación tolerante para backups viejos de la web-app.
 | Importar/exportar la copia de seguridad de la app Expo | Hecho |
 | Guardar una sesión del reloj como partido (voleas unificadas, curva, salud) | Hecho — mismo mapeo que hacía el deep link, pero sin salir de la app |
 | Deep link a la app Expo | Se mantiene durante la transición |
-| Formulario completo de partido (club, compañero, mejor/peor golpe, objetivos, nota) | Pendiente — hoy esos campos se conservan al importar pero no se editan aquí |
+| Ficha de partido (marcador, niveles, curvas, golpes, salud, objetivos, nota) | Hecho — calco de `PartidoDetalleScreen`, se entra tocando el partido |
+| Formulario completo de partido: alta a mano y edición de todo | Hecho — calco de `PartidoScreen`; las series del reloj se conservan al editar |
+| Objetivos por partido y perfil de la temporada | Hecho — con el catálogo de ideas de la web-app original |
 | Análisis con IA (el entrenador de `anthropic.ts`) | Hecho — ver "El entrenador" abajo |
 | Android móvil | Pendiente — la fusión es iOS primero, donde está el usuario de la liga |
 
