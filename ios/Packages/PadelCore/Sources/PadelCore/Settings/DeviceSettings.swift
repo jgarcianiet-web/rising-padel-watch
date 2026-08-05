@@ -25,6 +25,10 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
     /// Nivel de pádel del jugador (1-7) si se conoce. Viaja con las muestras de
     /// entrenamiento para calibrar la escala con jugadores de nivel conocido.
     public var playerLevel: Int?
+    /// Los objetivos por partido de la liga, para que el reloj enseñe en vivo los que
+    /// puede medir él solo ("15 bandejas": 11/15). Los edita el móvil, que es donde
+    /// vive la liga; el reloj solo los lee.
+    public var matchObjectives: [String]
     /// Cuándo se editaron estos ajustes en el dispositivo de origen.
     ///
     /// Es lo que hace que la replicación sea segura: `updateApplicationContext` **reentrega**
@@ -39,6 +43,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         collectTrainingData: Bool = false,
         playerAlias: String = DeviceSettings.defaultAlias,
         playerLevel: Int? = nil,
+        matchObjectives: [String] = [],
         updatedAtEpochMs: Int64 = 0
     ) {
         self.profile = profile
@@ -47,6 +52,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         self.collectTrainingData = collectTrainingData
         self.playerAlias = playerAlias
         self.playerLevel = playerLevel
+        self.matchObjectives = matchObjectives
         self.updatedAtEpochMs = updatedAtEpochMs
     }
 
@@ -68,6 +74,9 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         playerAlias = try container.decodeIfPresent(String.self, forKey: .playerAlias)
             ?? DeviceSettings.defaultAlias
         playerLevel = try container.decodeIfPresent(Int.self, forKey: .playerLevel)
+        matchObjectives = try container.decodeIfPresent(
+            [String].self, forKey: .matchObjectives
+        ) ?? []
         updatedAtEpochMs = try container.decodeIfPresent(
             Int64.self, forKey: .updatedAtEpochMs
         ) ?? 0

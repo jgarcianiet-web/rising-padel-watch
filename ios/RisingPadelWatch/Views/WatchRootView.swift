@@ -25,6 +25,13 @@ struct WatchRootView: View {
                     onUndo: { controller.undoPoint() },
                     onStop: { Task { await controller.stop() } }
                 )
+                // El aviso del entrenador tapa el marcador a propósito: si merece
+                // interrumpir, merece leerse. Un toque y vuelve el partido.
+                .overlay {
+                    if let tip = controller.liveTip {
+                        liveTipOverlay(tip)
+                    }
+                }
             } else {
                 // Con varios botones la columna no cabe en un reloj de 40 mm; sin
                 // scroll, lo de abajo queda directamente inalcanzable.
@@ -223,6 +230,8 @@ struct WatchRootView: View {
                     .foregroundStyle(.tint)
             }
 
+            objectivesStrip
+
             if controller.wrongWristWarning {
                 Text("Reloj en la muñeca sin pala")
                     .font(.system(size: 10))
@@ -242,6 +251,54 @@ struct WatchRootView: View {
             }
             .buttonStyle(.bordered)
             .padding(.top, 4)
+        }
+    }
+
+    /// El aviso del entrenador en vivo, a pantalla completa hasta que se toca.
+    private func liveTipOverlay(_ tip: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lightbulb.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(.yellow)
+            Text(tip)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .multilineTextAlignment(.center)
+            Text("Toca para volver")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.black.opacity(0.92))
+        .contentShape(Rectangle())
+        .onTapGesture { controller.dismissLiveTip() }
+    }
+
+    /// Los objetivos del día que el reloj puede medir, con su progreso.
+    ///
+    /// Solo aparecen los medibles y solo mientras se juega: es el dato que convierte
+    /// "hacer 15 bandejas" en algo que se persigue en pista, no que se comprueba en casa.
+    @ViewBuilder
+    private var objectivesStrip: some View {
+        if !controller.objectiveProgress.isEmpty {
+            VStack(spacing: 2) {
+                ForEach(controller.objectiveProgress) { objetivo in
+                    HStack(spacing: 4) {
+                        Image(systemName: objetivo.measurement.met
+                              ? "checkmark.circle.fill" : "target")
+                            .font(.system(size: 9))
+                        Text(objetivo.label)
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                        Text(objetivo.text)
+                            .font(.system(size: 9))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .foregroundStyle(objetivo.measurement.met ? .green : .secondary)
+                }
+            }
+            .padding(.top, 2)
         }
     }
 

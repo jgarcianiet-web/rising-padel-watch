@@ -16,6 +16,21 @@ public struct ObjectiveMeasurement: Equatable, Sendable {
     }
 }
 
+/// Un objetivo medible con su progreso, para pintarlo en vivo.
+public struct ObjectiveProgress: Equatable, Sendable, Identifiable {
+    public let text: String
+    public let measurement: ObjectiveMeasurement
+
+    public var id: String { text }
+    /// Etiqueta corta para la muñeca: "11/15".
+    public var label: String { "\(measurement.actual)/\(measurement.target)" }
+
+    public init(text: String, measurement: ObjectiveMeasurement) {
+        self.text = text
+        self.measurement = measurement
+    }
+}
+
 /// Mide objetivos de partido escritos en texto libre contra lo que el reloj contó.
 ///
 /// "Hacer 15 bandejas" es medible: el reloj sabe cuántas bandejas hubo. "Ganar 2 puntos
@@ -81,6 +96,22 @@ public enum ObjectiveEvaluator {
             actual: actual,
             met: esMaximo ? actual <= target : actual >= target
         )
+    }
+
+    /// Los objetivos que el reloj puede seguir en vivo, con su progreso.
+    ///
+    /// Es lo mismo que `evaluate` pero sobre los golpeos que llevas hasta ahora: el
+    /// reloj lo llama en cada golpe para enseñar "bandejas 11/15". Los no medibles no
+    /// salen — en una pantalla de 45 mm, una lista que no se mueve es ruido.
+    public static func progress(
+        objetivos: [String],
+        shotsByType: [ShotType: Int],
+        totalShots: Int
+    ) -> [ObjectiveProgress] {
+        objetivos.compactMap { objetivo in
+            evaluate(objetivo, shotsByType: shotsByType, totalShots: totalShots)
+                .map { ObjectiveProgress(text: objetivo, measurement: $0) }
+        }
     }
 
     private static func normaliza(_ texto: String) -> String {

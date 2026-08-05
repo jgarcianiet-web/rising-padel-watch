@@ -15,6 +15,15 @@ data class ObjectiveMeasurement(
     val met: Boolean,
 )
 
+/** Un objetivo medible con su progreso, para pintarlo en vivo. */
+data class ObjectiveProgress(
+    val text: String,
+    val measurement: ObjectiveMeasurement,
+) {
+    /** Etiqueta corta para la muñeca: "11/15". */
+    val label: String get() = "${measurement.actual}/${measurement.target}"
+}
+
 /**
  * Mide objetivos de partido escritos en texto libre contra lo que el reloj contó.
  *
@@ -85,6 +94,23 @@ object ObjectiveEvaluator {
             actual = actual,
             met = if (esMaximo) actual <= target else actual >= target,
         )
+    }
+
+    /**
+     * Los objetivos que el reloj puede seguir en vivo, con su progreso.
+     *
+     * Es lo mismo que [evaluate] pero sobre los golpeos que llevas hasta ahora: el reloj
+     * lo llama en cada golpe para enseñar "bandejas 11/15". Los no medibles no salen —
+     * en una pantalla de 45 mm, una lista de objetivos que no se mueven es ruido.
+     */
+    fun progress(
+        objetivos: List<String>,
+        shotsByType: Map<ShotType, Int>,
+        totalShots: Int,
+    ): List<ObjectiveProgress> = objetivos.mapNotNull { objetivo ->
+        evaluate(objetivo, shotsByType, totalShots)?.let {
+            ObjectiveProgress(text = objetivo, measurement = it)
+        }
     }
 
     private fun normaliza(texto: String): String =

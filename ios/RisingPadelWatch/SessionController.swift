@@ -33,6 +33,8 @@ final class SessionController: ObservableObject {
     @Published private(set) var score: MatchScore?
     /// Nivel técnico de la sesión recién cerrada. Nil mientras se juega.
     @Published private(set) var sessionLevel: SessionLevel?
+    /// Objetivos de la liga que el reloj puede seguir él solo, con su progreso en vivo.
+    @Published private(set) var objectiveProgress: [ObjectiveProgress] = []
 
     @AppStorage("shareHealth") private var shareHealth = false
     @AppStorage("playerHand") private var playerHandRaw = Hand.right.rawValue
@@ -45,6 +47,13 @@ final class SessionController: ObservableObject {
     @AppStorage("playerAlias") private var playerAlias = "anon"
     /// Nivel de pádel del jugador (1-7); 0 = sin configurar. Viaja con cada muestra.
     @AppStorage("playerLevel") private var playerLevelRaw = 0
+    /// Los objetivos por partido que replica el iPhone, serializados con `\n` porque
+    /// `@AppStorage` no guarda arrays.
+    @AppStorage("matchObjectives") private var matchObjectivesRaw = ""
+
+    private var matchObjectives: [String] {
+        matchObjectivesRaw.split(separator: "\n").map(String.init)
+    }
 
     private let motionRecorder = MotionRecorder()
     private let workoutManager = WorkoutManager()
@@ -134,6 +143,7 @@ final class SessionController: ObservableObject {
             collectTrainingData: collectTrainingData,
             playerAlias: playerAlias,
             playerLevel: playerLevelRaw > 0 ? playerLevelRaw : nil,
+            matchObjectives: matchObjectives,
             updatedAtEpochMs: Int64(settingsUpdatedAtMs)
         )
         let merged = local.merged(with: incoming)
@@ -157,6 +167,7 @@ final class SessionController: ObservableObject {
         collectTrainingData = merged.collectTrainingData
         playerAlias = merged.playerAlias
         playerLevelRaw = merged.playerLevel ?? 0
+        matchObjectivesRaw = merged.matchObjectives.joined(separator: "\n")
         settingsUpdatedAtMs = Double(merged.updatedAtEpochMs)
     }
 
@@ -309,12 +320,44 @@ final class SessionController: ObservableObject {
             Task { @MainActor in
                 self?.shotCount = recorder.shots.count
                 self?.lastShotType = shot.type
+                self?.refreshObjectives(recorder.shots)
             }
         }
 
         startTicker()
         status = .recording
         publishLiveState(completed: false)
+    }
+
+    // MARK: Objetivo del día
+
+    /// Objetivos ya cumplidos, para no repetir el aviso en cada golpe posterior.
+    private var objectivesCelebrated = Set<String>()
+
+    /// Recalcula el progreso de los objetivos medibles y avisa al cumplirse uno.
+    ///
+    /// El aviso es háptico y no visual a propósito: en pista no se mira el reloj, se
+    /// nota. Solo suena una vez por objetivo — un "¡lo tienes!" repetido cada bandeja
+    /// posterior sería un castigo, no un premio.
+    private func refreshObjectives(_ shots: [Shot]) {
+        let objetivos = matchObjectives
+        guard !objetivos.isEmpty else { return }
+
+        var byType: [ShotType: Int] = [:]
+        for shot in shots { byType[shot.type, default: 0] += 1 }
+
+        let progreso = ObjectiveEvaluator.progress(
+            objetivos: objetivos, shotsByType: byType, totalShots: shots.count
+        )
+        objectiveProgress = progreso
+
+        for objetivo in progreso where objetivo.measurement.met {
+            // Solo se celebran los de llegar: cumplir un "máximo 10 remates" mientras
+            // juegas es el estado normal, no un logro — y dejaría de serlo al golpe 11.
+            guard objetivo.measurement.actual >= objetivo.measurement.target,
+                  objectivesCelebrated.insert(objetivo.text).inserted else { continue }
+            WKInterfaceDevice.current().play(.success)
+        }
     }
 
     /// Manda el estado del partido al iPhone. Estado completo, no eventos: perder una
@@ -386,8 +429,29 @@ final class SessionController: ObservableObject {
         // marcadores y él decide si se cerró alguno y quién sacaba.
         recorder?.onScoreChanged(previous: before, current: after, monotonicMs: Self.monotonicMs())
         ScoreHaptics.play(ScoreEvent.between(before: before, after: after))
+        checkLiveTip()
         publishLiveState(completed: after.isFinished)
     }
+
+    /// Avisos del entrenador en vivo, al cerrarse un juego.
+    ///
+    /// El aviso se queda en pantalla hasta el siguiente punto y vibra una vez: en pista
+    /// no se lee un párrafo, se nota que el reloj tiene algo que decir y se mira de
+    /// reojo entre puntos. Las reglas y sus mínimos de evidencia viven en el core.
+    private func checkLiveTip() {
+        guard let games = recorder?.games, !games.isEmpty else { return }
+        guard let tip = LiveCoach.tip(games: games, alreadySaid: tipsSaid) else { return }
+        tipsSaid.insert(tip.key)
+        liveTip = tip.text
+        WKInterfaceDevice.current().play(.notification)
+    }
+
+    /// Aviso del entrenador en curso, o nil si no hay ninguno.
+    @Published private(set) var liveTip: String?
+    private var tipsSaid = Set<String>()
+
+    /// El jugador ya lo ha leído: fuera de la pantalla.
+    func dismissLiveTip() { liveTip = nil }
 
     func undoPoint() {
         guard let board = scoreBoard, let restored = board.undo() else { return }
@@ -406,6 +470,10 @@ final class SessionController: ObservableObject {
         lastShotType = nil
         statusMessage = nil
         sessionLevel = nil
+        objectiveProgress = []
+        objectivesCelebrated.removeAll()
+        liveTip = nil
+        tipsSaid.removeAll()
     }
 
     private func apply(_ metrics: WorkoutMetrics) {

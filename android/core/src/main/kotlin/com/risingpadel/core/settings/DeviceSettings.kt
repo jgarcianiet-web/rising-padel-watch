@@ -36,6 +36,12 @@ data class DeviceSettings(
      */
     val playerLevel: Int? = null,
     /**
+     * Los objetivos por partido de la liga, para que el reloj enseñe en vivo los que
+     * puede medir él solo ("15 bandejas": 11/15). Los edita el móvil, que es donde vive
+     * la liga; el reloj solo los lee.
+     */
+    val matchObjectives: List<String> = emptyList(),
+    /**
      * Cuándo se editaron estos ajustes en el dispositivo de origen.
      *
      * Es lo que hace que la replicación sea segura: el Data Layer y WatchConnectivity

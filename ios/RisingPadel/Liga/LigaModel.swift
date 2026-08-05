@@ -20,6 +20,9 @@ final class LigaModel: ObservableObject {
         self.fileURL = fileURL ?? base.appendingPathComponent("liga/estado.json")
         load()
         seedObjetivos()
+        // Al arrancar también: si la liga se importó de un backup, el reloj tiene que
+        // enterarse de los objetivos que vinieron con él.
+        mirrorObjectivesForWatch()
     }
 
     var matches: [LigaMatch] {
@@ -57,7 +60,19 @@ final class LigaModel: ObservableObject {
     func saveObjetivos(_ objetivos: [String]) {
         state.objetivos = objetivos
         save()
+        mirrorObjectivesForWatch()
         message = "Objetivos guardados"
+    }
+
+    /// Deja los objetivos en `UserDefaults` para que `AppModel` los replique al reloj.
+    ///
+    /// Es el camino corto a propósito: la liga no habla con el reloj —habla el AppModel,
+    /// que ya observa UserDefaults para replicar—, así que escribir aquí dispara el
+    /// envío sin acoplar los dos modelos.
+    private func mirrorObjectivesForWatch() {
+        UserDefaults.standard.set(
+            state.objetivos.joined(separator: "\n"), forKey: "matchObjectives"
+        )
     }
 
     // MARK: Partidos
@@ -195,6 +210,7 @@ final class LigaModel: ObservableObject {
         guard !objetivos.isEmpty else { return }
         state.objetivos = objetivos
         save()
+        mirrorObjectivesForWatch()
         message = "Objetivos del entrenador adoptados"
     }
 
@@ -207,6 +223,7 @@ final class LigaModel: ObservableObject {
             let imported = try JSONDecoder().decode(LigaState.self, from: data)
             state = imported
             seedObjetivos()
+            mirrorObjectivesForWatch()
             save()
             message = "Liga importada: \(imported.matches.count) partidos"
         } catch {

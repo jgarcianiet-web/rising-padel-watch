@@ -84,6 +84,21 @@ que no estén en la lista.
 Con eso, el modelo no puede inventarse que juegas mejor con el pulso alto: o está en los
 hechos o no se dice.
 
+## En vivo, en la muñeca
+
+Dos cosas pasan **durante** el partido, no después:
+
+- **Objetivo del día** (`ObjectiveEvaluator.progress`): los objetivos de la liga que el
+  reloj puede medir él solo se enseñan con su progreso ("bandejas 11/15") y vibran al
+  cumplirse, una sola vez. Los que hablan de algo que el reloj no ve (puntos ganados,
+  fallos, colocación) no aparecen: en una pantalla de 45 mm, una lista que no se mueve es
+  ruido.
+- **Avisos del entrenador** (`LiveCoach`): al cerrarse un juego, si hay un patrón claro
+  —tres juegos seguidos perdidos, o una diferencia de 40 puntos entre saque y resto— el
+  reloj vibra y enseña una línea. Mínimos más altos que los del análisis posterior (3
+  juegos por lado en vez de 2): un aviso en vivo interrumpe, y con dos juegos por lado un
+  50%-0% es todavía una moneda. Cada regla habla **una vez por partido**.
+
 ## Cómo añadir una idea
 
 1. Escribe la regla en `InsightEngine` de los dos cores, con su umbral de evidencia.

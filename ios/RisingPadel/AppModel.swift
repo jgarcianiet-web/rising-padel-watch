@@ -160,9 +160,17 @@ final class AppModel: ObservableObject {
             // teclea es hostil, y lo que importa es que lo que viaja sea consistente.
             playerAlias: DeviceSettings.sanitizeAlias(playerAlias),
             playerLevel: playerLevelRaw > 0 ? playerLevelRaw : nil,
+            // Los objetivos de la liga viajan al reloj para que enseñe en vivo los que
+            // puede medir. `LigaModel` los deja en UserDefaults al guardarlos, que es
+            // además lo que dispara la replicación (se observa UserDefaults).
+            matchObjectives: matchObjectivesRaw
+                .split(separator: "\n").map(String.init),
             updatedAtEpochMs: Int64(settingsUpdatedAtMs)
         )
     }
+
+    /// Espejo de los objetivos de la liga, en el formato que guarda `LigaModel`.
+    @AppStorage("matchObjectives") private var matchObjectivesRaw = ""
 
     /// Replica al reloj cada cambio de ajustes.
     ///
