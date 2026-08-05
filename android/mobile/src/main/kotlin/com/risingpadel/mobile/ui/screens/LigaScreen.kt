@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,11 +40,13 @@ import com.risingpadel.mobile.data.LigaStore
  * dominio y las métricas ya son los del core, con tests.
  */
 @Composable
-fun LigaScreen() {
+fun LigaScreen(onOpenMatch: (Long) -> Unit = {}) {
     val context = LocalContext.current
     val store = remember { LigaStore(context) }
     var state by remember { mutableStateOf(store.load()) }
     var aviso by remember { mutableStateOf<String?>(null) }
+    var pidiendoTemporada by remember { mutableStateOf(false) }
+    var metaPartidos by remember { mutableStateOf("") }
 
     val importar = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenDocument()
@@ -68,7 +72,37 @@ fun LigaScreen() {
         aviso = "Copia exportada"
     }
 
+    // Con temporada en curso, el resumen es de la temporada; la lista de abajo sigue
+    // enseñando todo el historial — la misma semántica que iOS.
+    val actual = state.temporadas.lastOrNull { it.enCurso }
     val matches = state.matches.sortedByDescending { it.fecha }
+    val delPeriodo = if (actual != null) matches.filter { actual.contiene(it) } else matches
+
+    if (pidiendoTemporada) {
+        // La misma semántica que iOS: la actual se cierra en la víspera y la nueva
+        // empieza hoy, con su meta de partidos opcional.
+        AlertDialog(
+            onDismissRequest = { pidiendoTemporada = false },
+            title = { Text(if (actual == null) "Empezar la primera temporada" else "Empezar la siguiente") },
+            text = {
+                OutlinedTextField(
+                    value = metaPartidos,
+                    onValueChange = { metaPartidos = it.filter(Char::isDigit) },
+                    label = { Text("Meta de partidos (opcional)") },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    state = store.startTemporada(metaPartidos.toIntOrNull())
+                    pidiendoTemporada = false
+                    aviso = "${state.temporadas.last().nombre} en marcha"
+                }) { Text("Empezar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pidiendoTemporada = false }) { Text("Cancelar") }
+            },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -78,14 +112,18 @@ fun LigaScreen() {
         item {
             Card {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Temporada", style = MaterialTheme.typography.titleMedium)
+                    Text(actual?.nombre ?: "Temporada", style = MaterialTheme.typography.titleMedium)
                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        stat("Partidos", "${matches.size}")
-                        stat("Victorias", if (matches.isEmpty()) "–" else "${LigaMetrics.pctVictorias(matches)}%")
-                        stat("Racha", "${LigaMetrics.racha(matches)}")
+                        stat(
+                            "Partidos",
+                            actual?.objetivoPartidos?.let { "${delPeriodo.size}/$it" }
+                                ?: "${delPeriodo.size}",
+                        )
+                        stat("Victorias", if (delPeriodo.isEmpty()) "–" else "${LigaMetrics.pctVictorias(delPeriodo)}%")
+                        stat("Racha", "${LigaMetrics.racha(delPeriodo)}")
                         stat(
                             "Nivel",
-                            matches.mapNotNull(LigaMetrics::nivelDeSesion)
+                            delPeriodo.mapNotNull(LigaMetrics::nivelDeSesion)
                                 .takeIf { it.isNotEmpty() }
                                 ?.let { String.format("%.1f", it.average()) } ?: "–",
                         )
@@ -97,6 +135,25 @@ fun LigaScreen() {
                         TextButton(onClick = { exportar.launch("liga-padel-backup.json") }) {
                             Text("Exportar copia")
                         }
+                        TextButton(onClick = { pidiendoTemporada = true }) {
+                            Text(if (actual == null) "Empezar temporada" else "Nueva temporada")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Todas las temporadas frente a frente, más el historial previo a la primera.
+        if (state.temporadas.isNotEmpty()) {
+            item {
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("Temporada a temporada", style = MaterialTheme.typography.titleMedium)
+                        val previos = matches.filter { m -> state.temporadas.none { it.contiene(m) } }
+                        if (previos.isNotEmpty()) filaTemporada("Antes", previos)
+                        state.temporadas.forEach { temporada ->
+                            filaTemporada(temporada.nombre, matches.filter { temporada.contiene(it) })
+                        }
                     }
                 }
             }
@@ -107,7 +164,7 @@ fun LigaScreen() {
             }
         }
         items(matches, key = { it.id }) { match ->
-            MatchRow(match)
+            MatchRow(match, onClick = { onOpenMatch(match.id) })
         }
         if (matches.isEmpty()) {
             item {
@@ -121,9 +178,10 @@ fun LigaScreen() {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-private fun MatchRow(match: LigaMatch) {
-    Card {
+private fun MatchRow(match: LigaMatch, onClick: () -> Unit) {
+    Card(onClick = onClick) {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -160,6 +218,22 @@ private fun MatchRow(match: LigaMatch) {
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun filaTemporada(nombre: String, ms: List<LigaMatch>) {
+    val bien = if (ms.isEmpty()) null else ms.count { it.bienJugado } * 100 / ms.size
+    val nivel = ms.mapNotNull(LigaMetrics::nivelDeSesion).takeIf { it.isNotEmpty() }?.average()
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(nombre, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+        Text(
+            "${ms.size} PJ · " +
+                (if (ms.isEmpty()) "–" else "${LigaMetrics.pctVictorias(ms)}% V") +
+                (bien?.let { " · $it% bien" } ?: "") +
+                (nivel?.let { " · %.1f".format(it) } ?: ""),
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

@@ -7,6 +7,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SportsTennis
 import androidx.compose.material3.Icon
@@ -50,10 +51,13 @@ private object Routes {
     const val LAST = "last"
     const val SESSIONS = "sessions"
     const val LIGA = "liga"
+    const val LIGA_DETAIL = "liga/{matchId}"
+    const val COMUNIDAD = "comunidad"
     const val SETTINGS = "settings"
     const val DETAIL = "sessions/{sessionId}"
 
     fun detail(sessionId: String) = "sessions/$sessionId"
+    fun ligaDetail(matchId: Long) = "liga/$matchId"
 }
 
 /**
@@ -116,7 +120,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
         bottomBar = {
             // Las pestañas solo se ven en las dos raíces: dentro de un detalle o de
             // ajustes la navegación es volver, no cambiar de pestaña.
-            if (currentRoute == Routes.LAST || currentRoute == Routes.SESSIONS || currentRoute == Routes.LIGA) {
+            if (currentRoute in setOf(Routes.LAST, Routes.SESSIONS, Routes.LIGA, Routes.COMUNIDAD)) {
                 NavigationBar {
                     NavigationBarItem(
                         selected = currentRoute == Routes.LAST,
@@ -135,6 +139,12 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                         onClick = { navController.navigateTab(Routes.LIGA) },
                         icon = { Icon(Icons.Default.EmojiEvents, contentDescription = null) },
                         label = { Text("Liga") },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Routes.COMUNIDAD,
+                        onClick = { navController.navigateTab(Routes.COMUNIDAD) },
+                        icon = { Icon(Icons.Default.Groups, contentDescription = null) },
+                        label = { Text("Comunidad") },
                     )
                 }
             }
@@ -181,7 +191,26 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
             }
 
             composable(Routes.LIGA) {
-                com.risingpadel.mobile.ui.screens.LigaScreen()
+                com.risingpadel.mobile.ui.screens.LigaScreen(
+                    onOpenMatch = { navController.navigate(Routes.ligaDetail(it)) },
+                )
+            }
+
+            composable(Routes.COMUNIDAD) {
+                com.risingpadel.mobile.ui.screens.ComunidadScreen()
+            }
+
+            composable(Routes.LIGA_DETAIL) { entry ->
+                val matchId = entry.arguments?.getString("matchId")?.toLongOrNull()
+                val estado = com.risingpadel.mobile.data.LigaStore(context).load()
+                val match = estado.matches.firstOrNull { it.id == matchId }
+                if (match != null) {
+                    com.risingpadel.mobile.ui.screens.LigaMatchDetailScreen(
+                        match = match,
+                        objetivos = estado.objetivos,
+                        onBack = { navController.popBackStack() },
+                    )
+                }
             }
 
             composable(Routes.DETAIL) { entry ->

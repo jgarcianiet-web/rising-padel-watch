@@ -2,6 +2,7 @@ package com.risingpadel.mobile.data
 
 import android.content.Context
 import com.risingpadel.core.liga.LigaState
+import com.risingpadel.core.liga.LigaTemporada
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -33,4 +34,33 @@ class LigaStore(context: Context) {
             ?.also { save(it) }
 
     fun export(): String = json.encodeToString(LigaState.serializer(), load())
+
+    /**
+     * Cierra la temporada en curso (si la hay) en la víspera y abre la siguiente hoy —
+     * la misma semántica que iOS: sin solapes ni días huérfanos.
+     */
+    fun startTemporada(objetivoPartidos: Int?): LigaState {
+        val hoy = hoyIso()
+        val state = load()
+        val cerradas = state.temporadas.map { temporada ->
+            if (temporada.enCurso) temporada.copy(fechaFin = vispera(hoy)) else temporada
+        }
+        val nueva = LigaTemporada(
+            id = System.currentTimeMillis(),
+            nombre = "Temporada ${state.temporadas.size + 1}",
+            fechaInicio = hoy,
+            objetivoPartidos = objetivoPartidos,
+        )
+        return state.copy(temporadas = cerradas + nueva).also(::save)
+    }
+
+    private fun hoyIso(): String =
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+            .format(java.util.Date())
+
+    private fun vispera(iso: String): String {
+        val formato = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+        val fecha = formato.parse(iso) ?: return iso
+        return formato.format(java.util.Date(fecha.time - 24 * 60 * 60 * 1000))
+    }
 }
