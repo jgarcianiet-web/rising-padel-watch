@@ -63,8 +63,24 @@ jobs:
           # de Cloudflare tiene los suyos y no se versionan.
           sed -i "s/PON_AQUI_EL_ID_DEL_NAMESPACE/$KV_ID/; s/PON_AQUI_EL_ID_DE_D1/$D1_ID/" wrangler.toml
 
-      - name: Crear el bucket de fotos si no existe
-        run: wrangler r2 bucket create rising-padel-fotos 2>/dev/null || true
+      - name: Preparar las fotos (R2, opcional)
+        run: |
+          set -euo pipefail
+          # R2 hay que activarlo una vez a mano en el panel de Cloudflare. Si no está
+          # activo, se quita el binding y el servidor sale igual — solo que sin fotos:
+          # el worker ya contesta "sin R2 configurado" en esas rutas.
+          if wrangler r2 bucket list > buckets.txt 2>/dev/null; then
+            grep -q rising-padel-fotos buckets.txt || wrangler r2 bucket create rising-padel-fotos
+            echo "R2 listo: fotos activadas."
+          else
+            python3 - <<'EOF'
+          import re
+          s = open("wrangler.toml").read()
+          s = re.sub(r"\[\[r2_buckets\]\][^\[]*", "", s)
+          open("wrangler.toml", "w").write(s)
+          EOF
+            echo "R2 no está activado: se despliega sin fotos." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Aplicar el esquema de la comunidad
         run: wrangler d1 execute rising-padel --file=schema.sql --remote -y
