@@ -55,13 +55,26 @@ struct SessionListView: View {
                     LevelHistoryChart(sessions: model.sessions)
                 }
 
-                ForEach(model.sessions) { session in
-                    NavigationLink {
-                        SessionDetailView(session: session).environmentObject(model)
-                    } label: {
-                        row(session)
+                // Agrupado por meses, como la liga: con dos temporadas encima una
+                // lista plana deja de contar la historia. Cada mes lleva su resumen.
+                ForEach(meses, id: \.clave) { mes in
+                    HStack(alignment: .firstTextBaseline) {
+                        SectionLabel(mes.clave)
+                        Spacer()
+                        Text("\(mes.sesiones.count) sesiones · \(mes.golpeos) golpeos")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(T.tintaSuave)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.top, 6)
+                    ForEach(mes.sesiones) { session in
+                        NavigationLink {
+                            SessionDetailView(session: session).environmentObject(model)
+                        } label: {
+                            row(session)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
             .padding(.horizontal, 16)
@@ -118,6 +131,32 @@ struct SessionListView: View {
                 }
             }
         }
+    }
+
+    private struct MesGrupo {
+        let clave: String
+        let sesiones: [PadelSession]
+        var golpeos: Int { sesiones.reduce(0) { $0 + $1.totalShots } }
+    }
+
+    /// Las sesiones (ya ordenadas de nueva a vieja) partidas por mes, en orden.
+    private var meses: [MesGrupo] {
+        var grupos: [MesGrupo] = []
+        for session in model.sessions {
+            let clave = LigaFechas.mes(Self.iso(session.startedAtEpochMs))
+            if let ultimo = grupos.indices.last, grupos[ultimo].clave == clave {
+                grupos[ultimo] = MesGrupo(clave: clave, sesiones: grupos[ultimo].sesiones + [session])
+            } else {
+                grupos.append(MesGrupo(clave: clave, sesiones: [session]))
+            }
+        }
+        return grupos
+    }
+
+    private static func iso(_ epochMs: Int64) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date(timeIntervalSince1970: Double(epochMs) / 1000))
     }
 
     private func tag(_ text: String, icon: String) -> some View {

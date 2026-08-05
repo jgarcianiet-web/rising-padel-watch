@@ -193,6 +193,7 @@ function paginaEspectador(id) {
   .saca::before { content: "●"; color: var(--verde); margin-right: 5px; font-size: 10px; vertical-align: 2px; }
   .metricas { display: flex; justify-content: space-around; margin-top: 16px; text-align: center; }
   .metricas b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
+  #ritmo { width: 100%; height: 64px; margin-top: 14px; display: none; }
   .metricas span { font-size: 11px; color: var(--suave); text-transform: uppercase; letter-spacing: .08em; }
   .aviso { text-align: center; color: var(--suave); font-size: 14px; padding: 24px 0; }
   .ganador { text-align: center; font-size: 15px; font-weight: 800; color: var(--verde); margin-top: 10px; }
@@ -203,12 +204,36 @@ function paginaEspectador(id) {
   <div class="carta" id="carta">
     <div class="cabecera"><span class="punto"></span><span id="estado">EN VIVO</span></div>
     <div id="cuerpo" class="aviso">Buscando el partido…</div>
+    <canvas id="ritmo" width="760" height="128"></canvas>
   </div>
 </main>
 <script>
 const ID = ${JSON.stringify(id)};
 const $ = (s) => document.querySelector(s);
 let fallos = 0;
+// La curva de golpeos se acumula mientras se mira: cada estado trae el total y el
+// minuto, y con dos puntos ya hay pendiente — el ritmo del partido, en vivo.
+const serie = [];
+
+function pintaRitmo() {
+  if (serie.length < 2) return;
+  const c = $("#ritmo");
+  c.style.display = "block";
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0, 0, c.width, c.height);
+  const xs = serie.map((p) => p.t), ys = serie.map((p) => p.c);
+  const x0 = xs[0], x1 = Math.max(xs[xs.length - 1], x0 + 1);
+  const y1 = Math.max(...ys, 1);
+  ctx.beginPath();
+  ctx.strokeStyle = "#1f6f8b";
+  ctx.lineWidth = 4;
+  serie.forEach((p, i) => {
+    const x = 8 + (c.width - 16) * (p.t - x0) / (x1 - x0);
+    const y = c.height - 8 - (c.height - 16) * (p.c / y1);
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  });
+  ctx.stroke();
+}
 
 function etiqueta(lado) { return lado === "us" ? "Nosotros" : "Ellos"; }
 
@@ -252,6 +277,11 @@ async function tick() {
     }
     const s = await r.json();
     fallos = 0;
+    const ultimo = serie[serie.length - 1];
+    if (!ultimo || s.shotCount !== ultimo.c) {
+      serie.push({ t: s.elapsedSeconds || 0, c: s.shotCount || 0 });
+      pintaRitmo();
+    }
     if (pinta(s)) return; // FINAL: se deja de refrescar.
   } catch (e) {
     if (++fallos > 3) $("#estado").textContent = "SIN SEÑAL";
