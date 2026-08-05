@@ -55,6 +55,11 @@ FEATURE_NAMES = [
     "axial_post",
     "elevation_pre",
     "elevation_delta",
+    # Estadísticas robustas de la elevación, las mismas que usa la heurística desde que
+    # se vio en pista que un valor instantáneo no separa un golpe alto de uno de fondo:
+    # el filtro de gravedad del sistema se descuadra en mitad del swing.
+    "elevation_median",
+    "elevation_p80",
     "energy_pre",
     "energy_post",
 ]
@@ -167,6 +172,8 @@ def extract_features(record: dict) -> list[float] | None:
         float(axial[post].mean()),
         float(elev[pre].mean()),
         float(elev[post].mean() - elev[pre].mean()),
+        float(np.median(elev[pre])) if elev[pre].size else 0.0,
+        float(np.percentile(elev[pre], 80)) if elev[pre].size else 0.0,
         float((accel_mag[pre] ** 2).sum()),
         float((accel_mag[post] ** 2).sum()),
     ]

@@ -74,7 +74,8 @@ rotación se invierte si el reloj va en la muñeca contraria a la que empuña.
 
 | Rasgo | Cómo se calcula |
 |---|---|
-| `elevation` | Ángulo entre la gravedad **promediada en los 200 ms previos al impacto** (sin entrar en la preparación) y el eje del antebrazo. > 60° hacia arriba = brazo por encima del hombro. No se usa la muestra del impacto: con 5-10 g y 15+ rad/s la estimación de gravedad del sistema se va decenas de grados — en pista (ago 2026) las derechas planas medían +41..+77° con la muestra suelta y salían clasificadas como golpes altos |
+| `elevation` | **Mediana** de la elevación del antebrazo sobre la horizontal a lo largo del swing: la postura del golpe |
+| `peakElevation` | **Percentil 80** de esa misma serie: hasta dónde subió el brazo. Es el rasgo que decide si el golpeo es alto |
 | `sweptAngleDeg` | Integral de `|gyro|` durante el swing, en grados |
 | `axialRotation` | Componente de `gyro` sobre el eje longitudinal del antebrazo, con signo, promediada en los 200 ms previos al impacto |
 | `peakGyro` | Máximo de `|gyro|` en el swing |
@@ -82,19 +83,36 @@ rotación se invierte si el reloj va en la muñeca contraria a la que empuña.
 Árbol de decisión:
 
 ```
-elevation > 60°  ──► sweptAngle > 220° y peakGyro > 18 rad/s ──► serve
-                 ├─► peakGyro > 24 rad/s                      ──► smash
-                 ├─► |axialRotation| > 9 rad/s                ──► vibora
-                 └─► resto                                    ──► bandeja
+peakElevation > 50°  ──► sweptAngle > 220° y peakGyro > 18 rad/s ──► serve
+                     ├─► peakGyro > 24 rad/s                      ──► smash
+                     ├─► |axialRotation| > 9 rad/s                ──► vibora
+                     └─► resto                                    ──► bandeja
 
-elevation ≤ 60°  ──► sweptAngle < 70°  ──► axialRotation > 0 ? forehandVolley : backhandVolley
-                 └─► sweptAngle ≥ 70°  ──► axialRotation > 0 ? forehand       : backhand
+peakElevation ≤ 50°  ──► sweptAngle < 70°  ──► axialRotation > 0 ? forehandVolley : backhandVolley
+                     └─► sweptAngle ≥ 70°  ──► axialRotation > 0 ? forehand       : backhand
 ```
 
-Los umbrales de elevación (60°) y de víbora (9 rad/s) salen de la validación en pista:
-una derecha plana promedia 40-55° de elevación en la ventana previa y 6-11 rad/s de
-axial por la pronación natural del brazo. Con los valores antiguos (45° y 5) una tanda
-de 10 derechas salía como 6 víboras.
+### Por qué la elevación se mide sobre el swing entero
+
+Esto costó tres intentos fallidos en pista (ago 2026) y conviene no repetirlos:
+
+| Cómo se medía | Qué pasó |
+|---|---|
+| Gravedad de la **muestra del impacto** | Con 5-10 g de golpe y 15+ rad/s, el filtro de fusión del sistema se descuadra decenas de grados. Una tanda de 10 derechas midió **+41..+77°** y salió clasificada como golpes altos |
+| **Media** de la gravedad en los 200 ms previos | La media se toma sobre un arco de 100-200° de swing: promedia vectores que apuntan a sitios distintos. Una tanda de 10 víboras midió **−20..+56°** |
+| **Percentil 80** de la elevación muestra a muestra | El actual. La pregunta que separa un golpe alto no es "cómo estaba el brazo en el impacto" sino **si la mano pasó por encima del hombro** |
+
+Lo importante del segundo caso: los rangos de las dos tandas (derechas +41..+77, víboras
+−20..+56) **se solapan por completo**. Cuando eso pasa, ningún umbral separa las clases y
+mover el número es ajustar ruido: hay que arreglar la medida, no la frontera.
+
+Se usa el percentil 80 y no el máximo porque un solo pico del filtro de fusión no puede
+convertir una derecha en una bandeja; con dos muestras malas de quince, el percentil ni
+se entera. Hay pruebas de esto en `ShotDetectorTest`.
+
+El umbral de víbora (9 rad/s de rotación axial) también sale de pista: la pronación
+natural de una derecha plana ya promedia 6-11 rad/s, así que con el valor original (5)
+cualquier golpe alto salía víbora.
 
 Los tres golpes altos que no son saque se separan por lo que los define en pista, y el
 orden de las preguntas importa:

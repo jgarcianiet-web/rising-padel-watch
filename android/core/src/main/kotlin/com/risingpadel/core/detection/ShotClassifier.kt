@@ -58,11 +58,12 @@ class ShotClassifier(
     fun axialRotation(meanGyro: Vector3): Float = meanGyro.dot(forearmAxis) * axialSign
 
     fun classify(features: ShotFeatures): Classification {
-        val overhead = features.elevationDeg > config.overheadElevationDeg
-        // Escala de 15°: con el umbral en 60° y la gravedad promediada, un golpe alto
-        // real mide 65-80 y un golpeo de fondo 40-55; a 15° del umbral ya no hay duda.
+        // La pregunta que separa un golpe alto de uno de fondo es "¿pasó la mano por
+        // encima del hombro?", y esa la responde el recorrido del swing, no la postura
+        // en el instante del impacto. Ver el comentario de `peakElevationDeg`.
+        val overhead = features.peakElevationDeg > config.overheadElevationDeg
         val elevationMargin = margin(
-            value = features.elevationDeg,
+            value = features.peakElevationDeg,
             threshold = config.overheadElevationDeg,
             scale = 15f,
         )

@@ -137,11 +137,13 @@ struct SessionDetailView: View {
                             .foregroundStyle(.secondary)
                     }
                     .font(.caption)
-                    // El signo del axial es el dato que valida el convenio: positivo
-                    // tiene que ser lado de derecha.
+                    // El signo del axial valida el convenio (positivo = lado de
+                    // derecha) y la elevación de pico es la que decide si el golpeo es
+                    // alto: es la que hay que mirar en una tanda de bandejas.
                     Text(String(
-                        format: "elev %+.0f° · axial %+.1f rad/s · barrido %.0f° · pico %.1f rad/s",
+                        format: "elev %+.0f° · alto %+.0f° · axial %+.1f rad/s · barrido %.0f° · pico %.1f rad/s",
                         shot.features.elevationDeg,
+                        shot.features.peakElevationDeg,
                         shot.features.axialRotationRadS,
                         shot.features.sweptAngleDeg,
                         shot.features.peakGyroRadS
@@ -155,7 +157,10 @@ struct SessionDetailView: View {
         } footer: {
             Text("""
                 Para validar los convenios: da 10 golpes de un solo tipo y comprueba que \
-                el tipo, el signo del axial y la elevación cuadran con lo que jugaste.
+                el tipo, el signo del axial y la elevación cuadran con lo que jugaste. \
+                "alto" es la elevación máxima del swing: por encima de \
+                \(Int(DetectorConfig.default.overheadElevationDeg))° el golpeo se trata \
+                como golpe alto.
                 """)
         }
     }

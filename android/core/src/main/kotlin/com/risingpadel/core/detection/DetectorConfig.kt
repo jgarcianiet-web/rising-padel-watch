@@ -48,15 +48,15 @@ data class DetectorConfig(
 
     // --- clasificación ---
     /**
-     * Grados sobre la horizontal a partir de los cuales el golpeo es por encima de la
-     * cabeza.
+     * Grados sobre la horizontal que tiene que alcanzar el brazo
+     * ([ShotFeatures.peakElevationDeg]) para que el golpeo sea por encima de la cabeza.
      *
-     * 60 y no 45: validado en pista (ago 2026), una derecha plana con final alto
-     * promedia 40-55° en la ventana previa al impacto, y con 45 la mitad de las
-     * derechas caían en la rama de golpes altos. Un golpe alto de verdad sostiene
-     * 65-80°.
+     * Se compara contra el recorrido del swing y no contra la postura en el impacto:
+     * medida sobre el impacto, la elevación de una tanda de derechas (+41..+77 en pista,
+     * ago 2026) y la de una tanda de víboras (−20..+56) se solapaban por completo, así
+     * que ningún umbral sobre ese valor podía separarlas.
      */
-    val overheadElevationDeg: Float = 60f,
+    val overheadElevationDeg: Float = 50f,
     /** Por debajo de este ángulo barrido el golpeo es una volea. */
     val volleySweptDeg: Float = 70f,
     /** Ángulo barrido a partir del cual un golpeo alto es un saque y no una bandeja. */

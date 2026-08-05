@@ -50,11 +50,12 @@ public struct ShotClassifier: Sendable {
     }
 
     public func classify(_ features: ShotFeatures) -> Classification {
-        let isOverhead = features.elevationDeg > config.overheadElevationDeg
-        // Escala de 15°: con el umbral en 60° y la gravedad promediada, un golpe alto
-        // real mide 65-80 y un golpeo de fondo 40-55; a 15° del umbral ya no hay duda.
+        // La pregunta que separa un golpe alto de uno de fondo es "¿pasó la mano por
+        // encima del hombro?", y esa la responde el recorrido del swing, no la postura
+        // en el instante del impacto. Ver el comentario de `peakElevationDeg`.
+        let isOverhead = features.peakElevationDeg > config.overheadElevationDeg
         let elevationMargin = margin(
-            value: features.elevationDeg,
+            value: features.peakElevationDeg,
             threshold: config.overheadElevationDeg,
             scale: 15
         )

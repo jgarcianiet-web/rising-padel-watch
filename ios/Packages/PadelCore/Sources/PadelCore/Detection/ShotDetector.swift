@@ -33,6 +33,12 @@ public final class ShotDetector {
     private var peakGyroRadS: Float = 0
     private var refractoryUntilMs: Int64 = .min
 
+    /// Elevación del antebrazo en cada muestra del swing. Se guarda la serie entera
+    /// —como mucho 45 valores a 50 Hz— porque las estadísticas robustas (mediana,
+    /// percentil) necesitan verla completa, y un solo valor instantáneo no vale: la
+    /// estimación de gravedad del sistema se va decenas de grados en mitad de un golpe.
+    private var swingElevations: [Float] = []
+
     public init(config: DetectorConfig = .default, profile: PlayerProfile = PlayerProfile()) {
         self.config = config
         self.classifier = ShotClassifier(config: config, profile: profile)
@@ -105,6 +111,7 @@ public final class ShotDetector {
         case .swinging:
             sweptAngleRad += gyroMag * dt
             if gyroMag > peakGyroRadS { peakGyroRadS = gyroMag }
+            swingElevations.append(classifier.elevationDeg(gravity: current.gravity))
 
             let duration = current.timestampMs - swingStartMs
             let isImpact = accelMag > config.impactG
@@ -148,6 +155,8 @@ public final class ShotDetector {
         if onsetCount >= config.onsetSamples {
             state = .swinging
             swingStartMs = candidateStartMs
+            swingElevations.removeAll(keepingCapacity: true)
+            swingElevations.append(classifier.elevationDeg(gravity: sample.gravity))
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
             // que lo confirma.
             sweptAngleRad = pendingSweptRad
@@ -158,15 +167,18 @@ public final class ShotDetector {
     }
 
     private func emitShot(impact: MotionSample, impactG: Float, durationMs: Int64) -> Shot {
+        let elevations = swingElevations.sorted()
         let features = ShotFeatures(
             sweptAngleDeg: sweptAngleRad * 180 / .pi,
             peakGyroRadS: peakGyroRadS,
-            // La gravedad se promedia sobre la ventana previa, igual que el giro axial:
-            // en la muestra del impacto (5-10 g, 15+ rad/s) la estimación de gravedad
-            // del sistema se va decenas de grados y las derechas salían como "altas".
-            elevationDeg: classifier.elevationDeg(gravity: meanGravityBefore(impact)),
+            // Estadísticas sobre el swing entero, no un valor suelto: ni la muestra del
+            // impacto (5-10 g de golpe descuadran el filtro de gravedad) ni la media de
+            // la ventana previa (se promedia sobre un arco de 100-200°) describen la
+            // postura del brazo. Ver `docs/shot-detection.md`.
+            elevationDeg: Self.percentile(elevations, 0.5),
             axialRotationRadS: classifier.axialRotation(meanGyro: meanGyroBefore(impact.timestampMs)),
-            swingDurationMs: durationMs
+            swingDurationMs: durationMs,
+            peakElevationDeg: Self.percentile(elevations, 0.8)
         )
         let classification = classifier.classify(features)
         let shot = Shot(
@@ -188,21 +200,14 @@ public final class ShotDetector {
         pendingSweptRad = 0
         sweptAngleRad = 0
         peakGyroRadS = 0
+        swingElevations.removeAll(keepingCapacity: true)
     }
 
-    /// Media de la gravedad en la ventana previa al impacto, sin entrar en la
-    /// preparación: en un golpeo corto (un smash dura ~170 ms) las muestras de antes
-    /// del swing describen cómo esperaba el brazo, no cómo golpeó, y arrastran la
-    /// elevación decenas de grados.
-    private func meanGravityBefore(_ impact: MotionSample) -> Vector3 {
-        let from = max(impact.timestampMs - config.axialWindowMs, swingStartMs)
-        var sum = Vector3.zero
-        var count = 0
-        for sample in window where sample.timestampMs >= from && sample.timestampMs <= impact.timestampMs {
-            sum = sum + sample.gravity
-            count += 1
-        }
-        return count == 0 ? impact.gravity : sum * (1 / Float(count))
+    /// Percentil de un array **ya ordenado**. Vacío = 0.
+    private static func percentile(_ sorted: [Float], _ fraction: Float) -> Float {
+        guard !sorted.isEmpty else { return 0 }
+        let index = min(max(Int(Float(sorted.count - 1) * fraction), 0), sorted.count - 1)
+        return sorted[index]
     }
 
     /// Media vectorial del giróscopo en la ventana previa al impacto.

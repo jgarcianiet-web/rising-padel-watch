@@ -169,4 +169,60 @@ class ShotDetectorTest {
             )
         }
     }
+
+    // --- robustez de la elevación ---
+    //
+    // El caso real que motiva estas pruebas: en pista, una tanda de derechas midió
+    // +41..+77° de elevación y una de víboras −20..+56°. La estimación de gravedad del
+    // sistema se descuadra en mitad de un swing violento, así que un valor instantáneo
+    // no vale para decidir; las estadísticas sobre el swing entero sí.
+
+    /** Sustituye la gravedad de unas muestras del swing por una lectura descuadrada. */
+    private fun conGravedadRota(
+        samples: List<MotionSample>,
+        indices: IntRange,
+        elevationDeg: Float,
+    ): List<MotionSample> {
+        val rad = elevationDeg * Math.PI.toFloat() / 180f
+        val rota = com.risingpadel.core.model.Vector3(
+            -kotlin.math.cos(rad),
+            -kotlin.math.sin(rad),
+            0f,
+        )
+        return samples.mapIndexed { i, s -> if (i in indices) s.copy(gravity = rota) else s }
+    }
+
+    @Test
+    fun `un pico suelto de gravedad no convierte una derecha en golpe alto`() {
+        val swing = MotionFixtures.forehand(400)
+        // Dos muestras de las quince con la gravedad disparada a +85°.
+        val conPico = conGravedadRota(swing, 6..7, elevationDeg = 85f)
+
+        val shot = detect(MotionFixtures.rest(0, 400) + conPico).single()
+
+        assertEquals(ShotType.FOREHAND, shot.type, "rasgos ${shot.features}")
+        assertTrue(
+            shot.features.peakElevationDeg < DetectorConfig.DEFAULT.overheadElevationDeg,
+            "el percentil se dejó arrastrar por el pico: ${shot.features.peakElevationDeg}",
+        )
+    }
+
+    @Test
+    fun `una bandeja se reconoce aunque la gravedad falle justo en el impacto`() {
+        val swing = MotionFixtures.bandeja(400)
+        // Las tres últimas muestras (el impacto y su entorno) leen el brazo a la altura
+        // de la cintura, que es justo el error que se veía en pista.
+        val rotas = conGravedadRota(swing, (swing.size - 3)..swing.lastIndex, elevationDeg = 5f)
+
+        val shot = detect(MotionFixtures.rest(0, 400) + rotas).single()
+
+        assertEquals(ShotType.BANDEJA, shot.type, "rasgos ${shot.features}")
+    }
+
+    @Test
+    fun `la elevación de pico es mayor o igual que la mediana`() {
+        val shot = detect(MotionFixtures.rest(0, 400) + MotionFixtures.bandeja(400)).single()
+
+        assertTrue(shot.features.peakElevationDeg >= shot.features.elevationDeg)
+    }
 }

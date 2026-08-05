@@ -38,9 +38,20 @@ enum class ShotType(val wireName: String) {
 data class ShotFeatures(
     val sweptAngleDeg: Float,
     val peakGyroRadS: Float,
+    /** Elevación **mediana** del antebrazo durante el swing: la postura del golpe. */
     val elevationDeg: Float,
     val axialRotationRadS: Float,
     val swingDurationMs: Long,
+    /**
+     * Hasta dónde subió el brazo durante el swing (percentil 80 de la elevación).
+     *
+     * Es lo que de verdad distingue un golpe alto de uno de fondo: no "cómo estaba el
+     * brazo en el impacto" —que la estimación de gravedad del sistema mide fatal en
+     * mitad de un swing violento— sino **si la mano pasó por encima del hombro**. Se usa
+     * el percentil 80 y no el máximo porque un solo pico del filtro de fusión no puede
+     * convertir una derecha en una bandeja.
+     */
+    val peakElevationDeg: Float = elevationDeg,
 )
 
 /**

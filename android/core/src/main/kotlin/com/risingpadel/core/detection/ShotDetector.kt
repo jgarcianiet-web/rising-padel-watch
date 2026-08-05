@@ -42,6 +42,14 @@ class ShotDetector(
     private var swingStartMs = 0L
     private var sweptAngleRad = 0f
     private var peakGyroRadS = 0f
+
+    /**
+     * Elevación del antebrazo en cada muestra del swing. Se guarda la serie entera —como
+     * mucho 45 valores a 50 Hz— porque las estadísticas robustas (mediana, percentil)
+     * necesitan verla completa, y un solo valor instantáneo no vale: la estimación de
+     * gravedad del sistema se va decenas de grados en mitad de un golpe.
+     */
+    private val swingElevations = ArrayList<Float>()
     private var refractoryUntilMs = Long.MIN_VALUE
 
     /** Reinicia el detector y fija el origen de tiempos de la sesión. */
@@ -108,6 +116,7 @@ class ShotDetector(
             State.SWINGING -> {
                 sweptAngleRad += gyroMag * dt
                 if (gyroMag > peakGyroRadS) peakGyroRadS = gyroMag
+                swingElevations += classifier.elevationDeg(s.gravity)
 
                 val duration = s.timestampMs - swingStartMs
                 val isImpact = accelMag > config.impactG &&
@@ -157,6 +166,8 @@ class ShotDetector(
         if (onsetCount >= config.onsetSamples) {
             state = State.SWINGING
             swingStartMs = candidateStartMs
+            swingElevations.clear()
+            swingElevations += classifier.elevationDeg(s.gravity)
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
             // que lo confirma.
             sweptAngleRad = pendingSweptRad
@@ -167,15 +178,18 @@ class ShotDetector(
     }
 
     private fun emitShot(impact: MotionSample, impactG: Float, durationMs: Long): Shot {
+        val elevations = swingElevations.sorted()
         val features = ShotFeatures(
             sweptAngleDeg = Math.toDegrees(sweptAngleRad.toDouble()).toFloat(),
             peakGyroRadS = peakGyroRadS,
-            // La gravedad se promedia sobre la ventana previa, igual que el giro axial:
-            // en la muestra del impacto (5-10 g, 15+ rad/s) la estimación de gravedad
-            // del sistema se va decenas de grados y las derechas salían como "altas".
-            elevationDeg = classifier.elevationDeg(meanGravityBefore(impact)),
+            // Estadísticas sobre el swing entero, no un valor suelto: ni la muestra del
+            // impacto (5-10 g de golpe descuadran el filtro de gravedad) ni la media de
+            // la ventana previa (se promedia sobre un arco de 100-200°) describen la
+            // postura del brazo. Ver `docs/shot-detection.md`.
+            elevationDeg = percentile(elevations, 0.5f),
             axialRotationRadS = classifier.axialRotation(meanGyroBefore(impact.timestampMs)),
             swingDurationMs = durationMs,
+            peakElevationDeg = percentile(elevations, 0.8f),
         )
         val classification = classifier.classify(features)
         val shot = Shot(
@@ -197,23 +211,14 @@ class ShotDetector(
         pendingSweptRad = 0f
         sweptAngleRad = 0f
         peakGyroRadS = 0f
+        swingElevations.clear()
     }
 
-    /** Media vectorial del giróscopo en la ventana previa al impacto. */
-    private fun meanGravityBefore(impact: MotionSample): Vector3 {
-        // La ventana no entra en la preparación: en un golpeo corto (un smash dura
-        // ~170 ms) las muestras de antes del swing describen cómo esperaba el brazo,
-        // no cómo golpeó, y arrastran la elevación decenas de grados.
-        val from = maxOf(impact.timestampMs - config.axialWindowMs, swingStartMs)
-        var sum = Vector3.ZERO
-        var count = 0
-        for (sample in window) {
-            if (sample.timestampMs in from..impact.timestampMs) {
-                sum += sample.gravity
-                count++
-            }
-        }
-        return if (count == 0) impact.gravity else sum * (1f / count)
+    /** Percentil de una lista **ya ordenada**. Lista vacía = 0. */
+    private fun percentile(sorted: List<Float>, fraction: Float): Float {
+        if (sorted.isEmpty()) return 0f
+        val index = ((sorted.size - 1) * fraction).toInt().coerceIn(0, sorted.size - 1)
+        return sorted[index]
     }
 
     private fun meanGyroBefore(impactMs: Long): Vector3 {
