@@ -102,12 +102,59 @@ struct LastSessionView: View {
         }
     }
 
+    /// La portada de un usuario recién llegado: en vez de un "no hay nada", el camino.
+    /// Desaparece sola con la primera sesión del reloj.
     private var emptyState: some View {
-        ContentUnavailableView {
-            Label("Todavía no hay sesiones", systemImage: "figure.tennis")
-        } description: {
-            Text("Abre Rising Padel en el reloj y elige Partido o Entreno. "
-                 + "Al terminar, la sesión aparecerá aquí sola.")
+        ScrollView {
+            VStack(spacing: 14) {
+                Image(systemName: "figure.tennis")
+                    .font(.system(size: 44))
+                    .foregroundStyle(T.pista)
+                    .padding(.top, 24)
+                Text("Bienvenido a Rising Padel")
+                    .font(.system(size: 22, weight: .heavy, design: .rounded))
+                    .foregroundStyle(T.tinta)
+
+                PadelCard(title: "Primeros pasos", icon: "flag.checkered") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        paso("1", "Juega con el reloj",
+                             "Abre Rising Padel en el Apple Watch y elige Partido o "
+                             + "Entreno. Al acabar, la sesión aparece aquí sola, con "
+                             + "golpeos, nivel y salud.")
+                        paso("2", "Únete a la comunidad",
+                             "En la pestaña Comunidad: pega la URL del servidor, elige "
+                             + "tu alias y listo — eso enciende también el marcador en "
+                             + "vivo para que tus amigos te sigan.")
+                        paso("3", "Monta tu temporada",
+                             "En Liga → menú ⋯ → Objetivos y perfil: tu meta de "
+                             + "partidos y tus 3 objetivos. Los que el reloj pueda "
+                             + "medir se marcarán solos.")
+                        paso("4", "Dale voz al entrenador",
+                             "En Ajustes → Entrenador IA, pega tu clave de API: "
+                             + "análisis de temporada y crónicas para el muro.")
+                    }
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    private func paso(_ numero: String, _ titulo: String, _ detalle: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(numero)
+                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 22, height: 22)
+                .background(T.pista, in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(titulo)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundStyle(T.tinta)
+                Text(detalle)
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
