@@ -211,11 +211,11 @@ struct CoachService {
         let club: String?
         let companero: String?
         let nivelPlaytomic: Double?
-        let nivelPadelBandSesion: Double?
+        let nivelSesionReloj: Double?
         let mejorGolpe: String?
         let peorGolpe: String?
-        let golpesSesionPadelBand: [LigaGolpeSesion]?
-        let curvaSesionPadelBand: DatosCurva?
+        let golpesSesionReloj: [LigaGolpeSesion]?
+        let curvaSesionReloj: DatosCurva?
         let volumenGolpeoSesion: DatosVolumen?
         let salud: DatosSalud?
         let objetivosCumplidos: [String]
@@ -237,15 +237,15 @@ struct CoachService {
             club: match.club.isEmpty ? nil : match.club,
             companero: match.companero.isEmpty ? nil : match.companero,
             nivelPlaytomic: match.nivel,
-            nivelPadelBandSesion: match.nivelBand,
+            nivelSesionReloj: match.nivelBand,
             mejorGolpe: match.mejorGolpe.map { golpe in
                 "\(golpe) (\(match.mejorPunt.map { formato($0) } ?? "?")/7)"
             },
             peorGolpe: match.peorGolpe.map { golpe in
                 "\(golpe) (\(match.peorPunt.map { formato($0) } ?? "?")/7)"
             },
-            golpesSesionPadelBand: match.golpesSesion,
-            curvaSesionPadelBand: match.bandInicio != nil || match.bandFin != nil
+            golpesSesionReloj: match.golpesSesion,
+            curvaSesionReloj: match.bandInicio != nil || match.bandFin != nil
                 ? DatosCurva(
                     inicio: match.bandInicio,
                     fin: match.bandFin,
@@ -339,7 +339,7 @@ struct CoachService {
         PERFIL INICIAL (punto de partida de su liga personal):
         - Nivel Playtomic inicial: \(perfil.nivelPlaytomic.isEmpty ? "desconocido" : perfil.nivelPlaytomic)
         - Meta de nivel Playtomic de la temporada: \(perfil.nivelObjetivo.isEmpty ? "sin definir" : perfil.nivelObjetivo)
-        - Nivel Padel Band habitual por sesión: \(perfil.nivelBand.isEmpty ? "desconocido" : perfil.nivelBand)
+        - Nivel de sesión habitual, medido por el reloj: \(perfil.nivelBand.isEmpty ? "desconocido" : perfil.nivelBand)
         - Inicio de la liga: \(perfil.fechaInicio.isEmpty ? "desconocido" : perfil.fechaInicio)
 
         SUS 3 OBJETIVOS POR PARTIDO: \(objetivosJson)
@@ -347,20 +347,20 @@ struct CoachService {
 
         SEMÁNTICA DE LOS DATOS:
         - nivelPlaytomic es acumulativo: fluctúa con victorias/derrotas de partidos competitivos.
-        - nivelPadelBandSesion mide la calidad de golpeo SOLO de esa sesión (escala 1 peor - 7 mejor). No es acumulativo.
+        - nivelSesionReloj mide la calidad de golpeo SOLO de esa sesión (escala 1 peor - 7 mejor). Lo mide el reloj con sus sensores; en partidos antiguos venía capturado de la app Padel Band. No es acumulativo.
         - mejorGolpe/peorGolpe van puntuados de 1 (peor) a 7 (mejor).
-        - golpesSesionPadelBand: cuando existe, es el desglose completo de la sesión capturado de la app Padel Band (todos los golpes con su nota 1-7). Es el dato más rico: úsalo para analizar la evolución de cada golpe entre sesiones.
-        - curvaSesionPadelBand: cuando existe, es la curva de progreso DENTRO de esa sesión (nivel al inicio, nivel al final y media histórica del jugador). Un fin muy por debajo del inicio sugiere fatiga o desconexión al final de la sesión; compara también inicio/fin con la media histórica.
+        - golpesSesionReloj: cuando existe, es el desglose completo de la sesión (todos los golpes con su nota 1-7), medido por el reloj o capturado de Padel Band en registros antiguos. Es el dato más rico: úsalo para analizar la evolución de cada golpe entre sesiones.
+        - curvaSesionReloj: cuando existe, es la curva de progreso DENTRO de esa sesión (nivel al inicio, nivel al final y media histórica del jugador). Un fin muy por debajo del inicio sugiere fatiga o desconexión al final de la sesión; compara también inicio/fin con la media histórica.
         - volumenGolpeoSesion: cuando existe, es el recuento de golpes de la sesión (total y desglose por tipo de golpe). Úsalo para analizar el estilo y la carga: qué golpes domina en frecuencia, si abusa o infrautiliza alguno respecto a su calidad (mucho volumen con nota baja = urgencia de corregir; poco volumen con nota alta = arma desaprovechada), y si el volumen alto se asocia a caídas de nivel al final de la sesión o a derrotas.
-        - salud: cuando existe, son los datos del Apple Watch del partido (duración en minutos, pulso medio y máximo, calorías). Correlaciona el esfuerzo físico con los resultados y la calidad de golpeo: ¿rinde peor en partidos largos o de pulso alto?, ¿su nivel Band cae cuando el esfuerzo se dispara?
+        - salud: cuando existe, son los datos del Apple Watch del partido (duración en minutos, pulso medio y máximo, calorías). Correlaciona el esfuerzo físico con los resultados y la calidad de golpeo: ¿rinde peor en partidos largos o de pulso alto?, ¿su nivel de sesión cae cuando el esfuerzo se dispara?
         - posicion: lado en que jugó (reves o derecha).
 
         REGISTRO (orden cronológico):
         \(registro)
         \(seccionReloj)
-        Antes de responder, calcula mentalmente: % de cumplimiento de cada objetivo, rendimiento por posición (victorias y bien jugados en revés vs derecha), rendimiento competitivo vs amistoso, rendimiento con cada compañero si hay datos, ritmo hacia la meta de nivel si está definida, evolución del Playtomic desde el inicial, media del Band por sesión y su tendencia, golpes que más se repiten como peor golpe y su puntuación media, y patrones en los sets (¿pierde terceros sets?, ¿arranca frío el primero?).
+        Antes de responder, calcula mentalmente: % de cumplimiento de cada objetivo, rendimiento por posición (victorias y bien jugados en revés vs derecha), rendimiento competitivo vs amistoso, rendimiento con cada compañero si hay datos, ritmo hacia la meta de nivel si está definida, evolución del Playtomic desde el inicial, media del nivel de sesión y su tendencia, golpes que más se repiten como peor golpe y su puntuación media, y patrones en los sets (¿pierde terceros sets?, ¿arranca frío el primero?).
 
-        ANÁLISIS FÍSICO (dale peso cuando haya datos de salud): calcula también el pulso medio en victorias vs derrotas, el nivel Band en partidos de pulso alto vs bajo (usa la mediana de sus pulsos como corte), el rendimiento en partidos largos (por encima de su duración media) vs cortos, y la fatiga dentro de la sesión (curva de la Band que acaba por debajo de su inicio, sobre todo si coincide con pulso o duración altos, o con volumen de golpeo alto). Si 3 o más partidos tienen datos de salud, uno de los "patrones" debe ser físico con sus números (ej: 'En tus 3 partidos con pulso medio >140 tu Band cae a 3,1 frente a 3,8 cuando vas más bajo'), y si detectas un patrón físico claro, al menos una acción del "plan" debe atacarlo (gestión de esfuerzo, ritmo de puntos, físico específico de pádel). Si hay menos de 3 partidos con salud, dilo y no fuerces conclusiones físicas.
+        ANÁLISIS FÍSICO (dale peso cuando haya datos de salud): calcula también el pulso medio en victorias vs derrotas, el nivel de sesión en partidos de pulso alto vs bajo (usa la mediana de sus pulsos como corte), el rendimiento en partidos largos (por encima de su duración media) vs cortos, y la fatiga dentro de la sesión (curva que acaba por debajo de su inicio, sobre todo si coincide con pulso o duración altos, o con volumen de golpeo alto). Si 3 o más partidos tienen datos de salud, uno de los "patrones" debe ser físico con sus números (ej: 'En tus 3 partidos con pulso medio >140 tu nivel de sesión cae a 3,1 frente a 3,8 cuando vas más bajo'), y si detectas un patrón físico claro, al menos una acción del "plan" debe atacarlo (gestión de esfuerzo, ritmo de puntos, físico específico de pádel). Si hay menos de 3 partidos con salud, dilo y no fuerces conclusiones físicas.
 
         Responde SOLO con un objeto JSON válido, sin Markdown ni texto fuera del JSON, con esta estructura exacta:
         {

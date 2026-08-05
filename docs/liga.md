@@ -38,6 +38,15 @@ decodificación tolerante para backups viejos de la web-app.
 | Ficha de partido (marcador, niveles, curvas, golpes, salud, objetivos, nota) | Hecho — calco de `PartidoDetalleScreen`, se entra tocando el partido |
 | Formulario completo de partido: alta a mano y edición de todo | Hecho — calco de `PartidoScreen`; las series del reloj se conservan al editar |
 | Objetivos por partido y perfil de la temporada | Hecho — con el catálogo de ideas de la web-app original |
+| Panel de temporada: rachas, meta, evolución del nivel, stats por posición/tipo/compañero, golpes repetidos, cumplimiento de objetivos | Hecho — puerto de `metrics.ts` y `PanelScreen` |
+
+### Sobre el nombre "Band"
+
+Los campos `nivelBand`, `bandInicio`, `bandPuntos`… **conservan su nombre en el JSON**
+porque son el puente con el backup de la app Expo (y esta heredó los nombres de la
+web-app, que capturaba pantallas de Padel Band). Pero el dato, hoy, **es el nivel que
+mide el reloj**. La interfaz ya no dice "Band" en ningún sitio — dice nivel de la
+sesión o nivel del reloj — y el prompt del entrenador explica la procedencia real.
 | Análisis con IA (el entrenador de `anthropic.ts`) | Hecho — ver "El entrenador" abajo |
 | Android móvil | Pendiente — la fusión es iOS primero, donde está el usuario de la liga |
 

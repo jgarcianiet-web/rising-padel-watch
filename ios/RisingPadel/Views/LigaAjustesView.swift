@@ -56,7 +56,9 @@ struct LigaAjustesView: View {
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
             }
-            LabeledContent("Nivel Band habitual") {
+            // El campo se llama nivelBand en el backup (herencia de Padel Band), pero
+            // el dato es el nivel de sesión que mide el reloj.
+            LabeledContent("Nivel de sesión habitual") {
                 TextField("3.2", text: $perfil.nivelBand)
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)

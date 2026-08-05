@@ -118,8 +118,8 @@ struct LigaMatchDetailView: View {
                 if let nivel = m.nivel {
                     linea("Playtomic tras el partido", String(format: "%.2f", nivel))
                 }
-                if let band = m.nivelBand {
-                    linea("Band de la sesión", String(format: "%.1f/7", band))
+                if let sesion = m.nivelBand {
+                    linea("Nivel de la sesión (reloj)", String(format: "%.1f/7", sesion))
                 }
                 if hayCurva(m) {
                     linea("Curva de la sesión", resumenCurva(m))

@@ -115,27 +115,50 @@ struct LigaView: View {
     private var summaryCard: some View {
         let matches = liga.matches
         let victorias = matches.filter { $0.resultado == "victoria" }.count
-        let conNivel = matches.compactMap(\.nivelBand)
+        let racha = LigaMetrics.racha(matches)
+        // El nivel medio de sesión sale del reloj (o de la curva si el campo directo
+        // falta), como en el panel de la app Expo.
+        let conNivel = matches.compactMap(LigaMetrics.nivelDeSesion)
 
-        return PadelCard(title: "Temporada", icon: "trophy.fill") {
-            HStack(spacing: 8) {
-                StatTile(label: "Partidos", value: "\(matches.count)")
-                StatTile(
-                    label: "Victorias",
-                    value: matches.isEmpty
-                        ? "–"
-                        : "\(victorias) (\(victorias * 100 / matches.count)%)",
-                    tint: T.verde
-                )
-                StatTile(
-                    label: "Nivel medio",
-                    value: conNivel.isEmpty
-                        ? "–"
-                        : String(format: "%.1f", conNivel.reduce(0, +) / Double(conNivel.count)),
-                    tint: T.pista
-                )
+        // La tarjeta es la puerta del panel de temporada: rachas, evolución y stats.
+        return NavigationLink {
+            LigaSeasonView()
+        } label: {
+            PadelCard(title: "Temporada", icon: "trophy.fill") {
+                VStack(spacing: 8) {
+                    HStack(spacing: 8) {
+                        StatTile(label: "Partidos", value: "\(matches.count)")
+                        StatTile(
+                            label: "Victorias",
+                            value: matches.isEmpty
+                                ? "–"
+                                : "\(victorias) (\(victorias * 100 / matches.count)%)",
+                            tint: T.verde
+                        )
+                        StatTile(
+                            label: racha > 0 ? "Racha 🔥" : "Racha",
+                            value: matches.isEmpty ? "–" : "\(racha)",
+                            tint: racha > 0 ? T.bola : T.tintaSuave
+                        )
+                        StatTile(
+                            label: "Nivel sesión",
+                            value: conNivel.isEmpty
+                                ? "–"
+                                : String(format: "%.1f", conNivel.reduce(0, +) / Double(conNivel.count)),
+                            tint: T.pista
+                        )
+                    }
+                    HStack(spacing: 4) {
+                        Text("Ver la temporada entera")
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        Image(systemName: "chevron.right").font(.system(size: 10, weight: .bold))
+                        Spacer()
+                    }
+                    .foregroundStyle(T.pista)
+                }
             }
         }
+        .buttonStyle(.plain)
     }
 
     private func matchCard(_ match: LigaMatch) -> some View {
