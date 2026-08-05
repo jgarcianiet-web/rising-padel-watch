@@ -64,6 +64,8 @@ fun SessionDetailScreen(
     onDelete: () -> Unit,
     onOpenSettings: (() -> Unit)? = null,
 ) {
+    // El guardado en la liga vive aquí y no en un ViewModel: es una acción puntual
+    // sobre el fichero-estado de la liga, el mismo que la pestaña Liga.
     Scaffold(
         topBar = {
             TopAppBar(
@@ -100,6 +102,7 @@ fun SessionDetailScreen(
             ProgressChartCard(session, playerAverageLevel)
             ShotBreakdown(session)
             if (!session.health.isEmpty) HealthCard(session)
+            LigaSaveCard(session, playerAverageLevel)
             MatchLinkCard(session, onLinkMatch)
             SyncCard(session, onRetrySync)
             OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
@@ -408,5 +411,38 @@ private fun SyncCard(session: PadelSession, onRetrySync: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+/**
+ * Guarda la sesión como partido de la liga, con el mismo mapeo que iOS (LigaMapper en
+ * el core, con tests): voleas unificadas, curva del reloj y objetivos medibles ya
+ * marcados. El id es la fecha de inicio: repetir actualiza, no duplica.
+ */
+@Composable
+private fun LigaSaveCard(session: PadelSession, playerAverageLevel: Float?) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val store = androidx.compose.runtime.remember {
+        com.risingpadel.mobile.data.LigaStore(context)
+    }
+    var guardado by androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf(
+            store.load().matches.any { it.id == session.startedAtEpochMs }
+        )
+    }
+    Button(
+        onClick = {
+            val state = store.load()
+            val match = com.risingpadel.core.liga.LigaMapper.matchFrom(
+                session, playerAverageLevel, state.objetivos
+            )
+            store.save(
+                state.copy(matches = state.matches.filter { it.id != match.id } + match)
+            )
+            guardado = true
+        },
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(if (guardado) "Partido guardado en la liga ✓" else "Guardar como partido de liga")
     }
 }
