@@ -42,6 +42,12 @@ public struct LiveScorePayload: Codable, Equatable, Sendable {
     public let updatedAt: String
     public let completed: Bool
     public let score: ScorePayload?
+    /// Puntos del juego en curso, ya como etiqueta ("40", "Ad"): el `ScorePayload` del
+    /// contrato solo lleva sets, y un marcador en vivo sin el 30-40 no es un marcador.
+    public let pointsUs: String?
+    public let pointsThem: String?
+    /// "us" | "them": quién saca ahora mismo.
+    public let serving: String?
     public let shotCount: Int
     public let heartRateBpm: Int?
     public let elapsedSeconds: Int64
@@ -51,6 +57,9 @@ public struct LiveScorePayload: Codable, Equatable, Sendable {
         updatedAt = isoUTC(state.updatedAtEpochMs)
         completed = state.completed
         score = state.score.map { $0.toPayload() }
+        pointsUs = state.score.map { $0.pointsLabel(.us) }
+        pointsThem = state.score.map { $0.pointsLabel(.them) }
+        serving = state.score.map { $0.server == .us ? "us" : "them" }
         shotCount = state.shotCount
         heartRateBpm = state.heartRateBpm
         elapsedSeconds = state.elapsedSeconds

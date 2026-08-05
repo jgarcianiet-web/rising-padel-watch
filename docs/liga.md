@@ -36,8 +36,26 @@ decodificación tolerante para backups viejos de la web-app.
 | Guardar una sesión del reloj como partido (voleas unificadas, curva, salud) | Hecho — mismo mapeo que hacía el deep link, pero sin salir de la app |
 | Deep link a la app Expo | Se mantiene durante la transición |
 | Formulario completo de partido (club, compañero, mejor/peor golpe, objetivos, nota) | Pendiente — hoy esos campos se conservan al importar pero no se editan aquí |
-| Análisis con IA (el `anthropic.ts` de la liga) | Pendiente — sus hechos de entrada serán los del `InsightEngine` (ver `insights.md`) |
+| Análisis con IA (el entrenador de `anthropic.ts`) | Hecho — ver "El entrenador" abajo |
 | Android móvil | Pendiente — la fusión es iOS primero, donde está el usuario de la liga |
+
+## El entrenador
+
+El entrenador IA de la app Expo, portado entero (`CoachService.swift`): el mismo prompt
+—heredado literalmente de la web-app original—, la misma respuesta estructurada
+(lectura, patrones, plan, foco y 3 objetivos prescritos), los mismos mensajes de error,
+y la clave de la API de Anthropic en el Llavero con la misma regla de siempre: **nunca
+en la copia de seguridad**, que viaja por AirDrop y por email.
+
+Lo que la app Expo no podía tener y aquí sí: una sección de **hechos medidos por el
+reloj**, calculados por el `InsightEngine` sobre las sesiones recientes. Es el reparto
+de papeles de `insights.md` llevado al prompt: el motor produce hechos verificables con
+su evidencia ("ganaste 2 de 6 juegos al resto, sobre 11 juegos"), y el modelo redacta y
+sintetiza — con prohibición explícita de inventar hechos de reloj que no estén en la
+lista. Dos cambios respecto al original: el modelo pasa de `claude-sonnet-4-6` a
+`claude-opus-5` (el análisis se pide unas pocas veces al mes; merece el mejor
+razonamiento), y el análisis se guarda en `analisisHistorial` con el mismo shape que el
+backup, así que reimporta en la app Expo sin perder nada.
 
 ## Marcador en vivo
 
@@ -53,7 +71,15 @@ El estado del partido sale del reloj en cada punto (`LiveMatchState`):
   El id es un UUID aleatorio y el estado no lleva salud más allá del pulso, que solo va
   si el emisor comparte salud.
 
-**Lo que falta para verlo desde otro móvil es el servidor.** El cliente y el contrato
-están; el servidor es una tabla clave-valor con dos rutas, pero hay que hospedarlo. La
-liga de hoy es local y no tiene backend — cuando exista (o si se decide usar un servicio
-gestionado), esto se enchufa sin tocar el reloj.
+**El servidor existe: `server/live`**, un Cloudflare Worker con KV — servicio
+gestionado, sin máquina que mantener, plan gratuito de sobra para una liga personal.
+Expone el contrato de `openapi.yaml` (PUT con token, GET público), una **página de
+espectador** en `/{sessionId}` que se refresca sola y se para en el FINAL, y el buzón
+`POST /v1/padel-sessions` para que la app pueda apuntar su URL de liga al worker sin
+que el envío de sesiones falle. El despliegue (5 minutos, cuenta de Cloudflare) está en
+`server/live/README.md`; la portada del partido en vivo enseña el botón de compartir el
+enlace cuando hay liga configurada.
+
+El estado en vivo lleva además los puntos del juego en curso ya etiquetados
+(`pointsUs`/`pointsThem`, "40"/"Ad") y quién saca (`serving`): el `Score` del contrato
+solo lleva sets, y un marcador en vivo sin el 30-40 no es un marcador.

@@ -76,8 +76,10 @@ que un puñado de reglas hace bien.
 
 Redactar a partir de esos hechos es lo contrario: escribir un resumen que suene a
 entrenador, encadenar tres ideas en un plan y adaptar el tono es justo lo que el modelo
-hace bien. La app de liga (repositorio `padel`) ya tiene esa integración, y la forma de
-juntarlas es pasarle estos hechos como contexto en vez de la sesión cruda.
+hace bien. **Ese reparto ya está montado**: el entrenador de la liga vive en la app
+(`CoachService.swift`, ver `liga.md`) y su prompt lleva una sección de "hechos medidos
+por el reloj" que sale de este motor, con la prohibición explícita de inventar hechos
+que no estén en la lista.
 
 Con eso, el modelo no puede inventarse que juegas mejor con el pulso alto: o está en los
 hechos o no se dice.

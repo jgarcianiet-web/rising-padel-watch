@@ -184,6 +184,14 @@ data class LiveScorePayload(
     /** true en la última publicación: el partido acabó y el espectador deja de refrescar. */
     val completed: Boolean,
     val score: ScorePayload? = null,
+    /**
+     * Puntos del juego en curso, ya como etiqueta ("40", "Ad"): el [ScorePayload] del
+     * contrato solo lleva sets, y un marcador en vivo sin el 30-40 no es un marcador.
+     */
+    val pointsUs: String? = null,
+    val pointsThem: String? = null,
+    /** "us" | "them": quién saca ahora mismo. */
+    val serving: String? = null,
     val shotCount: Int = 0,
     val heartRateBpm: Int? = null,
     val elapsedSeconds: Long = 0,

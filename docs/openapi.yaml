@@ -307,6 +307,17 @@ components:
         updatedAt: { type: string, format: date-time }
         completed: { type: boolean }
         score: { $ref: '#/components/schemas/Score' }
+        pointsUs:
+          type: string
+          description: >
+            Puntos del juego en curso, ya como etiqueta ("40", "Ad"): Score solo lleva
+            sets, y un marcador en vivo sin el 30-40 no es un marcador.
+          example: "40"
+        pointsThem: { type: string, example: "30" }
+        serving:
+          type: string
+          enum: [us, them]
+          description: Quién saca ahora mismo.
         shotCount: { type: integer, minimum: 0 }
         heartRateBpm: { type: integer }
         elapsedSeconds: { type: integer, minimum: 0 }

@@ -188,6 +188,26 @@ struct LigaAnalisis: Codable, Equatable {
         fecha = try c.decodeIfPresent(String.self, forKey: .fecha) ?? ""
         nPartidos = try c.decodeIfPresent(Int.self, forKey: .nPartidos) ?? 0
     }
+
+    // El init(from:) tolerante se come el memberwise: hay que devolverlo a mano para
+    // que el entrenador pueda construir un análisis.
+    init(
+        lectura: String = "",
+        patrones: [String] = [],
+        plan: [String] = [],
+        foco: String = "",
+        objetivos: [String] = [],
+        fecha: String = "",
+        nPartidos: Int = 0
+    ) {
+        self.lectura = lectura
+        self.patrones = patrones
+        self.plan = plan
+        self.foco = foco
+        self.objetivos = objetivos
+        self.fecha = fecha
+        self.nPartidos = nPartidos
+    }
 }
 
 /// El estado completo de la liga: lo que guarda el fichero y lo que exporta el backup.

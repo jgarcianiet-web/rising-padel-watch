@@ -98,6 +98,15 @@ final class AppModel: ObservableObject {
         }
     }
 
+    /// Enlace público para seguir el partido: la página de espectador del servidor de
+    /// la liga (`server/live`), que vive en la misma URL base. Nil sin liga configurada.
+    func liveSpectatorURL(for sessionId: String) -> URL? {
+        var base = leagueBaseURL.trimmingCharacters(in: .whitespaces)
+        guard !base.isEmpty else { return nil }
+        while base.hasSuffix("/") { base.removeLast() }
+        return URL(string: base + "/" + sessionId)
+    }
+
     /// Nivel medio del jugador sobre su historial: la línea de referencia de las
     /// gráficas ("calidad media"). Nil sin sesiones puntuables.
     var playerAverageLevel: Float? {

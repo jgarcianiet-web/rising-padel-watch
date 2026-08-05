@@ -49,9 +49,22 @@ struct LastSessionView: View {
                     // Con un partido en marcha, la portada es el partido: nadie abre la
                     // app a mitad de un set para ver la sesión de ayer.
                     ScrollView {
-                        LiveMatchBanner(state: live)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
+                        VStack(spacing: 12) {
+                            LiveMatchBanner(state: live)
+                            // El enlace del espectador: cualquiera que lo reciba ve el
+                            // marcador refrescándose solo, sin instalar nada.
+                            if let url = model.liveSpectatorURL(for: live.sessionId) {
+                                ShareLink(item: url) {
+                                    Label("Compartir el partido en vivo",
+                                          systemImage: "square.and.arrow.up")
+                                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                     }
                 } else if let last = model.sessions.first {
                     SessionDetailView(session: last)

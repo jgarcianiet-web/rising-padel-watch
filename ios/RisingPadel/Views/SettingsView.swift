@@ -6,11 +6,14 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var token = ""
+    @State private var coachKey = ""
+    @State private var hasCoachKey = CoachKeyStore.read() != nil
 
     var body: some View {
         NavigationStack {
             Form {
                 leagueSection
+                coachSection
                 privacySection
                 playerSection
                 sensitivitySection
@@ -56,6 +59,30 @@ struct SettingsView: View {
         } footer: {
             Text("La app enviará las sesiones a <URL>/v1/padel-sessions. "
                  + "El token se guarda cifrado en el Llavero y no se muestra nunca.")
+        }
+    }
+
+    private var coachSection: some View {
+        Section {
+            SecureField(hasCoachKey ? "Clave (ya guardada)" : "sk-ant-…", text: $coachKey)
+            Button("Guardar clave") {
+                CoachKeyStore.write(coachKey)
+                coachKey = ""
+                hasCoachKey = CoachKeyStore.read() != nil
+            }
+            .disabled(coachKey.isEmpty)
+            if hasCoachKey {
+                Button("Borrar clave", role: .destructive) {
+                    CoachKeyStore.write(nil)
+                    hasCoachKey = false
+                }
+            }
+        } header: {
+            Text("Entrenador IA")
+        } footer: {
+            Text("Tu clave de la API de Anthropic (console.anthropic.com) para pedir "
+                 + "análisis al entrenador de la liga. Se guarda cifrada en el Llavero "
+                 + "y nunca viaja en la copia de seguridad de la liga.")
         }
     }
 

@@ -128,6 +128,25 @@ final class LigaModel: ObservableObject {
         message = "Partido guardado en la liga"
     }
 
+    // MARK: Entrenador
+
+    /// Guarda un análisis nuevo del entrenador: pasa a ser el vigente y entra en el
+    /// historial, la misma semántica que en la app Expo (y el mismo shape en el backup).
+    func applyAnalisis(_ analisis: LigaAnalisis) {
+        state.analisis = analisis
+        state.analisisHistorial.append(analisis)
+        save()
+    }
+
+    /// Adopta los 3 objetivos que prescribe el entrenador como los objetivos por partido
+    /// de la liga.
+    func adoptObjetivos(_ objetivos: [String]) {
+        guard !objetivos.isEmpty else { return }
+        state.objetivos = objetivos
+        save()
+        message = "Objetivos del entrenador adoptados"
+    }
+
     // MARK: Copia de seguridad
 
     /// Importa un backup de la app Expo (o de la web-app original). Sustituye el estado

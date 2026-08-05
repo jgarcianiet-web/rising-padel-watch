@@ -1,0 +1,18 @@
+# El servidor del marcador en vivo (y buzón de sesiones), como Cloudflare Worker.
+#
+# Servicio gestionado a propósito: sin máquina que mantener, con plan gratuito que
+# sobra para una liga personal (100.000 peticiones/día), y un almacén clave-valor
+# que es exactamente lo que pide el contrato — el estado en vivo ES un valor por clave.
+#
+# Pasos de despliegue en el README de esta carpeta.
+name = "rising-padel-live"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+[[kv_namespaces]]
+binding = "LIVE"
+# Sustituir por el id que devuelve `wrangler kv namespace create LIVE`.
+id = "PON_AQUI_EL_ID_DEL_NAMESPACE"
+
+# El token de escritura NO va aquí: es un secreto.
+#   wrangler secret put LIVE_TOKEN

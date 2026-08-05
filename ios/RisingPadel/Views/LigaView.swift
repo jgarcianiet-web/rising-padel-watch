@@ -73,6 +73,7 @@ struct LigaView: View {
         ScrollView {
             VStack(spacing: 12) {
                 summaryCard
+                CoachCard()
                 ForEach(liga.matches) { match in
                     matchCard(match)
                 }
