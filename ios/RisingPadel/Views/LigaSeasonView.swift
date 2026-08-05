@@ -8,12 +8,18 @@ struct LigaSeasonView: View {
     @EnvironmentObject private var liga: LigaModel
 
     var body: some View {
-        let matches = liga.state.matches
+        // Con temporadas, el panel es de la temporada en curso; la comparación entre
+        // temporadas tiene su propia tarjeta. Sin ellas, la liga entera como siempre.
+        let matches = liga.matchesTemporadaActual
         let perfil = liga.state.perfil
 
         ScrollView {
             VStack(spacing: 12) {
+                if let actual = liga.temporadaActual {
+                    seasonHeader(actual, jugados: matches.count)
+                }
                 headlineCard(matches, perfil)
+                temporadasCard
                 mensualCard(matches)
                 metaCard(matches, perfil)
                 evolutionCard(matches)
@@ -69,6 +75,88 @@ struct LigaSeasonView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    // MARK: Temporada en curso
+
+    /// La cabecera de la temporada: nombre, arranque y el avance hacia su meta de
+    /// partidos — el "20 partidos esta temporada" convertido en barra.
+    private func seasonHeader(_ temporada: LigaTemporada, jugados: Int) -> some View {
+        PadelCard(title: temporada.nombre, icon: "calendar.badge.clock") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Desde el \(LigaFechas.corta(temporada.fechaInicio)) · \(LigaFechas.mes(temporada.fechaInicio))")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                if let objetivo = temporada.objetivoPartidos, objetivo > 0 {
+                    PadelBar(
+                        label: "Partidos jugados",
+                        value: "\(jugados)/\(objetivo)",
+                        fraction: min(1, Float(jugados) / Float(objetivo)),
+                        color: jugados >= objetivo ? T.verde : T.pista
+                    )
+                }
+            }
+        }
+    }
+
+    /// Todas las temporadas frente a frente: la comparación que pide una liga que dura
+    /// años. Los partidos anteriores a la primera temporada salen como su propia fila.
+    @ViewBuilder
+    private var temporadasCard: some View {
+        let temporadas = liga.state.temporadas
+        if temporadas.count >= 1 {
+            let previos = liga.state.matches.filter { match in
+                !temporadas.contains { $0.contiene(match) }
+            }
+            PadelCard(title: "Temporada a temporada", icon: "arrow.left.arrow.right.square") {
+                VStack(spacing: 6) {
+                    HStack {
+                        Text("").frame(maxWidth: .infinity, alignment: .leading)
+                        Text("PJ").frame(width: 36)
+                        Text("V").frame(width: 44)
+                        Text("Bien").frame(width: 44)
+                        Text("Nivel").frame(width: 44)
+                    }
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+
+                    if !previos.isEmpty {
+                        seasonRow("Antes", matches: previos, destacada: false)
+                    }
+                    ForEach(temporadas) { temporada in
+                        seasonRow(
+                            temporada.nombre,
+                            matches: liga.matches(de: temporada),
+                            destacada: temporada.enCurso
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func seasonRow(_ nombre: String, matches: [LigaMatch], destacada: Bool) -> some View {
+        let bien = matches.isEmpty ? nil : matches.filter(\.bienJugado).count * 100 / matches.count
+        let niveles = matches.compactMap(LigaMetrics.nivelDeSesion)
+        return HStack {
+            Text(nombre)
+                .font(.system(size: 13, weight: destacada ? .bold : .medium, design: .rounded))
+                .foregroundStyle(destacada ? T.tinta : T.tintaSuave)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Text("\(matches.count)").frame(width: 36)
+            Text(matches.isEmpty ? "–" : "\(LigaMetrics.pctVictorias(matches))%")
+                .foregroundStyle(T.verde)
+                .frame(width: 44)
+            Text(bien.map { "\($0)%" } ?? "–")
+                .foregroundStyle(T.pista)
+                .frame(width: 44)
+            Text(niveles.isEmpty ? "–" : String(format: "%.1f", niveles.reduce(0, +) / Double(niveles.count)))
+                .foregroundStyle(T.tinta)
+                .frame(width: 44)
+        }
+        .font(.system(size: 13, weight: .medium, design: .rounded))
+        .monospacedDigit()
     }
 
     // MARK: Mes en curso contra el anterior

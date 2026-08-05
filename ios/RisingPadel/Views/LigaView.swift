@@ -118,7 +118,10 @@ struct LigaView: View {
     }
 
     private var summaryCard: some View {
-        let matches = liga.matches
+        // Con temporada en curso, el resumen es de la temporada; el historial de abajo
+        // sigue enseñando todos los partidos.
+        let matches = liga.matchesTemporadaActual
+        let temporada = liga.temporadaActual
         let victorias = matches.filter { $0.resultado == "victoria" }.count
         let racha = LigaMetrics.racha(matches)
         // El nivel medio de sesión sale del reloj (o de la curva si el campo directo
@@ -129,10 +132,14 @@ struct LigaView: View {
         return NavigationLink {
             LigaSeasonView()
         } label: {
-            PadelCard(title: "Temporada", icon: "trophy.fill") {
+            PadelCard(title: temporada?.nombre ?? "Temporada", icon: "trophy.fill") {
                 VStack(spacing: 8) {
                     HStack(spacing: 8) {
-                        StatTile(label: "Partidos", value: "\(matches.count)")
+                        StatTile(
+                            label: "Partidos",
+                            value: temporada?.objetivoPartidos.map { "\(matches.count)/\($0)" }
+                                ?? "\(matches.count)"
+                        )
                         StatTile(
                             label: "Victorias",
                             value: matches.isEmpty

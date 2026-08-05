@@ -307,8 +307,17 @@ struct CoachService {
 
     /// El puerto de `analizarLiga`: mismo prompt (heredado literalmente de la web-app
     /// original y de la app Expo), con una sección nueva de hechos medidos por el reloj.
-    func analizar(state: LigaState, hechosReloj: String?) async throws -> LigaAnalisis {
-        let matches = state.matches.sorted { $0.fecha < $1.fecha }
+    ///
+    /// Con temporadas, `partidos` son los de la temporada en curso y `contextoTemporada`
+    /// le cuenta al modelo dónde está (meta de partidos, temporadas anteriores para
+    /// comparar). Sin temporadas, se le pasa todo y no hay contexto: la liga de siempre.
+    func analizar(
+        state: LigaState,
+        partidos: [LigaMatch]? = nil,
+        contextoTemporada: String? = nil,
+        hechosReloj: String?
+    ) async throws -> LigaAnalisis {
+        let matches = (partidos ?? state.matches).sorted { $0.fecha < $1.fecha }
         let datos = matches.map { Self.datos($0, objetivos: state.objetivos) }
 
         let encoder = JSONEncoder()
@@ -318,6 +327,14 @@ struct CoachService {
             data: (try? encoder.encode(state.objetivos)) ?? Data(), encoding: .utf8
         ) ?? "[]"
         let perfil = state.perfil
+
+        let seccionTemporada = contextoTemporada.map { contexto in
+            """
+
+            \(contexto)
+
+            """
+        } ?? ""
 
         let seccionReloj = hechosReloj.map { hechos in
             """
@@ -341,7 +358,7 @@ struct CoachService {
         - Meta de nivel Playtomic de la temporada: \(perfil.nivelObjetivo.isEmpty ? "sin definir" : perfil.nivelObjetivo)
         - Nivel de sesión habitual, medido por el reloj: \(perfil.nivelBand.isEmpty ? "desconocido" : perfil.nivelBand)
         - Inicio de la liga: \(perfil.fechaInicio.isEmpty ? "desconocido" : perfil.fechaInicio)
-
+        \(seccionTemporada)
         SUS 3 OBJETIVOS POR PARTIDO: \(objetivosJson)
         (un partido se considera "bien jugado" si cumple 2 de 3)
 

@@ -146,9 +146,18 @@ struct CoachCard: View {
         // sobre las sesiones recientes, y son lo único de sensores que ve el modelo.
         let hechos = CoachService.hechosReloj(sessions: model.sessions)
         let state = liga.state
+        // Con temporadas, el entrenador analiza la temporada en curso y compara con
+        // las anteriores; sin ellas, la liga entera como siempre.
+        let partidos = liga.matchesTemporadaActual
+        let contexto = liga.contextoTemporadaParaEntrenador
         Task {
             do {
-                let analisis = try await CoachService().analizar(state: state, hechosReloj: hechos)
+                let analisis = try await CoachService().analizar(
+                    state: state,
+                    partidos: partidos,
+                    contextoTemporada: contexto,
+                    hechosReloj: hechos
+                )
                 liga.applyAnalisis(analisis)
             } catch {
                 liga.message = error.localizedDescription

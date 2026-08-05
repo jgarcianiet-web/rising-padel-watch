@@ -214,6 +214,49 @@ struct LigaAnalisis: Codable, Equatable {
     }
 }
 
+/// Una temporada de la liga: un tramo de fechas con un objetivo de partidos.
+///
+/// Los partidos **no** llevan referencia a su temporada a propósito: la temporada es un
+/// rango de fechas y cada partido cae en la suya por su `fecha`. Así el backup no cambia
+/// de shape en los partidos (que es lo que la app Expo relee), funciona con historiales
+/// importados de antes de que existieran temporadas, y mover un partido de fecha lo
+/// recoloca solo.
+struct LigaTemporada: Codable, Equatable, Identifiable {
+    /// Milisegundos de época de su creación, como el id de los partidos.
+    var id: Int64
+    var nombre = ""
+    /// yyyy-mm-dd. El rango es [inicio, fin]; fin vacío = temporada en curso.
+    var fechaInicio = ""
+    var fechaFin = ""
+    /// Cuántos partidos se quiere jugar esta temporada. Nil = sin meta de volumen.
+    var objetivoPartidos: Int?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(Int64.self, forKey: .id)
+        nombre = try c.decodeIfPresent(String.self, forKey: .nombre) ?? ""
+        fechaInicio = try c.decodeIfPresent(String.self, forKey: .fechaInicio) ?? ""
+        fechaFin = try c.decodeIfPresent(String.self, forKey: .fechaFin) ?? ""
+        objetivoPartidos = try c.decodeIfPresent(Int.self, forKey: .objetivoPartidos)
+    }
+
+    init(id: Int64, nombre: String, fechaInicio: String, fechaFin: String = "", objetivoPartidos: Int? = nil) {
+        self.id = id
+        self.nombre = nombre
+        self.fechaInicio = fechaInicio
+        self.fechaFin = fechaFin
+        self.objetivoPartidos = objetivoPartidos
+    }
+
+    var enCurso: Bool { fechaFin.isEmpty }
+
+    /// true si el partido cae en el rango de esta temporada. Comparación de strings
+    /// yyyy-mm-dd, que ordena igual que las fechas.
+    func contiene(_ match: LigaMatch) -> Bool {
+        match.fecha >= fechaInicio && (fechaFin.isEmpty || match.fecha <= fechaFin)
+    }
+}
+
 /// El estado completo de la liga: lo que guarda el fichero y lo que exporta el backup.
 struct LigaState: Codable, Equatable {
     var matches: [LigaMatch] = []
@@ -221,6 +264,9 @@ struct LigaState: Codable, Equatable {
     var perfil = LigaPerfil()
     var analisis: LigaAnalisis?
     var analisisHistorial: [LigaAnalisis] = []
+    /// En orden de creación. Campo nuevo de esta app: un backup viejo no lo trae (la
+    /// liga entera se comporta como una sola temporada) y la app Expo lo ignora.
+    var temporadas: [LigaTemporada] = []
 
     init() {}
 
@@ -233,5 +279,6 @@ struct LigaState: Codable, Equatable {
         analisisHistorial =
             try c.decodeIfPresent([LigaAnalisis].self, forKey: .analisisHistorial)
             ?? (analisis.map { [$0] } ?? [])
+        temporadas = try c.decodeIfPresent([LigaTemporada].self, forKey: .temporadas) ?? []
     }
 }

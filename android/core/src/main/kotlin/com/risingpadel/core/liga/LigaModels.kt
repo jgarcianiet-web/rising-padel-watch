@@ -96,6 +96,30 @@ data class LigaAnalisis(
     val nPartidos: Int = 0,
 )
 
+/**
+ * Una temporada de la liga: un tramo de fechas con un objetivo de partidos.
+ *
+ * Los partidos no llevan referencia a su temporada: cada uno cae en la suya por su
+ * `fecha`. Así el shape de los partidos del backup no cambia y los historiales
+ * importados de antes de que existieran temporadas funcionan igual.
+ */
+@Serializable
+data class LigaTemporada(
+    val id: Long,
+    val nombre: String = "",
+    /** yyyy-mm-dd. El rango es [inicio, fin]; fin vacío = temporada en curso. */
+    val fechaInicio: String = "",
+    val fechaFin: String = "",
+    /** Cuántos partidos se quiere jugar esta temporada. Null = sin meta de volumen. */
+    val objetivoPartidos: Int? = null,
+) {
+    val enCurso: Boolean get() = fechaFin.isEmpty()
+
+    /** true si el partido cae en el rango. Strings yyyy-mm-dd ordenan como fechas. */
+    fun contiene(match: LigaMatch): Boolean =
+        match.fecha >= fechaInicio && (fechaFin.isEmpty() || match.fecha <= fechaFin)
+}
+
 /** El estado completo de la liga: lo que guarda el fichero y lo que exporta el backup. */
 @Serializable
 data class LigaState(
@@ -104,6 +128,8 @@ data class LigaState(
     val perfil: LigaPerfil = LigaPerfil(),
     val analisis: LigaAnalisis? = null,
     val analisisHistorial: List<LigaAnalisis> = emptyList(),
+    /** Campo nuevo de esta app: un backup viejo no lo trae y la app Expo lo ignora. */
+    val temporadas: List<LigaTemporada> = emptyList(),
 )
 
 /** Las métricas de temporada que ya usa iOS, para que Android pinte las mismas. */

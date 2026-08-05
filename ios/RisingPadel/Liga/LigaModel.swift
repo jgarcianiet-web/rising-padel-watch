@@ -49,6 +49,99 @@ final class LigaModel: ObservableObject {
         return Array(unicos.suffix(6).reversed())
     }
 
+    // MARK: Temporadas
+
+    /// La temporada en curso, o nil si la liga funciona sin temporadas (como siempre).
+    var temporadaActual: LigaTemporada? {
+        state.temporadas.last(where: \.enCurso)
+    }
+
+    /// Los partidos de una temporada, por su rango de fechas.
+    func matches(de temporada: LigaTemporada) -> [LigaMatch] {
+        state.matches.filter { temporada.contiene($0) }
+    }
+
+    /// Los partidos que cuentan hoy: los de la temporada en curso, o todos si no hay
+    /// temporadas — la liga de siempre es una única temporada implícita.
+    var matchesTemporadaActual: [LigaMatch] {
+        guard let actual = temporadaActual else { return state.matches }
+        return matches(de: actual)
+    }
+
+    /// Cierra la temporada en curso (si la hay) y abre la siguiente hoy.
+    ///
+    /// El cierre es la víspera del arranque nuevo: dos temporadas no pueden solaparse
+    /// ni dejar días huérfanos entre medias, o un partido caería en dos o en ninguna.
+    func startTemporada(objetivoPartidos: Int?) {
+        let hoy = LigaFechas.hoy()
+        if let index = state.temporadas.lastIndex(where: \.enCurso) {
+            state.temporadas[index].fechaFin = Self.vispera(de: hoy) ?? hoy
+        }
+        let numero = state.temporadas.count + 1
+        state.temporadas.append(LigaTemporada(
+            id: Int64(Date().timeIntervalSince1970 * 1000),
+            nombre: "Temporada \(numero)",
+            fechaInicio: hoy,
+            objetivoPartidos: objetivoPartidos
+        ))
+        save()
+        message = "Temporada \(numero) en marcha"
+    }
+
+    /// Cambia la meta de partidos de la temporada en curso.
+    func setObjetivoPartidos(_ objetivo: Int?) {
+        guard let index = state.temporadas.lastIndex(where: \.enCurso) else { return }
+        state.temporadas[index].objetivoPartidos = objetivo
+        save()
+    }
+
+    /// El contexto de temporadas para el prompt del entrenador, o nil sin temporadas.
+    ///
+    /// Dos cosas: dónde está la temporada en curso (meta de partidos incluida) y el
+    /// resumen numérico de las anteriores, para que la comparación del modelo se apoye
+    /// en números y no en memoria.
+    var contextoTemporadaParaEntrenador: String? {
+        guard let actual = temporadaActual else { return nil }
+        let jugados = matches(de: actual).count
+        var lineas = ["TEMPORADA EN CURSO: \(actual.nombre) (desde \(actual.fechaInicio))."]
+        if let objetivo = actual.objetivoPartidos {
+            lineas.append("Meta de volumen: \(objetivo) partidos; lleva \(jugados).")
+        } else {
+            lineas.append("Lleva \(jugados) partidos.")
+        }
+        lineas.append("El REGISTRO de abajo contiene SOLO los partidos de esta temporada: tu análisis es de la temporada.")
+
+        let anteriores = state.temporadas.filter { !$0.enCurso }
+        if !anteriores.isEmpty {
+            lineas.append("TEMPORADAS ANTERIORES (compara con ellas el rumbo de la actual, con números):")
+            for temporada in anteriores {
+                let ms = matches(de: temporada)
+                guard !ms.isEmpty else { continue }
+                let bien = ms.filter(\.bienJugado).count * 100 / ms.count
+                let niveles = ms.compactMap(LigaMetrics.nivelDeSesion)
+                let nivel = niveles.isEmpty
+                    ? "sin nivel"
+                    : String(format: "nivel de sesión medio %.1f", niveles.reduce(0, +) / Double(niveles.count))
+                lineas.append(
+                    "- \(temporada.nombre) (\(temporada.fechaInicio) a \(temporada.fechaFin)): "
+                        + "\(ms.count) partidos, \(LigaMetrics.pctVictorias(ms))% victorias, "
+                        + "\(bien)% bien jugados, \(nivel)."
+                )
+            }
+        }
+        return lineas.joined(separator: "\n")
+    }
+
+    /// El día anterior a una fecha yyyy-mm-dd, para cerrar la temporada saliente.
+    private static func vispera(de iso: String) -> String? {
+        guard let fecha = LigaFechas.fecha(iso),
+              let anterior = Calendar.current.date(byAdding: .day, value: -1, to: fecha)
+        else { return nil }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: anterior)
+    }
+
     // MARK: Perfil y objetivos
 
     func savePerfil(_ perfil: LigaPerfil) {

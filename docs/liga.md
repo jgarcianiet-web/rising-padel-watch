@@ -46,6 +46,7 @@ decodificación tolerante para backups viejos de la web-app.
 | Resumen mensual (mes en curso vs anterior) | Hecho — en el panel de temporada |
 | Liga en Android: dominio Kotlin (modelos + backup + métricas, con tests) | Hecho en el core; las pantallas Compose son el siguiente tramo |
 | Complicación / widget del reloj | Pendiente — necesita otra extensión con su perfil de firma; mismo camino que la de widgets |
+| Temporadas: meta de partidos, análisis del entrenador por temporada y comparación entre temporadas | Hecho — una temporada es un rango de fechas, así que los partidos del backup no cambian de shape y el historial importado se reparte solo |
 
 ### Sobre el nombre "Band"
 

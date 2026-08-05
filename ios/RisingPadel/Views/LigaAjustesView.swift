@@ -9,17 +9,23 @@ struct LigaAjustesView: View {
 
     @State private var perfil: LigaPerfil
     @State private var objetivos: [String]
+    @State private var metaPartidos: String
+    @State private var confirmandoTemporada = false
 
     init(liga: LigaModel) {
         _perfil = State(initialValue: liga.state.perfil)
         var textos = liga.state.objetivos
         while textos.count < 3 { textos.append("") }
         _objetivos = State(initialValue: textos)
+        _metaPartidos = State(
+            initialValue: liga.temporadaActual?.objetivoPartidos.map(String.init) ?? ""
+        )
     }
 
     var body: some View {
         NavigationStack {
             Form {
+                temporadaSection
                 perfilSection
                 objetivosSection
             }
@@ -36,6 +42,57 @@ struct LigaAjustesView: View {
                     Button("Guardar") { guardar() }
                 }
             }
+        }
+    }
+
+    private var temporadaSection: some View {
+        Section {
+            if let actual = liga.temporadaActual {
+                LabeledContent(actual.nombre) {
+                    Text("desde el \(LigaFechas.corta(actual.fechaInicio))")
+                        .foregroundStyle(T.tintaSuave)
+                }
+                LabeledContent("Meta de partidos") {
+                    TextField("20", text: $metaPartidos)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 70)
+                }
+            } else {
+                LabeledContent("Meta de partidos") {
+                    TextField("20", text: $metaPartidos)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 70)
+                }
+            }
+            Button {
+                confirmandoTemporada = true
+            } label: {
+                Label(
+                    liga.temporadaActual == nil
+                        ? "Empezar la primera temporada"
+                        : "Empezar la siguiente temporada",
+                    systemImage: "flag.checkered"
+                )
+            }
+            .confirmationDialog(
+                liga.temporadaActual == nil
+                    ? "La temporada empieza hoy; los partidos anteriores quedan como historial previo."
+                    : "Se cierra \(liga.temporadaActual?.nombre ?? "la actual") con lo jugado hasta ayer y la nueva empieza hoy.",
+                isPresented: $confirmandoTemporada,
+                titleVisibility: .visible
+            ) {
+                Button("Empezar temporada") {
+                    liga.startTemporada(objetivoPartidos: Int(metaPartidos))
+                }
+            }
+        } header: {
+            Text("Temporadas")
+        } footer: {
+            Text("Cada temporada agrupa sus partidos por fecha. El entrenador analiza "
+                 + "la temporada en curso y la compara con las anteriores, y el panel "
+                 + "las enfrenta temporada a temporada.")
         }
     }
 
@@ -102,6 +159,9 @@ struct LigaAjustesView: View {
     private func guardar() {
         liga.savePerfil(perfil)
         liga.saveObjetivos(objetivos.map { $0.trimmingCharacters(in: .whitespaces) })
+        // La meta de la temporada en curso también se guarda desde aquí: cambiarla no
+        // exige abrir temporada nueva.
+        liga.setObjetivoPartidos(Int(metaPartidos))
         dismiss()
     }
 }

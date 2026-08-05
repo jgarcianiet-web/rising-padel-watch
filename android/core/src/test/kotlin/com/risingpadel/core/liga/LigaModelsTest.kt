@@ -58,6 +58,27 @@ class LigaModelsTest {
     }
 
     @Test
+    fun `las temporadas reparten los partidos por fecha y la abierta coge lo nuevo`() {
+        val t1 = LigaTemporada(id = 1, nombre = "Temporada 1", fechaInicio = "2026-01-01", fechaFin = "2026-06-30")
+        val t2 = LigaTemporada(id = 2, nombre = "Temporada 2", fechaInicio = "2026-07-01")
+        val enT1 = LigaMatch(id = 10, fecha = "2026-03-12")
+        val enT2 = LigaMatch(id = 11, fecha = "2026-08-05")
+        val anterior = LigaMatch(id = 12, fecha = "2025-11-02")
+
+        assertTrue(t1.contiene(enT1))
+        assertTrue(!t1.contiene(enT2) && t2.contiene(enT2))
+        assertTrue(!t1.contiene(anterior) && !t2.contiene(anterior))
+        assertTrue(t2.enCurso && !t1.enCurso)
+
+        // Y viajan en el backup sin romper a un lector viejo (campo con default).
+        val state = LigaState(matches = listOf(enT1), temporadas = listOf(t1, t2))
+        val vuelta = json.decodeFromString(
+            LigaState.serializer(), json.encodeToString(LigaState.serializer(), state)
+        )
+        assertEquals(state, vuelta)
+    }
+
+    @Test
     fun `el nivel de sesion cae a la media de la curva si falta el directo`() {
         val match = LigaMatch(id = 1, bandInicio = 3.0, bandFin = 4.0)
         assertEquals(3.5, LigaMetrics.nivelDeSesion(match))
