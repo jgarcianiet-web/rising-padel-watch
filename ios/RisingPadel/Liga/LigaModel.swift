@@ -219,18 +219,20 @@ final class LigaModel: ObservableObject {
     func exportCSV() -> URL? {
         var lineas = ["fecha;tipo;resultado;sets;posicion;club;companero;nivelPlaytomic;nivelSesion;totalGolpes;duracionMin;pulsoMedio;calorias;bienJugado;nota"]
         for m in state.matches.sorted(by: { $0.fecha < $1.fecha }) {
-            lineas.append([
-                m.fecha, m.tipo, m.resultado, m.sets, m.posicion,
-                campo(m.club), campo(m.companero),
-                m.nivel.map { String(format: "%.2f", $0) } ?? "",
-                LigaMetrics.nivelDeSesion(m).map { String(format: "%.1f", $0) } ?? "",
-                m.totalGolpes.map(String.init) ?? "",
-                m.salud.map { String($0.duracionMin) } ?? "",
-                m.salud?.pulsoMedio.map(String.init) ?? "",
-                m.salud?.calorias.map(String.init) ?? "",
-                m.bienJugado ? "si" : "no",
-                campo(m.nota),
-            ].joined(separator: ";"))
+            // En sentencias separadas: el literal entero superaba el presupuesto del
+            // type-checker de Swift ("unable to type-check in reasonable time").
+            var campos: [String] = [m.fecha, m.tipo, m.resultado, m.sets, m.posicion]
+            campos.append(campo(m.club))
+            campos.append(campo(m.companero))
+            campos.append(m.nivel.map { String(format: "%.2f", $0) } ?? "")
+            campos.append(LigaMetrics.nivelDeSesion(m).map { String(format: "%.1f", $0) } ?? "")
+            campos.append(m.totalGolpes.map { String($0) } ?? "")
+            campos.append(m.salud.map { String($0.duracionMin) } ?? "")
+            campos.append((m.salud?.pulsoMedio).map { String($0) } ?? "")
+            campos.append((m.salud?.calorias).map { String($0) } ?? "")
+            campos.append(m.bienJugado ? "si" : "no")
+            campos.append(campo(m.nota))
+            lineas.append(campos.joined(separator: ";"))
         }
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("liga-padel.csv")
