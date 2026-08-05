@@ -226,6 +226,11 @@ final class SessionController: ObservableObject {
         trainingRecorder = nil
         trainingRecording = false
         refreshTrainingCounts()
+
+        // Se envía solo al acabar la tanda. Depender de que el usuario se acuerde de
+        // pulsar un botón es cómo los golpeos se quedaban en el reloj: la transferencia
+        // va en cola del sistema, así que si el iPhone no está cerca sale cuando vuelva.
+        _ = sendTrainingDataToPhone()
     }
 
     /// Envía el fichero de datos al iPhone. Es una acción explícita del usuario.

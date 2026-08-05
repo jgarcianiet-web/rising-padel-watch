@@ -10,6 +10,7 @@ import SwiftUI
 struct TrainingView: View {
     @EnvironmentObject private var controller: SessionController
     @Environment(\.dismiss) private var dismiss
+    @State private var sendResult: String?
 
     var body: some View {
         // Con varios botones la columna no cabe en un reloj de 40 mm; sin scroll, lo de
@@ -67,6 +68,26 @@ struct TrainingView: View {
 
                 Button("Grabar") { Task { await controller.startTraining() } }
                     .buttonStyle(.borderedProminent)
+
+                // Sin este botón los golpeos se quedan en el reloj para siempre: el
+                // móvil no puede ir a buscarlos. Al parar una tanda se envían solos,
+                // pero si el iPhone estaba lejos hace falta poder reintentar a mano.
+                if controller.trainingTotalStored > 0 {
+                    Button("Enviar al móvil") {
+                        sendResult = controller.sendTrainingDataToPhone()
+                            ? "Enviando al móvil…"
+                            : "No se pudo enviar"
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+                }
+                if let sendResult {
+                    Text(sendResult)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
                 Button("Salir") { dismiss() }
                     .buttonStyle(.bordered)
             }

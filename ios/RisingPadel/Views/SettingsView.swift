@@ -132,7 +132,13 @@ struct SettingsView: View {
                         model.deleteTrainingData()
                     }
                 } else {
-                    Text("Todavía no ha llegado ningún dato del reloj.")
+                    // Decir solo "no ha llegado nada" deja al usuario mirando una tanda
+                    // que sí grabó en el reloj sin saber qué falta. Se dice el paso.
+                    Text("""
+                        Todavía no ha llegado ningún dato del reloj. Se envían solos al parar \
+                        una tanda; si el iPhone estaba lejos, abre **Datos de entrenamiento** \
+                        en el reloj y pulsa **Enviar al móvil**.
+                        """)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -140,10 +146,14 @@ struct SettingsView: View {
         } header: {
             Text("Datos de entrenamiento")
         } footer: {
-            Text("Graba tandas de golpes etiquetados en el reloj para entrenar un "
-                 + "clasificador propio. Guarda la señal cruda de los sensores, que en el "
-                 + "resto de la app nunca sale del dispositivo. **No se sube a la liga**: "
-                 + "solo sale de aquí si lo exportas tú.")
+            // Sin concatenar: SwiftUI solo interpreta el markdown de un literal, y con
+            // `+` los asteriscos salían en pantalla tal cual.
+            Text("""
+                Graba tandas de golpes etiquetados en el reloj para entrenar un clasificador \
+                propio. Guarda la señal cruda de los sensores, que en el resto de la app nunca \
+                sale del dispositivo. **No se sube a la liga**: solo sale de aquí si lo \
+                exportas tú.
+                """)
         }
     }
 
