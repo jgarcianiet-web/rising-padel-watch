@@ -65,8 +65,40 @@ jobs:
         working-directory: android
         run: gradle --no-daemon :mobile:assembleDebug :wear:assembleDebug
 
+  # Los dos trabajos de macOS solo corren si el cambio toca algo de Apple. Un runner de
+  # macOS gasta **10 veces** más minutos que uno de Linux, y validar el lado Apple al
+  # cambiar un README o el módulo de Wear no aporta nada. Con esto una rama que solo
+  # toca Android o documentación no gasta cuota de macOS.
+  cambios:
+    name: Qué ha cambiado
+    runs-on: ubuntu-latest
+    outputs:
+      apple: ${{ steps.filtro.outputs.apple }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Hace falta el commit anterior para poder comparar.
+          fetch-depth: 2
+
+      - id: filtro
+        name: Buscar cambios en el lado Apple
+        run: |
+          # En el primer commit de una rama no hay padre con el que comparar: se asume
+          # que sí hay cambios, que es el lado seguro.
+          if ! git rev-parse HEAD^ >/dev/null 2>&1; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if git diff --name-only HEAD^ HEAD | grep -qE '^(ios/|\.github/workflows/)'; then
+            echo "apple=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "apple=false" >> "$GITHUB_OUTPUT"
+          fi
+
   core-swift:
     name: Core Swift (tests)
+    needs: cambios
+    if: needs.cambios.outputs.apple == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -76,6 +108,8 @@ jobs:
 
   apple-apps:
     name: Apps Apple (iOS + watchOS)
+    needs: cambios
+    if: needs.cambios.outputs.apple == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
