@@ -13,6 +13,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 leagueSection
+                ligaLocalSection
                 coachSection
                 privacySection
                 playerSection
@@ -59,6 +60,20 @@ struct SettingsView: View {
         } footer: {
             Text("La app enviará las sesiones a <URL>/v1/padel-sessions. "
                  + "El token se guarda cifrado en el Llavero y no se muestra nunca.")
+        }
+    }
+
+    @AppStorage("ligaAutoGuardar") private var ligaAutoGuardar = false
+
+    private var ligaLocalSection: some View {
+        Section {
+            Toggle("Guardar partidos automáticamente", isOn: $ligaAutoGuardar)
+        } header: {
+            Text("Liga personal")
+        } footer: {
+            Text("Cada sesión con marcador que llegue del reloj se guardará sola como "
+                 + "partido en la pestaña Liga, con los objetivos medibles ya marcados. "
+                 + "Guardar dos veces la misma sesión actualiza, no duplica.")
         }
     }
 

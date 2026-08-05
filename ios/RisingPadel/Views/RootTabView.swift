@@ -20,6 +20,15 @@ struct RootTabView: View {
                 .tabItem { Label("Liga", systemImage: "trophy.fill") }
         }
         .environmentObject(liga)
+        // Con el guardado automático activado, cada sesión con marcador que llega del
+        // reloj se convierte en partido de la liga sin tocar nada. El id del partido es
+        // la fecha de inicio, así que repetirse es inocuo (actualiza, no duplica).
+        .onChange(of: model.sessions.first?.sessionId) {
+            guard UserDefaults.standard.bool(forKey: "ligaAutoGuardar"),
+                  let session = model.sessions.first,
+                  session.score != nil else { return }
+            liga.saveMatch(from: session, playerAverage: model.playerAverageLevel)
+        }
         // El azul de pista es el color de marca: tiñe pestañas, enlaces y controles.
         .tint(T.pista)
         // El aviso vive en la raíz y no en una pestaña: un mensaje de sincronización

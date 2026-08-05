@@ -21,6 +21,20 @@ struct LigaMatchDetailView: View {
         }
         .background(T.fondo)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let match = liga.state.matches.first(where: { $0.id == matchId }),
+               let imagen = MatchShareCard.imagen(for: match) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    // El partido como imagen, directo al grupo del equipo.
+                    ShareLink(
+                        item: imagen,
+                        preview: SharePreview("Partido \(match.fecha)", image: imagen)
+                    ) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
     }
 
     private func content(_ m: LigaMatch) -> some View {

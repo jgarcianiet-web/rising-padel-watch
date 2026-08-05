@@ -214,6 +214,38 @@ final class LigaModel: ObservableObject {
         }
     }
 
+    /// La liga como CSV, para mirarla en una hoja de cálculo. Solo lectura: el camino
+    /// de vuelta sigue siendo el backup JSON.
+    func exportCSV() -> URL? {
+        var lineas = ["fecha;tipo;resultado;sets;posicion;club;companero;nivelPlaytomic;nivelSesion;totalGolpes;duracionMin;pulsoMedio;calorias;bienJugado;nota"]
+        for m in state.matches.sorted(by: { $0.fecha < $1.fecha }) {
+            lineas.append([
+                m.fecha, m.tipo, m.resultado, m.sets, m.posicion,
+                campo(m.club), campo(m.companero),
+                m.nivel.map { String(format: "%.2f", $0) } ?? "",
+                LigaMetrics.nivelDeSesion(m).map { String(format: "%.1f", $0) } ?? "",
+                m.totalGolpes.map(String.init) ?? "",
+                m.salud.map { String($0.duracionMin) } ?? "",
+                m.salud?.pulsoMedio.map(String.init) ?? "",
+                m.salud?.calorias.map(String.init) ?? "",
+                m.bienJugado ? "si" : "no",
+                campo(m.nota),
+            ].joined(separator: ";"))
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("liga-padel.csv")
+        guard let data = lineas.joined(separator: "\n").data(using: .utf8),
+              (try? data.write(to: url, options: .atomic)) != nil else { return nil }
+        return url
+    }
+
+    /// Punto y coma como separador (la convención de Excel en español) ⇒ los campos
+    /// libres no pueden llevarlo ni saltos de línea.
+    private func campo(_ texto: String) -> String {
+        texto.replacingOccurrences(of: ";", with: ",")
+            .replacingOccurrences(of: "\n", with: " ")
+    }
+
     /// El backup es el estado tal cual, igual que en la app Expo: reimportable allí.
     func exportBackup() -> URL? {
         guard let data = try? JSONEncoder().encode(state) else { return nil }

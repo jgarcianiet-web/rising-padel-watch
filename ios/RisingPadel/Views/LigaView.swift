@@ -55,6 +55,11 @@ struct LigaView: View {
                         } label: {
                             Label("Exportar copia", systemImage: "square.and.arrow.up")
                         }
+                        Button {
+                            exportURL = liga.exportCSV().map(ExportItem.init)
+                        } label: {
+                            Label("Exportar CSV", systemImage: "tablecells")
+                        }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                     }
