@@ -17,6 +17,8 @@
 // el partido. El sessionId es un UUID aleatorio — no se puede enumerar — y el estado no
 // lleva salud más allá del pulso instantáneo, que solo va si el emisor comparte salud.
 
+import { avisarPartidoEnVivo, comunidad, usuarioDe } from "./comunidad.js";
+
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 // Un partido dura dos horas; 6 de margen dejan ver el FINAL a quien llega tarde, y
@@ -35,7 +37,10 @@ export default {
       const key = `live:${live[1].toLowerCase()}`;
 
       if (request.method === "PUT") {
-        if (!autorizado(request, env)) return texto(401, "Token inválido");
+        // Dos formas de escribir: el token de usuario de la comunidad (lo normal una
+        // vez registrado) o el LIVE_TOKEN clásico de instalación a mano.
+        const user = env.DB ? await usuarioDe(request, env) : null;
+        if (!user && !autorizado(request, env)) return texto(401, "Token inválido");
         const body = await request.text();
         if (body.length > 16_384) return texto(413, "Estado demasiado grande");
         try {
@@ -43,7 +48,16 @@ export default {
         } catch {
           return texto(400, "El estado tiene que ser JSON");
         }
+        // El aviso a los seguidores sale solo con el PRIMER estado del partido: si ya
+        // había clave, es un punto más, no un partido nuevo.
+        const esNuevo = user && (await env.LIVE.get(key)) === null;
         await env.LIVE.put(key, body, { expirationTtl: LIVE_TTL_SECONDS });
+        if (user) {
+          await env.LIVE.put(`live-user:${user.alias}`, live[1].toLowerCase(), {
+            expirationTtl: 2 * 60 * 60,
+          });
+          if (esNuevo) await avisarPartidoEnVivo(env, user, live[1].toLowerCase());
+        }
         return new Response(null, { status: 204 });
       }
 
@@ -64,8 +78,16 @@ export default {
       return texto(405, "Método no soportado");
     }
 
+    // La comunidad entera vive en su módulo; D1 tiene que estar configurada.
+    if (path.startsWith("/v1/comunidad")) {
+      if (!env.DB) return texto(500, "Falta la base de datos D1 (ver README)");
+      const respuesta = await comunidad(request, env, path);
+      if (respuesta) return respuesta;
+    }
+
     if (path === "/v1/padel-sessions" && request.method === "POST") {
-      if (!autorizado(request, env)) return error(401, "unauthorized", "Token inválido");
+      const user = env.DB ? await usuarioDe(request, env) : null;
+      if (!user && !autorizado(request, env)) return error(401, "unauthorized", "Token inválido");
       let sesion;
       try {
         sesion = await request.json();

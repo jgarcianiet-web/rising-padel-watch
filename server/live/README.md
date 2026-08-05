@@ -66,6 +66,33 @@ https://rising-padel-live.<tu-subdominio>.workers.dev/<sessionId>
 (El `sessionId` de la sesión en curso; la app enseña el enlace en la portada del
 partido en vivo.)
 
+## La comunidad
+
+El mismo worker lleva la comunidad: cuentas por alias, seguir, muro con etiquetas y la
+notificación de "está jugando ahora". Necesita dos cosas más:
+
+```bash
+# 1. La base de datos (una vez)
+wrangler d1 create rising-padel
+#    → copia el database_id en wrangler.toml
+wrangler d1 execute rising-padel --file=schema.sql --remote
+
+# 2. Las notificaciones push (la misma clave .p8 de App Store Connect que usa CI)
+wrangler secret put APNS_KEY_P8    # pega el contenido del AuthKey_XXXX.p8
+wrangler secret put APNS_KEY_ID    # su Key ID
+wrangler secret put APNS_TEAM_ID   # el Team ID de Apple
+
+wrangler deploy
+```
+
+En la app, pestaña **Comunidad**: URL del worker + alias, y listo — el registro deja
+configurada también la liga (mismo token para subir sesiones, publicar el marcador en
+vivo y la comunidad). Al empezar un partido, tus seguidores reciben "«tu-alias» está
+jugando ahora" y un toque les abre el marcador en vivo.
+
+Moderación mínima de serie (lo que exige el App Store para contenido de usuarios):
+denunciar publicaciones y bloquear usuarios, desde el menú contextual de cada post.
+
 ## Actualizar
 
 Cambios en `src/index.js` se publican con `wrangler deploy` otra vez. El token y el

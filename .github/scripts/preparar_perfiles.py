@@ -36,7 +36,9 @@ KEY_PATH = os.environ["APPSTORE_KEY_PATH"]
 # Los nombres de perfil tienen que coincidir con PROVISIONING_PROFILE_SPECIFIER en
 # ios/project.yml y con provisioningProfiles en el ExportOptions del workflow.
 TARGETS = [
-    ("com.risingpadel.watch", "Rising Padel", "RisingPadel AppStore", []),
+    # PUSH: las notificaciones de la comunidad. Sin la capability, el perfil no cubre
+    # el entitlement aps-environment y la firma falla al validar.
+    ("com.risingpadel.watch", "Rising Padel", "RisingPadel AppStore", ["PUSH_NOTIFICATIONS"]),
     (
         "com.risingpadel.watch.watchkitapp",
         "Rising Padel Watch",

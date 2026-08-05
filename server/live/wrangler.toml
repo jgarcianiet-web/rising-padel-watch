@@ -14,5 +14,18 @@ binding = "LIVE"
 # Sustituir por el id que devuelve `wrangler kv namespace create LIVE`.
 id = "PON_AQUI_EL_ID_DEL_NAMESPACE"
 
-# El token de escritura NO va aquí: es un secreto.
-#   wrangler secret put LIVE_TOKEN
+# La comunidad (usuarios, seguir, muro). Crear con `wrangler d1 create rising-padel`
+# y aplicar el esquema: `wrangler d1 execute rising-padel --file=schema.sql --remote`.
+[[d1_databases]]
+binding = "DB"
+database_name = "rising-padel"
+database_id = "PON_AQUI_EL_ID_DE_D1"
+
+# Secretos (wrangler secret put <NOMBRE>):
+#   LIVE_TOKEN     token clásico de escritura (opcional una vez hay comunidad)
+#   APNS_KEY_P8    contenido del AuthKey_XXX.p8 de App Store Connect (el mismo de CI)
+#   APNS_KEY_ID    su Key ID
+#   APNS_TEAM_ID   el Team ID de Apple
+# Y una variable normal:
+[vars]
+APNS_TOPIC = "com.risingpadel.watch"

@@ -9,6 +9,7 @@ struct RootTabView: View {
     /// La liga vive aquí y no en AppModel: es un dominio con su propio fichero y su
     /// propio ciclo de vida, y el día que tenga cuentas será su propio módulo.
     @StateObject private var liga = LigaModel()
+    @StateObject private var comunidad = ComunidadModel()
 
     var body: some View {
         TabView {
@@ -18,8 +19,11 @@ struct RootTabView: View {
                 .tabItem { Label("Histórico", systemImage: "clock.arrow.circlepath") }
             LigaView()
                 .tabItem { Label("Liga", systemImage: "trophy.fill") }
+            ComunidadView()
+                .tabItem { Label("Comunidad", systemImage: "person.3.fill") }
         }
         .environmentObject(liga)
+        .environmentObject(comunidad)
         // Con el guardado automático activado, cada sesión con marcador que llega del
         // reloj se convierte en partido de la liga sin tocar nada. El id del partido es
         // la fecha de inicio, así que repetirse es inocuo (actualiza, no duplica).

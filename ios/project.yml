@@ -59,6 +59,11 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # El marcador del partido en la pantalla de bloqueo y la Dynamic Island.
         NSSupportsLiveActivities: true
+    entitlements:
+      path: RisingPadel/RisingPadel.entitlements
+      properties:
+        # Las notificaciones de la comunidad ("fulano está jugando", etiquetas).
+        aps-environment: production
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.risingpadel.watch
