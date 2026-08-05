@@ -5,6 +5,7 @@ struct SessionDetailView: View {
     let session: PadelSession
 
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var liga: LigaModel
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -350,23 +351,40 @@ struct SessionDetailView: View {
     // MARK: Liga y sincronización
 
     private var leagueCard: some View {
-        PadelCard(title: "Liga Pádel", icon: "arrow.up.forward.app") {
+        PadelCard(title: "Liga", icon: "trophy.fill") {
             VStack(alignment: .leading, spacing: 10) {
+                // La liga vive en esta misma app: guardar es local e instantáneo.
+                Button {
+                    liga.saveMatch(from: session, playerAverage: model.playerAverageLevel)
+                } label: {
+                    Label(
+                        liga.hasMatch(for: session)
+                            ? "Actualizar el partido en la liga"
+                            : "Guardar como partido de liga",
+                        systemImage: "trophy.fill"
+                    )
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(T.pista, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .foregroundStyle(.white)
+                }
+                .buttonStyle(.plain)
+
+                // El deep link a la app Expo se mantiene durante la transición: quien
+                // aún lleve la liga allí no pierde el puente.
                 Button {
                     if let url = model.leagueDeepLink(for: session) {
                         openURL(url)
                     }
                 } label: {
-                    Label("Enviar a Liga Pádel", systemImage: "arrow.up.forward.app")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(T.pista, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .foregroundStyle(.white)
+                    Label("Enviar a la app Liga Pádel", systemImage: "arrow.up.forward.app")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
                 }
                 .buttonStyle(.plain)
+                .foregroundStyle(T.pista)
 
-                Text("Abre la app de la liga con esta sesión lista para guardar como partido.")
+                Text("Resultado, nivel, golpes y gráficas quedan en la pestaña Liga.")
                     .font(.system(size: 11))
                     .foregroundStyle(T.tintaSuave)
             }

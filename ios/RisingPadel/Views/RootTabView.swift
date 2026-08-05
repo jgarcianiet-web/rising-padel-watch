@@ -6,6 +6,9 @@ import SwiftUI
 /// completo vive en su propia pestaña.
 struct RootTabView: View {
     @EnvironmentObject private var model: AppModel
+    /// La liga vive aquí y no en AppModel: es un dominio con su propio fichero y su
+    /// propio ciclo de vida, y el día que tenga cuentas será su propio módulo.
+    @StateObject private var liga = LigaModel()
 
     var body: some View {
         TabView {
@@ -13,7 +16,10 @@ struct RootTabView: View {
                 .tabItem { Label("Última sesión", systemImage: "figure.tennis") }
             SessionListView()
                 .tabItem { Label("Histórico", systemImage: "clock.arrow.circlepath") }
+            LigaView()
+                .tabItem { Label("Liga", systemImage: "trophy.fill") }
         }
+        .environmentObject(liga)
         // El azul de pista es el color de marca: tiñe pestañas, enlaces y controles.
         .tint(T.pista)
         // El aviso vive en la raíz y no en una pestaña: un mensaje de sincronización
@@ -39,7 +45,15 @@ struct LastSessionView: View {
     var body: some View {
         NavigationStack {
             Group {
-                if let last = model.sessions.first {
+                if let live = model.liveMatch {
+                    // Con un partido en marcha, la portada es el partido: nadie abre la
+                    // app a mitad de un set para ver la sesión de ayer.
+                    ScrollView {
+                        LiveMatchBanner(state: live)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                } else if let last = model.sessions.first {
                     SessionDetailView(session: last)
                 } else {
                     emptyState

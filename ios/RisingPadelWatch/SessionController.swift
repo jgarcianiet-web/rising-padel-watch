@@ -314,6 +314,22 @@ final class SessionController: ObservableObject {
 
         startTicker()
         status = .recording
+        publishLiveState(completed: false)
+    }
+
+    /// Manda el estado del partido al iPhone. Estado completo, no eventos: perder una
+    /// actualización da igual porque la siguiente trae la verdad entera.
+    private func publishLiveState(completed: Bool) {
+        guard trackScore, let recorder, let id = recorder.currentSessionId else { return }
+        transport.sendLiveState(LiveMatchState(
+            sessionId: id,
+            updatedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
+            completed: completed,
+            score: score,
+            shotCount: shotCount,
+            heartRateBpm: heartRateBpm,
+            elapsedSeconds: elapsedSeconds
+        ))
     }
 
     func stop() async {
@@ -322,6 +338,9 @@ final class SessionController: ObservableObject {
         stopTicker()
         motionRecorder.stop()
         await workoutManager.end()
+
+        // La última publicación en vivo lleva `completed`: el que mira deja de esperar.
+        publishLiveState(completed: true)
 
         // El marcador se adjunta antes de cerrar para que el resultado viaje dentro de la
         // sesión y no en un mensaje aparte que pueda perderse.
@@ -367,12 +386,14 @@ final class SessionController: ObservableObject {
         // marcadores y él decide si se cerró alguno y quién sacaba.
         recorder?.onScoreChanged(previous: before, current: after, monotonicMs: Self.monotonicMs())
         ScoreHaptics.play(ScoreEvent.between(before: before, after: after))
+        publishLiveState(completed: after.isFinished)
     }
 
     func undoPoint() {
         guard let board = scoreBoard, let restored = board.undo() else { return }
         score = restored
         ScoreHaptics.play(.undo)
+        publishLiveState(completed: false)
     }
 
     func acknowledge() {

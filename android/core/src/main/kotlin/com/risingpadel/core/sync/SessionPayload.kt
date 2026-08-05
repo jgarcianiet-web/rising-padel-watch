@@ -169,6 +169,26 @@ data class HeartRatePayload(
     val restingBpm: Int? = null,
 )
 
+/**
+ * Estado en vivo de un partido, para que otros lo sigan mientras se juega.
+ *
+ * Es **estado completo, no eventos**: cada actualización sustituye del todo a la
+ * anterior, así que perder una no rompe nada — la siguiente trae la verdad entera. Por
+ * eso se publica con PUT y sin cola de reintentos: reenviar un marcador viejo sería
+ * peor que no enviar nada.
+ */
+@Serializable
+data class LiveScorePayload(
+    val sessionId: String,
+    val updatedAt: String,
+    /** true en la última publicación: el partido acabó y el espectador deja de refrescar. */
+    val completed: Boolean,
+    val score: ScorePayload? = null,
+    val shotCount: Int = 0,
+    val heartRateBpm: Int? = null,
+    val elapsedSeconds: Long = 0,
+)
+
 @Serializable
 data class SessionRefResponse(
     val id: String,

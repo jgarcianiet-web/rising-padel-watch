@@ -248,6 +248,21 @@ class SessionPayloadTest {
     }
 
     @Test
+    fun `el estado en vivo sobrevive a la ida y vuelta`() {
+        val live = LiveScorePayload(
+            sessionId = "s1",
+            updatedAt = isoUtc(1_785_002_652_000),
+            completed = false,
+            score = session.copy(score = finishedMatch()).toPayload(shareHealth = false).score,
+            shotCount = 42,
+            heartRateBpm = 141,
+            elapsedSeconds = 1_800,
+        )
+        val encoded = json.encodeToString(LiveScorePayload.serializer(), live)
+        assertEquals(live, json.decodeFromString(LiveScorePayload.serializer(), encoded))
+    }
+
+    @Test
     fun `la URL base se compone bien con y sin barra final`() {
         assertEquals(
             "https://liga.example.com/api/v1/padel-sessions",

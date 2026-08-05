@@ -9,6 +9,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var sessions: [PadelSession] = []
     @Published var message: String?
 
+    /// Partido en curso en el reloj, o nil si no hay ninguno. Alimenta el banner en vivo.
+    @Published private(set) var liveMatch: LiveMatchState?
+
     @AppStorage("leagueBaseURL") var leagueBaseURL = ""
     @AppStorage("shareHealth") var shareHealth = false
     @AppStorage("shareShotEvents") var shareShotEvents = true
@@ -61,6 +64,9 @@ final class AppModel: ObservableObject {
                 try? FileManager.default.removeItem(at: destination)
                 try? FileManager.default.copyItem(at: url, to: destination)
                 Task { @MainActor in self?.refreshTrainingData() }
+            },
+            onLiveState: { [weak self] state in
+                Task { @MainActor in self?.receiveLive(state) }
             }
         )
         receiver.activate()
@@ -71,6 +77,25 @@ final class AppModel: ObservableObject {
 
     func refresh() {
         sessions = store.all()
+    }
+
+    // MARK: Marcador en vivo
+
+    /// Un estado viejo reentregado por el sistema no puede pisar uno más nuevo, y el
+    /// partido terminado se queda en pantalla como resultado final hasta que llega la
+    /// sesión completa del reloj (que lo sustituye con todo el detalle).
+    private func receiveLive(_ state: LiveMatchState) {
+        if let current = liveMatch, current.sessionId == state.sessionId,
+           state.updatedAtEpochMs < current.updatedAtEpochMs {
+            return
+        }
+        liveMatch = state
+
+        // Si hay liga configurada, el estado se republica para que otros lo sigan.
+        // Fuego y olvido: sin cola, la siguiente actualización corrige sola.
+        if let config = leagueConfig() {
+            Task { await LiveScorePublisher().publish(state, config: config) }
+        }
     }
 
     /// Nivel medio del jugador sobre su historial: la línea de referencia de las
@@ -222,6 +247,10 @@ final class AppModel: ObservableObject {
 
     /// Una sesión reenviada por el reloj no debe volver a la cola si ya se subió.
     private func receive(_ session: PadelSession) {
+        // La sesión completa sustituye al estado en vivo: mismo partido, más detalle.
+        if liveMatch?.sessionId == session.sessionId {
+            liveMatch = nil
+        }
         guard store.get(session.sessionId) == nil else { return }
         store.upsert(session)
         refresh()

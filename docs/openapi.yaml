@@ -71,6 +71,48 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  /v1/live/{sessionId}:
+    put:
+      summary: Publica el estado en vivo de un partido en curso
+      description: >
+        Estado completo, no eventos: cada PUT sustituye del todo al anterior, así que
+        perder uno no rompe nada. El emisor no reintenta a propósito — reenviar un
+        marcador viejo sería peor que un hueco. La última publicación lleva
+        completed=true.
+      security: [{ bearer: [] }]
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LiveScore' }
+      responses:
+        "204": { description: Estado guardado }
+        "401": { description: Token inválido }
+    get:
+      summary: Último estado publicado, para el espectador
+      description: >
+        Sin autenticación a propósito: el enlace se comparte con quien quiera seguir el
+        partido. El sessionId es un UUID aleatorio — no se puede enumerar — y el estado
+        no lleva ningún dato de salud más allá del pulso instantáneo, que el emisor solo
+        incluye si comparte salud.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Estado actual del partido
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LiveScore' }
+        "404": { description: No hay partido con ese id }
+
   /v1/me/matches:
     get:
       summary: Partidos del jugador en una ventana temporal (opcional)
@@ -256,6 +298,18 @@ components:
           description: >
             false si hubo menos de 30 golpeos puntuables. El número sigue estando, pero no
             conviene apoyarse en él.
+
+    LiveScore:
+      type: object
+      required: [sessionId, updatedAt, completed]
+      properties:
+        sessionId: { type: string, format: uuid }
+        updatedAt: { type: string, format: date-time }
+        completed: { type: boolean }
+        score: { $ref: '#/components/schemas/Score' }
+        shotCount: { type: integer, minimum: 0 }
+        heartRateBpm: { type: integer }
+        elapsedSeconds: { type: integer, minimum: 0 }
 
     Analytics:
       type: object

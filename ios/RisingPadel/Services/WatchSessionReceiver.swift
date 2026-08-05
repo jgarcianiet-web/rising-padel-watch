@@ -12,13 +12,16 @@ final class WatchSessionReceiver: NSObject {
     private let decoder = JSONDecoder()
     private let onSessionReceived: (PadelSession) -> Void
     private let onTrainingFileReceived: (URL) -> Void
+    private let onLiveState: (LiveMatchState) -> Void
 
     init(
         onSessionReceived: @escaping (PadelSession) -> Void,
-        onTrainingFileReceived: @escaping (URL) -> Void = { _ in }
+        onTrainingFileReceived: @escaping (URL) -> Void = { _ in },
+        onLiveState: @escaping (LiveMatchState) -> Void = { _ in }
     ) {
         self.onSessionReceived = onSessionReceived
         self.onTrainingFileReceived = onTrainingFileReceived
+        self.onLiveState = onLiveState
         super.init()
     }
 
@@ -46,6 +49,12 @@ final class WatchSessionReceiver: NSObject {
         try? WCSession.default.updateApplicationContext([PhoneTransportKeys.settings: data])
     }
 
+    private func handleLive(_ payload: [String: Any]) {
+        guard let data = payload[PhoneTransportKeys.liveScore] as? Data,
+              let state = try? decoder.decode(LiveMatchState.self, from: data) else { return }
+        onLiveState(state)
+    }
+
     private func handle(_ userInfo: [String: Any]) {
         guard let data = userInfo[PhoneTransportKeys.payload] as? Data,
               let session = try? decoder.decode(PadelSession.self, from: data) else {
@@ -64,6 +73,17 @@ extension WatchSessionReceiver: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
         handle(userInfo)
+    }
+
+    /// Canal rápido del marcador en vivo, cuando las dos apps están despiertas.
+    func session(_ session: WCSession, didReceiveMessage message: [String: Any]) {
+        handleLive(message)
+    }
+
+    /// Canal lento del marcador: el sistema entrega el **último** contexto al reconectar,
+    /// que es exactamente la semántica de un marcador (solo importa el estado actual).
+    func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
+        handleLive(context)
     }
 
     /// El fichero llega a una ubicación temporal que el sistema borra al volver de este
@@ -88,4 +108,5 @@ enum PhoneTransportKeys {
     static let sessionId = "padel_session_id"
     static let trainingFile = "padel_training_data"
     static let settings = "padel_settings"
+    static let liveScore = "padel_live_score"
 }

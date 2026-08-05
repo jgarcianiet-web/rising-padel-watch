@@ -99,6 +99,9 @@ class SessionRecorder(
     val shots: List<Shot> get() = collectedShots
     val isRecording: Boolean get() = sessionId != null
 
+    /** Identificador de la sesión en curso, para etiquetar el estado en vivo. */
+    val currentSessionId: String? get() = sessionId
+
     fun start(startedAtEpochMs: Long, monotonicMs: Long) {
         sessionId = sessionIdProvider()
         this.startedAtEpochMs = startedAtEpochMs

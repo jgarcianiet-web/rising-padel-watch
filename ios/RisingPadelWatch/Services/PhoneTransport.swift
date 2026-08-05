@@ -59,6 +59,22 @@ final class PhoneTransport: NSObject {
         }
     }
 
+    /// Envía el estado en vivo del partido al iPhone.
+    ///
+    /// Dos canales a la vez y a propósito: `sendMessage` llega al instante si el iPhone
+    /// está alcanzable, y `updateApplicationContext` guarda **el último** estado para
+    /// cuando no lo esté (el sistema entrega solo el más reciente al reconectar, que es
+    /// exactamente la semántica de un marcador). Perder mensajes intermedios da igual:
+    /// cada estado es completo.
+    func sendLiveState(_ state: LiveMatchState) {
+        guard WCSession.isSupported(), session.activationState == .activated,
+              let data = try? encoder.encode(state) else { return }
+        if session.isReachable {
+            session.sendMessage([Self.liveScoreKey: data], replyHandler: nil, errorHandler: nil)
+        }
+        try? session.updateApplicationContext([Self.liveScoreKey: data])
+    }
+
     /// Envía el fichero de datos de entrenamiento al iPhone.
     ///
     /// `transferFile` y no `transferUserInfo` porque el fichero puede pesar decenas de
@@ -74,6 +90,7 @@ final class PhoneTransport: NSObject {
     static let sessionIdKey = "padel_session_id"
     static let trainingFileKey = "padel_training_data"
     static let settingsKey = "padel_settings"
+    static let liveScoreKey = "padel_live_score"
 }
 
 extension PhoneTransport: WCSessionDelegate {

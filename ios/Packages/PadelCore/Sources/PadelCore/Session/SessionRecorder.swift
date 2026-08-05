@@ -97,6 +97,9 @@ public final class SessionRecorder {
     public var shots: [Shot] { collectedShots }
     public var isRecording: Bool { sessionId != nil }
 
+    /// Identificador de la sesión en curso, para etiquetar el estado en vivo.
+    public var currentSessionId: String? { sessionId }
+
     public init(
         source: SourceInfo,
         profile: PlayerProfile = PlayerProfile(),
