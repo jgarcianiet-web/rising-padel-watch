@@ -7,6 +7,10 @@ name: RisingPadel
 
 options:
   bundleIdPrefix: com.risingpadel
+  # La app se escribe en español; el catálogo de cadenas la sirve también en inglés.
+  # SwiftUI usa el literal de cada Text como clave: lo que está en el catálogo se
+  # traduce y lo que no, sale en español — nunca una clave rota en pantalla.
+  developmentLanguage: es
   deploymentTarget:
     iOS: "17.0"
     watchOS: "10.0"

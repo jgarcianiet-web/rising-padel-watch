@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.SportsTennis
 import androidx.compose.material3.Icon
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
 private object Routes {
     const val LAST = "last"
     const val SESSIONS = "sessions"
+    const val LIGA = "liga"
     const val SETTINGS = "settings"
     const val DETAIL = "sessions/{sessionId}"
 
@@ -114,7 +116,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
         bottomBar = {
             // Las pestañas solo se ven en las dos raíces: dentro de un detalle o de
             // ajustes la navegación es volver, no cambiar de pestaña.
-            if (currentRoute == Routes.LAST || currentRoute == Routes.SESSIONS) {
+            if (currentRoute == Routes.LAST || currentRoute == Routes.SESSIONS || currentRoute == Routes.LIGA) {
                 NavigationBar {
                     NavigationBarItem(
                         selected = currentRoute == Routes.LAST,
@@ -127,6 +129,12 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                         onClick = { navController.navigateTab(Routes.SESSIONS) },
                         icon = { Icon(Icons.Default.History, contentDescription = null) },
                         label = { Text("Histórico") },
+                    )
+                    NavigationBarItem(
+                        selected = currentRoute == Routes.LIGA,
+                        onClick = { navController.navigateTab(Routes.LIGA) },
+                        icon = { Icon(Icons.Default.EmojiEvents, contentDescription = null) },
+                        label = { Text("Liga") },
                     )
                 }
             }
@@ -170,6 +178,10 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onSyncNow = viewModel::syncNow,
                 )
+            }
+
+            composable(Routes.LIGA) {
+                com.risingpadel.mobile.ui.screens.LigaScreen()
             }
 
             composable(Routes.DETAIL) { entry ->
