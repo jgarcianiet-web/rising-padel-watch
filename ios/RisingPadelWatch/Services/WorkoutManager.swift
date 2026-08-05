@@ -29,20 +29,26 @@ final class WorkoutManager: NSObject {
 
     static var isSupported: Bool { HKHealthStore.isHealthDataAvailable() }
 
-    /// Pide permiso solo para lo que se usa. Si el usuario deniega, la sesión sigue
-    /// contando golpeos: los datos de salud son opcionales por diseño.
-    func requestAuthorization() async -> Bool {
+    /// Pide permiso solo para lo que se va a usar.
+    ///
+    /// Sin métricas se pide **únicamente** poder crear el workout, que es lo que
+    /// mantiene viva la captura de sensores: no se pide leer frecuencia cardiaca ni
+    /// nada más, así que el sistema no concede acceso a datos de salud que no se van a
+    /// mirar.
+    func requestAuthorization(includeMetrics: Bool) async -> Bool {
         guard Self.isSupported else { return false }
 
         let share: Set<HKSampleType> = [HKObjectType.workoutType()]
-        let read: Set<HKObjectType> = [
-            HKQuantityType(.heartRate),
-            HKQuantityType(.activeEnergyBurned),
-            HKQuantityType(.basalEnergyBurned),
-            HKQuantityType(.stepCount),
-            HKQuantityType(.distanceWalkingRunning),
-            HKObjectType.activitySummaryType(),
-        ]
+        let read: Set<HKObjectType> = includeMetrics
+            ? [
+                HKQuantityType(.heartRate),
+                HKQuantityType(.activeEnergyBurned),
+                HKQuantityType(.basalEnergyBurned),
+                HKQuantityType(.stepCount),
+                HKQuantityType(.distanceWalkingRunning),
+                HKObjectType.activitySummaryType(),
+            ]
+            : []
 
         return await withCheckedContinuation { continuation in
             healthStore.requestAuthorization(toShare: share, read: read) { granted, _ in
@@ -51,38 +57,53 @@ final class WorkoutManager: NSObject {
         }
     }
 
-    func start() throws {
+    /// Arranca el workout.
+    ///
+    /// - Parameter collectMetrics: con `false` se crea la sesión **sin** recolector: no
+    ///   se lee ni se guarda ningún dato de salud, y al cerrarla no queda entrenamiento
+    ///   en la app Salud. La sesión se arranca igualmente porque en watchOS es lo que
+    ///   impide que el sistema suspenda la app y corte el acelerómetro al apagarse la
+    ///   pantalla — ver `docs/setup.md`.
+    func start(collectMetrics: Bool) throws {
         let configuration = HKWorkoutConfiguration()
         configuration.activityType = .tennis
         configuration.locationType = .indoor
 
         let session = try HKWorkoutSession(healthStore: healthStore, configuration: configuration)
-        let builder = session.associatedWorkoutBuilder()
-        builder.dataSource = HKLiveWorkoutDataSource(
-            healthStore: healthStore,
-            workoutConfiguration: configuration
-        )
         session.delegate = self
-        builder.delegate = self
-
         self.session = session
-        self.builder = builder
 
         let startDate = Date()
-        session.startActivity(with: startDate)
-        builder.beginCollection(withStart: startDate) { _, _ in }
+
+        if collectMetrics {
+            let builder = session.associatedWorkoutBuilder()
+            builder.dataSource = HKLiveWorkoutDataSource(
+                healthStore: healthStore,
+                workoutConfiguration: configuration
+            )
+            builder.delegate = self
+            self.builder = builder
+            session.startActivity(with: startDate)
+            builder.beginCollection(withStart: startDate) { _, _ in }
+        } else {
+            session.startActivity(with: startDate)
+        }
     }
 
-    /// Cierra el workout y lo guarda en Salud. No propaga errores: una sesión medida es
-    /// más valiosa que un fallo al archivarla, y los golpeos ya están en memoria.
+    /// Cierra el workout y, si se estaban recogiendo métricas, lo guarda en Salud. No
+    /// propaga errores: una sesión medida es más valiosa que un fallo al archivarla, y
+    /// los golpeos ya están en memoria.
     func end() async {
-        guard let session, let builder else { return }
-        let endDate = Date()
+        guard let session else { return }
         session.end()
-        await withCheckedContinuation { continuation in
-            builder.endCollection(withEnd: endDate) { _, _ in
-                builder.finishWorkout { _, _ in
-                    continuation.resume()
+
+        if let builder {
+            let endDate = Date()
+            await withCheckedContinuation { continuation in
+                builder.endCollection(withEnd: endDate) { _, _ in
+                    builder.finishWorkout { _, _ in
+                        continuation.resume()
+                    }
                 }
             }
         }

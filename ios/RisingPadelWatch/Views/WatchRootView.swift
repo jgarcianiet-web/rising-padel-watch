@@ -162,6 +162,13 @@ struct WatchRootView: View {
                     .multilineTextAlignment(.center)
             }
 
+            if controller.sensorsMayStop {
+                Text("Sin permiso de entreno: puede dejar de contar con la pantalla apagada")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+
             Button("Parar") {
                 Task { await controller.stop() }
             }

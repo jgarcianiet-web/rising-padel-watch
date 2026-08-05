@@ -26,6 +26,9 @@ final class SessionController: ObservableObject {
     @Published private(set) var heartRateBpm: Int?
     @Published private(set) var lastShotType: ShotType?
     @Published private(set) var statusMessage: String?
+    /// true si no se pudo arrancar el workout: sin él watchOS suspende la app al
+    /// apagarse la pantalla y se dejan de contar golpeos.
+    @Published private(set) var sensorsMayStop = false
     /// Marcador en curso, o nil si se juega sin llevarlo.
     @Published private(set) var score: MatchScore?
     /// Nivel técnico de la sesión recién cerrada. Nil mientras se juega.
@@ -179,6 +182,11 @@ final class SessionController: ObservableObject {
         trainingRecording = true
         trainingCapturedInBatch = 0
 
+        // Igual que en un partido: sin workout, watchOS suspende la app al apagarse la
+        // pantalla y la tanda se queda en los primeros golpes. Sin métricas: una tanda
+        // de datos no es un entrenamiento que haya que guardar en Salud.
+        await startWorkoutRuntime(collectMetrics: false)
+
         motionRecorder.start(sampleRateHz: DetectorConfig.default.sampleRateHz) { [weak self] sample in
             // Se escribe cada golpeo en cuanto está listo, no al final de la tanda: si
             // el reloj se queda sin batería a mitad, se pierde como mucho el último.
@@ -191,9 +199,28 @@ final class SessionController: ObservableObject {
         }
     }
 
-    func stopTraining() {
+    /// Arranca el workout que mantiene vivos los sensores y avisa si no se pudo.
+    ///
+    /// Que falle no aborta la sesión —se siguen contando los golpeos que lleguen— pero
+    /// el usuario tiene que saberlo: sin workout la captura se corta al apagarse la
+    /// pantalla, y un conteo silenciosamente incompleto es peor que un aviso.
+    private func startWorkoutRuntime(collectMetrics: Bool) async {
+        sensorsMayStop = true
+        guard WorkoutManager.isSupported,
+              await workoutManager.requestAuthorization(includeMetrics: collectMetrics)
+        else { return }
+        do {
+            try workoutManager.start(collectMetrics: collectMetrics)
+            sensorsMayStop = false
+        } catch {
+            sensorsMayStop = true
+        }
+    }
+
+    func stopTraining() async {
         guard let recorder = trainingRecorder else { return }
         motionRecorder.stop()
+        await workoutManager.end()
         trainingStore.appendAll(recorder.stop())
         trainingCapturedInBatch = recorder.capturedCount
         trainingRecorder = nil
@@ -255,14 +282,20 @@ final class SessionController: ObservableObject {
             score = board.current
         }
 
-        // Los datos de salud son opcionales: si el usuario no ha dado consentimiento no
-        // se arranca el workout, así que ni siquiera se miden.
-        if shareHealth, WorkoutManager.isSupported, await workoutManager.requestAuthorization() {
+        // El workout se arranca **siempre**, con o sin consentimiento de salud: en
+        // watchOS es lo único que impide que el sistema suspenda la app y corte el
+        // acelerómetro en cuanto se apaga la pantalla. Sin él se pierden la mayoría de
+        // los golpeos de un partido.
+        //
+        // El consentimiento sigue mandando sobre lo que importa: con `shareHealth` en
+        // false no se pide permiso de lectura, no se recoge ninguna métrica y no queda
+        // entrenamiento guardado en Salud.
+        if shareHealth {
             workoutManager.onMetrics = { [weak self] metrics in
                 Task { @MainActor in self?.apply(metrics) }
             }
-            try? workoutManager.start()
         }
+        await startWorkoutRuntime(collectMetrics: shareHealth)
 
         motionRecorder.start(sampleRateHz: DetectorConfig.default.sampleRateHz) { [weak self] sample in
             // El handler llega en la cola de sensores; solo se salta al hilo principal

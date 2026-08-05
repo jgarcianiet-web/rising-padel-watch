@@ -38,6 +38,13 @@ Lo que sí: **una tanda por tipo de golpe, con la etiqueta puesta antes de golpe
 4. Da **30-40 golpes seguidos solo de ese tipo**. El contador sube en cada uno.
 5. **Parar tanda**, cambia de tipo, repite.
 
+> **El permiso de entreno hay que concederlo.** Al grabar, el reloj arranca una sesión de
+> entrenamiento: es lo único que impide que el sistema suspenda la app y corte el
+> acelerómetro al apagarse la pantalla. Si se deniega, la tanda se queda en los primeros
+> golpes —50 golpeados, 10 grabados— y por eso la pantalla avisa en rojo cuando pasa. No
+> se lee ningún dato de salud en este modo ni queda entrenamiento guardado en Salud: la
+> sesión existe solo para que los sensores sigan llegando.
+
 Media hora en pista da unos 400 golpeos limpios.
 
 ### Cuántos y de quién

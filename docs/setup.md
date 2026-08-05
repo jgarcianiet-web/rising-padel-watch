@@ -177,7 +177,15 @@ sesión por consola.
 2. Configura mano y muñeca **en el móvil**. Se replican solas al reloj; no hay que tocar
    nada en la muñeca. Si el reloj estaba apagado, los recibe al encenderse.
 3. Decide si quieres compartir datos de salud. Si lo dejas apagado, el reloj **no los
-   mide siquiera**.
+   mide siquiera**: no se pide permiso de lectura, no se recoge ninguna métrica y no
+   queda entrenamiento guardado en Salud.
+
+   Lo que sí se arranca en los dos casos es la **sesión de entrenamiento** del sistema, y
+   hay que concederla. No es por los datos: en watchOS es lo único que impide que el
+   sistema suspenda la app y corte el acelerómetro al apagarse la pantalla. Sin ella se
+   cuentan los primeros golpeos y se pierden el resto — el síntoma es "he dado 50 golpes
+   y ha recogido 10". La app avisa en rojo si no lo consigue. (En Wear OS el papel lo
+   hace el servicio en primer plano, que ya funcionaba así.)
 4. Valida el signo del giróscopo: juega diez derechas y diez reveses y mira el desglose
    por tipo. Si salen cambiados, pon `invertAxialSign = true` en `DetectorConfig` (ver
    [`shot-detection.md`](./shot-detection.md)).

@@ -34,7 +34,15 @@ struct TrainingView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                Button("Parar tanda") { controller.stopTraining() }
+                if controller.sensorsMayStop {
+                    // Sin workout la app se suspende al apagarse la pantalla y la tanda
+                    // se queda a medias: mejor decirlo que devolver 10 de 50 golpes.
+                    Text("Sin permiso de entreno: la grabación puede pararse al apagarse la pantalla")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                }
+                Button("Parar tanda") { Task { await controller.stopTraining() } }
                     .buttonStyle(.bordered)
             } else {
                 Text("Datos de entrenamiento")
