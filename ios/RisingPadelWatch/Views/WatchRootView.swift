@@ -8,6 +8,9 @@ struct WatchRootView: View {
     @State private var showTraining = false
     /// La pantalla inicial es una decisión (¿partido o entreno?), no un formulario.
     @State private var choosingFormat = false
+    /// Segundo paso del partido: quién saca. Es la única pregunta que no se puede
+    /// deducir después y sin ella no hay análisis de saque contra resto.
+    @State private var choosingServer = false
 
     var body: some View {
         Group {
@@ -53,19 +56,24 @@ struct WatchRootView: View {
     /// puerta de la pista se elige qué se va a jugar, no se configura nada.
     @ViewBuilder
     private var idleContent: some View {
-        if choosingFormat {
+        if choosingServer {
+            serverChooser
+        } else if choosingFormat {
             formatChooser
         } else {
             VStack(spacing: 8) {
-                Text("Rising Padel")
-                    .font(.headline)
-                Button("Partido") { choosingFormat = true }
-                    .buttonStyle(.borderedProminent)
-                Button("Entreno") {
+                Text("RISING PADEL")
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .kerning(1.4)
+                    .foregroundStyle(.tint)
+
+                bigButton("Partido", icon: "trophy.fill", prominent: true) {
+                    choosingFormat = true
+                }
+                bigButton("Entreno", icon: "figure.tennis", prominent: false) {
                     trackScore = false
                     Task { await controller.start() }
                 }
-                .buttonStyle(.bordered)
 
                 // Solo con la recogida de datos activada en el iPhone: es un modo para
                 // quien construye el dataset, no para jugar.
@@ -81,15 +89,43 @@ struct WatchRootView: View {
         }
     }
 
-    /// Elegir el formato ES arrancar el partido: un toque, sin pantalla extra de
-    /// confirmación. El último formato usado va marcado.
+    /// Botón ancho con icono: en una muñeca lo que importa es el área de toque, no la
+    /// densidad. Un botón que ocupa el ancho se acierta sin mirar.
+    ///
+    /// El estilo se elige con un `if` y no con un ternario porque `.bordered` y
+    /// `.borderedProminent` son tipos distintos y el ternario no compila.
+    @ViewBuilder
+    private func bigButton(
+        _ title: String,
+        icon: String,
+        prominent: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        if prominent {
+            Button(action: action) { bigLabel(title, icon: icon) }
+                .buttonStyle(.borderedProminent)
+        } else {
+            Button(action: action) { bigLabel(title, icon: icon) }
+                .buttonStyle(.bordered)
+        }
+    }
+
+    private func bigLabel(_ title: String, icon: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 13, weight: .semibold))
+            Text(title).font(.system(size: 15, weight: .semibold, design: .rounded))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 3)
+    }
+
+    /// Formato de 40-40. Ya no arranca el partido: falta saber quién saca, y preguntarlo
+    /// después evita que un toque de más se lleve por delante la elección.
     private var formatChooser: some View {
         VStack(spacing: 6) {
             Text("¿A 40-40?")
-                .font(.caption)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.secondary)
-            // El estilo se decide con un if y no con un ternario: `.bordered` y
-            // `.borderedProminent` son tipos distintos y el ternario no compila.
             ForEach(DeuceFormat.allCases, id: \.self) { format in
                 if format == currentDeuceFormat {
                     formatButton(format).buttonStyle(.borderedProminent)
@@ -97,19 +133,50 @@ struct WatchRootView: View {
                     formatButton(format).buttonStyle(.bordered)
                 }
             }
-            Button("Atrás") { choosingFormat = false }
-                .font(.caption2)
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
+            backButton { choosingFormat = false }
         }
+    }
+
+    /// Quién saca el primer juego. Es la única pregunta del partido que no se puede
+    /// deducir después, y con ella el análisis separa lo que pasa sacando de lo que pasa
+    /// restando — que en pádel son dos partidos distintos.
+    private var serverChooser: some View {
+        VStack(spacing: 6) {
+            Text("¿Quién saca?")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+            bigButton("Nosotros", icon: "figure.tennis", prominent: true) {
+                start(server: .us)
+            }
+            bigButton("Ellos", icon: "person.2.fill", prominent: false) {
+                start(server: .them)
+            }
+            backButton {
+                choosingServer = false
+                choosingFormat = true
+            }
+        }
+    }
+
+    private func start(server: Side) {
+        controller.firstServer = server
+        trackScore = true
+        choosingServer = false
+        Task { await controller.start() }
+    }
+
+    private func backButton(_ action: @escaping () -> Void) -> some View {
+        Button("Atrás", action: action)
+            .font(.caption2)
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
     }
 
     private func formatButton(_ format: DeuceFormat) -> some View {
         Button {
             deuceFormatRaw = format.rawValue
-            trackScore = true
             choosingFormat = false
-            Task { await controller.start() }
+            choosingServer = true
         } label: {
             HStack {
                 Text(format.label).font(.caption)
@@ -118,6 +185,7 @@ struct WatchRootView: View {
                     Image(systemName: "checkmark").font(.system(size: 10))
                 }
             }
+            .frame(maxWidth: .infinity)
         }
     }
 

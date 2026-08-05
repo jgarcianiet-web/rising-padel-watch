@@ -29,6 +29,25 @@ public struct MatchRef: Codable, Equatable, Sendable {
     }
 }
 
+/// Un juego terminado: cuándo acabó, quién sacaba y quién lo ganó.
+///
+/// Es lo que permite separar el rendimiento **al saque** del rendimiento **al resto**, que
+/// en pádel son dos juegos distintos: con el saque en la mano subes a la red desde el
+/// primer golpe, y restando tienes que ganártela. Sin esta lista, un golpeo es solo un
+/// golpeo y no se puede decir en cuál de las dos situaciones juegas mejor.
+public struct GameRecord: Codable, Equatable, Sendable {
+    /// Milisegundos desde el inicio de la sesión hasta el final del juego.
+    public let offsetMs: Int64
+    public let server: Side
+    public let winner: Side
+
+    public init(offsetMs: Int64, server: Side, winner: Side) {
+        self.offsetMs = offsetMs
+        self.server = server
+        self.winner = winner
+    }
+}
+
 public struct ShotIntensity: Codable, Equatable, Sendable {
     public let meanRacketSpeedKmh: Float
     public let maxRacketSpeedKmh: Float
@@ -216,6 +235,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public let health: HealthMetrics
     /// Marcador del partido. Nil si se jugó sin llevarlo (entreno suelto).
     public let score: MatchScore?
+    /// Juegos terminados, en orden. Vacío si se jugó sin marcador.
+    public let games: [GameRecord]
     public var matchRef: MatchRef?
     public var sync: SyncStatus
 
@@ -230,6 +251,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         shots: [Shot],
         health: HealthMetrics = .empty,
         score: MatchScore? = nil,
+        games: [GameRecord] = [],
         matchRef: MatchRef? = nil,
         sync: SyncStatus = SyncStatus()
     ) {
@@ -241,6 +263,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         self.shots = shots
         self.health = health
         self.score = score
+        self.games = games
         self.matchRef = matchRef
         self.sync = sync
     }

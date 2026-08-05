@@ -276,7 +276,7 @@ final class SessionController: ObservableObject {
                     deuceFormat: DeuceFormat(rawValue: deuceFormatRaw) ?? .goldenPoint,
                     setsToWin: setsToWin
                 ),
-                firstServer: .us
+                firstServer: firstServer
             )
             scoreBoard = board
             score = board.current
@@ -347,12 +347,20 @@ final class SessionController: ObservableObject {
         applyRemoteSettings(pending)
     }
 
+    /// Quién saca el primer juego. Se pregunta al empezar el partido porque sin ello no
+    /// se puede separar el rendimiento al saque del rendimiento al resto, que en pádel
+    /// son dos partidos distintos. Ver `docs/insights.md`.
+    @Published var firstServer: Side = .us
+
     /// Anota un punto y devuelve la vibración correspondiente al evento.
     func pointTo(_ side: Side) {
         guard let board = scoreBoard, !board.current.isFinished else { return }
         let before = board.current
         let after = board.point(to: side)
         score = after
+        // El registro de juegos vive en el core: aquí solo se le pasan los dos
+        // marcadores y él decide si se cerró alguno y quién sacaba.
+        recorder?.onScoreChanged(previous: before, current: after, monotonicMs: Self.monotonicMs())
         ScoreHaptics.play(ScoreEvent.between(before: before, after: after))
     }
 

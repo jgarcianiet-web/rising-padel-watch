@@ -70,11 +70,103 @@ public struct InsightEngine: Sendable {
     }
 
     public func insights(for session: PadelSession) -> [Insight] {
-        rallyInsight(session.shots)
+        serveInsights(session)
+            + rallyInsight(session.shots)
             + heartRateInsight(session)
             + fatigueInsight(session)
             + shotQualityInsights(session)
             + trainingSuggestions(session)
+    }
+
+    // MARK: Con el saque en la mano contra al resto
+
+    /// Cuánto rindes sacando y cuánto restando.
+    ///
+    /// En pádel son dos partidos distintos: con el saque subes a la red desde el primer
+    /// golpe, y restando tienes que ganártela. Un jugador que gana el 80% de sus juegos
+    /// al saque y el 20% al resto no tiene un problema de golpeo, tiene un problema de
+    /// subida.
+    ///
+    /// Se miran dos cosas por separado porque responden a preguntas distintas: **los
+    /// juegos ganados** dicen el resultado, y **la calidad del golpeo** dice por qué.
+    private func serveInsights(_ session: PadelSession) -> [Insight] {
+        let games = session.games
+        guard games.count >= Self.minGames else { return [] }
+        var result: [Insight] = []
+
+        let serving = games.filter { $0.server == .us }
+        let returning = games.filter { $0.server == .them }
+        if serving.count >= Self.minGamesPerSide, returning.count >= Self.minGamesPerSide {
+            let wonServing = serving.filter { $0.winner == .us }.count
+            let wonReturning = returning.filter { $0.winner == .us }.count
+            let pctServing = Int((Float(wonServing) * 100 / Float(serving.count)).rounded())
+            let pctReturning = Int((Float(wonReturning) * 100 / Float(returning.count)).rounded())
+
+            if pctServing >= pctReturning {
+                result.append(Insight(
+                    category: .matchAnalysis,
+                    headline: "Aguantas tu saque",
+                    detail: "Ganaste \(wonServing) de \(serving.count) juegos con el saque en la "
+                        + "mano (\(pctServing)%) y \(wonReturning) de \(returning.count) al resto "
+                        + "(\(pctReturning)%). El partido se te va en los juegos de resto: ahí es "
+                        + "donde más tienes que ganar.",
+                    evidence: games.count
+                ))
+            } else {
+                result.append(Insight(
+                    category: .matchAnalysis,
+                    headline: "Se te escapa tu saque",
+                    detail: "Ganaste solo \(wonServing) de \(serving.count) juegos sacando "
+                        + "(\(pctServing)%) frente a \(wonReturning) de \(returning.count) al "
+                        + "resto (\(pctReturning)%). Perder el saque cuesta doble: revisa la "
+                        + "subida a la red después de sacar.",
+                    evidence: games.count
+                ))
+            }
+        }
+
+        // Calidad del golpeo en cada situación: explica el resultado de arriba.
+        let servingShots = shotsWhileServing(session, server: .us)
+        let returningShots = shotsWhileServing(session, server: .them)
+        if servingShots.count >= Self.minEvidence, returningShots.count >= Self.minEvidence,
+           let servingGrade = meanGrade(servingShots), let returningGrade = meanGrade(returningShots) {
+            let delta = servingGrade - returningGrade
+            if abs(delta) >= Self.minLevelDelta {
+                let percent = percentChange(from: returningGrade, to: servingGrade)
+                let advice = delta > 0
+                    ? "Aprovecha los juegos de saque para ir por el partido; al resto, juega más "
+                        + "seguro hasta poder subir."
+                    : "Sacando te precipitas: el saque es solo la puesta en juego, el punto se "
+                        + "gana en la red."
+                result.append(Insight(
+                    category: .strengths,
+                    headline: delta > 0 ? "Juegas mejor sacando" : "Juegas mejor restando",
+                    detail: "Con el saque tu nivel medio es \(format(servingGrade)) y al resto "
+                        + "\(format(returningGrade)) (\(percent)%). " + advice,
+                    evidence: servingShots.count + returningShots.count
+                ))
+            }
+        }
+        return result
+    }
+
+    /// Golpeos dados mientras sacaba un lado.
+    ///
+    /// Cada juego cubre desde el final del anterior hasta el suyo; el primero arranca en
+    /// el inicio de la sesión. Los golpeos posteriores al último juego cerrado quedan
+    /// fuera: pertenecen a un juego sin terminar y no se sabe quién lo ganará.
+    public func shotsWhileServing(_ session: PadelSession, server: Side) -> [Shot] {
+        var previousEnd: Int64 = 0
+        var result: [Shot] = []
+        for game in session.games {
+            if game.server == server {
+                result += session.shots.filter {
+                    $0.offsetMs > previousEnd && $0.offsetMs <= game.offsetMs
+                }
+            }
+            previousEnd = game.offsetMs
+        }
+        return result
     }
 
     // MARK: Puntos largos contra puntos cortos
@@ -349,6 +441,8 @@ public struct InsightEngine: Sendable {
     private static let minShotsPerType = 8
     private static let minShotsForRepertoire = 60
     private static let minHrSamples = 6
+    private static let minGames = 4
+    private static let minGamesPerSide = 2
     /// Media décima de nivel no la nota nadie; media unidad sí.
     private static let minLevelDelta: Float = 0.3
     private static let lowConsistency: Float = 0.6

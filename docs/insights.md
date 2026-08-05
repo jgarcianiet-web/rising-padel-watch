@@ -32,6 +32,8 @@ De ahí salen las tres decisiones de diseño:
 
 | Idea | De dónde sale | Cuándo aparece |
 |---|---|---|
+| Sacando vs restando (resultado) | Juegos ganados con el saque en la mano frente a los ganados al resto | 4+ juegos cerrados, 2+ de cada lado |
+| Sacando vs restando (golpeo) | Nota media de los golpeos de cada juego, atribuidos por su minuto | 15+ golpeos en cada situación y ≥0.3 de diferencia |
 | Puntos largos vs cortos | Los golpeos se agrupan en puntos por el hueco entre ellos (>4 s = punto nuevo) y se compara la nota media | 15+ golpeos en cada grupo y ≥0.3 de diferencia |
 | Pulso vs rendimiento | A cada golpeo se le asigna la lectura de pulso vigente y se comparan los que van por encima y por debajo del pulso medio | 6+ lecturas de pulso y 15+ golpeos a cada lado |
 | Cómo llegaste al final | Primer tercio contra último tercio de la curva de progreso | 4+ puntos de la curva y ≥0.3 de diferencia |
@@ -39,6 +41,22 @@ De ahí salen las tres decisiones de diseño:
 | Regularidad | `consistency` de la estimación de nivel | Por debajo del 60% |
 | Falta juego alto | Tipos que no aparecieron en la sesión | 60+ golpeos sin bandeja, víbora ni remate |
 | Qué entrenar | El tipo de golpe con peor nota respecto al nivel global | 8+ golpeos de ese tipo |
+
+## Quién saca, y por qué se pregunta
+
+Al empezar un partido el reloj pregunta **quién saca el primer juego**. Es la única
+pregunta del partido que no se puede deducir después: el marcador rota el saque solo, pero
+solo si sabe por dónde empezar.
+
+Con eso, cada juego cerrado se guarda como `GameRecord(offsetMs, server, winner)` y los
+golpeos se atribuyen al juego en el que cayeron. Eso permite separar **sacando** de
+**restando**, que en pádel son dos partidos distintos: con el saque en la mano subes a la
+red desde el primer golpe, y restando tienes que ganártela. Un jugador que gana el 80% de
+sus juegos al saque y el 20% al resto no tiene un problema de golpeo, tiene un problema de
+subida — y sin esta separación las dos cosas se mezclan en una media que no dice nada.
+
+Los golpeos posteriores al último juego cerrado no cuentan: pertenecen a un juego sin
+terminar del que no se sabe el desenlace.
 
 ## La serie de pulso
 

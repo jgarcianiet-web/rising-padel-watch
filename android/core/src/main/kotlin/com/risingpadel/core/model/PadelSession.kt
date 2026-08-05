@@ -24,6 +24,22 @@ data class MatchRef(
     val leagueId: String? = null,
 )
 
+/**
+ * Un juego terminado: cuándo acabó, quién sacaba y quién lo ganó.
+ *
+ * Es lo que permite separar el rendimiento **al saque** del rendimiento **al resto**, que
+ * en pádel son dos juegos distintos: con el saque en la mano subes a la red desde el
+ * primer golpe, y restando tienes que ganártela. Sin esta lista, un golpeo es solo un
+ * golpeo y no se puede decir en cuál de las dos situaciones juegas mejor.
+ */
+@Serializable
+data class GameRecord(
+    /** Milisegundos desde el inicio de la sesión hasta el final del juego. */
+    val offsetMs: Long,
+    val server: com.risingpadel.core.score.Side,
+    val winner: com.risingpadel.core.score.Side,
+)
+
 @Serializable
 data class ShotIntensity(
     val meanRacketSpeedKmh: Float,
@@ -145,6 +161,8 @@ data class PadelSession(
     val health: HealthMetrics = HealthMetrics.EMPTY,
     /** Marcador del partido. Null si se jugó sin llevarlo (entreno suelto). */
     val score: MatchScore? = null,
+    /** Juegos terminados, en orden. Vacío si se jugó sin marcador. */
+    val games: List<GameRecord> = emptyList(),
     val matchRef: MatchRef? = null,
     val sync: SyncStatus = SyncStatus(),
 ) {

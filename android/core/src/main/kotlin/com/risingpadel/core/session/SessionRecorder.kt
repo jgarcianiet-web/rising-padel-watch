@@ -2,6 +2,7 @@ package com.risingpadel.core.session
 
 import com.risingpadel.core.detection.DetectorConfig
 import com.risingpadel.core.detection.ShotDetector
+import com.risingpadel.core.model.GameRecord
 import com.risingpadel.core.model.HealthMetrics
 import com.risingpadel.core.model.HeartRateSample
 import com.risingpadel.core.model.HeartRateSummary
@@ -13,6 +14,7 @@ import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.model.Shot
 import com.risingpadel.core.model.SourceInfo
 import com.risingpadel.core.score.MatchScore
+import com.risingpadel.core.score.Side
 import kotlin.math.roundToInt
 
 /**
@@ -57,6 +59,36 @@ class SessionRecorder(
 
     var matchRef: MatchRef? = null
 
+    private val gameRecords = mutableListOf<GameRecord>()
+
+    /** Juegos cerrados hasta ahora. */
+    val games: List<GameRecord> get() = gameRecords
+
+    /**
+     * Avisa de un cambio del marcador para anotar los juegos que se cierren.
+     *
+     * Se compara antes/después en vez de que el llamante decida: así el reloj solo tiene
+     * que pasar los dos marcadores y la regla de "cuándo se cerró un juego y quién
+     * sacaba" vive en un único sitio, con tests.
+     *
+     * El servidor del juego es el de **antes** del punto: al cerrarse un juego el
+     * marcador ya ha rotado el saque para el siguiente.
+     */
+    fun onScoreChanged(previous: MatchScore, current: MatchScore, monotonicMs: Long) {
+        val closedForUs = current.gamesWon(Side.US) - previous.gamesWon(Side.US)
+        val closedForThem = current.gamesWon(Side.THEM) - previous.gamesWon(Side.THEM)
+        val winner = when {
+            closedForUs > 0 -> Side.US
+            closedForThem > 0 -> Side.THEM
+            else -> return
+        }
+        gameRecords += GameRecord(
+            offsetMs = (monotonicMs - startedAtMonotonicMs).coerceAtLeast(0),
+            server = previous.server,
+            winner = winner,
+        )
+    }
+
     /**
      * Marcador del partido, si el jugador lo está llevando. El reloj lo mantiene aparte
      * del conteo de golpeos: se puede jugar con marcador y sin él, y una sesión sin
@@ -72,6 +104,7 @@ class SessionRecorder(
         this.startedAtEpochMs = startedAtEpochMs
         this.startedAtMonotonicMs = monotonicMs
         collectedShots.clear()
+        gameRecords.clear()
         lastHeartRateBpm = null
         lastHeartRateAtMs = null
         maxObservedBpm = 0
@@ -154,6 +187,7 @@ class SessionRecorder(
             shots = collectedShots.toList(),
             health = if (shareHealth) buildHealth() else HealthMetrics.EMPTY,
             score = score,
+            games = gameRecords.toList(),
             matchRef = matchRef,
         )
         sessionId = null

@@ -92,6 +92,9 @@ data class MatchScore(
 
     fun setsWon(side: Side): Int = completedSets.count { it.forSide(side) > it.forSide(side.other) }
 
+    /** Juegos ganados por un lado en todo el partido, sets cerrados incluidos. */
+    fun gamesWon(side: Side): Int = allSets.sumOf { it.forSide(side) }
+
     fun pointsFor(side: Side): Int = if (side == Side.US) usPoints else themPoints
 
     /**

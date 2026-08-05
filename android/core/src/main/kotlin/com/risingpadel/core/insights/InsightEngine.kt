@@ -6,6 +6,7 @@ import com.risingpadel.core.model.HeartRateSample
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.model.Shot
 import com.risingpadel.core.model.ShotType
+import com.risingpadel.core.score.Side
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -54,11 +55,111 @@ class InsightEngine(
 ) {
 
     fun insights(session: PadelSession): List<Insight> = buildList {
+        addAll(serveInsights(session))
         addAll(rallyInsight(session.shots))
         addAll(heartRateInsight(session))
         addAll(fatigueInsight(session))
         addAll(shotQualityInsights(session))
         addAll(trainingSuggestions(session))
+    }
+
+    // MARK: Con el saque en la mano contra al resto
+
+    /**
+     * Cuánto rindes sacando y cuánto restando.
+     *
+     * En pádel son dos partidos distintos: con el saque subes a la red desde el primer
+     * golpe, y restando tienes que ganártela. Un jugador que gana el 80% de sus juegos al
+     * saque y el 20% al resto no tiene un problema de golpeo, tiene un problema de subida.
+     *
+     * Se miran dos cosas por separado porque responden a preguntas distintas: **los
+     * juegos ganados** dicen el resultado, y **la calidad del golpeo** dice por qué.
+     */
+    private fun serveInsights(session: PadelSession): List<Insight> = buildList {
+        val games = session.games
+        if (games.size < MIN_GAMES) return@buildList
+
+        val serving = games.filter { it.server == Side.US }
+        val returning = games.filter { it.server == Side.THEM }
+        if (serving.size >= MIN_GAMES_PER_SIDE && returning.size >= MIN_GAMES_PER_SIDE) {
+            val wonServing = serving.count { it.winner == Side.US }
+            val wonReturning = returning.count { it.winner == Side.US }
+            val pctServing = (wonServing * 100f / serving.size).roundToInt()
+            val pctReturning = (wonReturning * 100f / returning.size).roundToInt()
+
+            add(
+                if (pctServing >= pctReturning) {
+                    Insight(
+                        category = InsightCategory.MATCH_ANALYSIS,
+                        headline = "Aguantas tu saque",
+                        detail = "Ganaste $wonServing de ${serving.size} juegos con el saque en " +
+                            "la mano ($pctServing%) y $wonReturning de ${returning.size} al " +
+                            "resto ($pctReturning%). El partido se te va en los juegos de " +
+                            "resto: ahí es donde más tienes que ganar.",
+                        evidence = games.size,
+                    )
+                } else {
+                    Insight(
+                        category = InsightCategory.MATCH_ANALYSIS,
+                        headline = "Se te escapa tu saque",
+                        detail = "Ganaste solo $wonServing de ${serving.size} juegos sacando " +
+                            "($pctServing%) frente a $wonReturning de ${returning.size} al " +
+                            "resto ($pctReturning%). Perder el saque cuesta doble: revisa la " +
+                            "subida a la red después de sacar.",
+                        evidence = games.size,
+                    )
+                }
+            )
+        }
+
+        // Calidad del golpeo en cada situación: explica el resultado de arriba.
+        val servingShots = shotsWhileServing(session, Side.US)
+        val returningShots = shotsWhileServing(session, Side.THEM)
+        val servingGrade = meanGrade(servingShots)
+        val returningGrade = meanGrade(returningShots)
+        if (servingShots.size >= MIN_EVIDENCE && returningShots.size >= MIN_EVIDENCE &&
+            servingGrade != null && returningGrade != null
+        ) {
+            val delta = servingGrade - returningGrade
+            if (abs(delta) >= MIN_LEVEL_DELTA) {
+                val percent = percentChange(from = returningGrade, to = servingGrade)
+                add(
+                    Insight(
+                        category = InsightCategory.STRENGTHS,
+                        headline = if (delta > 0) "Juegas mejor sacando" else "Juegas mejor restando",
+                        detail = "Con el saque tu nivel medio es ${format(servingGrade)} y al " +
+                            "resto ${format(returningGrade)} ($percent%). " +
+                            if (delta > 0) {
+                                "Aprovecha los juegos de saque para ir por el partido; al resto, " +
+                                    "juega más seguro hasta poder subir."
+                            } else {
+                                "Sacando te precipitas: el saque es solo la puesta en juego, el " +
+                                    "punto se gana en la red."
+                            },
+                        evidence = servingShots.size + returningShots.size,
+                    )
+                )
+            }
+        }
+    }
+
+    /**
+     * Golpeos dados mientras sacaba un lado.
+     *
+     * Cada juego cubre desde el final del anterior hasta el suyo; el primero arranca en
+     * el inicio de la sesión. Los golpeos posteriores al último juego cerrado quedan
+     * fuera: pertenecen a un juego sin terminar y no se sabe quién lo ganará.
+     */
+    fun shotsWhileServing(session: PadelSession, server: Side): List<Shot> {
+        var previousEnd = 0L
+        val result = mutableListOf<Shot>()
+        for (game in session.games) {
+            if (game.server == server) {
+                result += session.shots.filter { it.offsetMs > previousEnd && it.offsetMs <= game.offsetMs }
+            }
+            previousEnd = game.offsetMs
+        }
+        return result
     }
 
     // MARK: Puntos largos contra puntos cortos
@@ -353,6 +454,8 @@ class InsightEngine(
         const val MIN_SHOTS_PER_TYPE = 8
         const val MIN_SHOTS_FOR_REPERTOIRE = 60
         const val MIN_HR_SAMPLES = 6
+        const val MIN_GAMES = 4
+        const val MIN_GAMES_PER_SIDE = 2
 
         /** Media décima de nivel no la nota nadie; media unidad sí. */
         const val MIN_LEVEL_DELTA = 0.3f

@@ -129,6 +129,11 @@ public struct MatchScore: Codable, Equatable, Sendable {
         completedSets.filter { $0.forSide(side) > $0.forSide(side.other) }.count
     }
 
+    /// Juegos ganados por un lado en todo el partido, sets cerrados incluidos.
+    public func gamesWon(_ side: Side) -> Int {
+        allSets.reduce(0) { $0 + $1.forSide(side) }
+    }
+
     public func points(for side: Side) -> Int {
         side == .us ? usPoints : themPoints
     }

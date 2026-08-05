@@ -1,5 +1,6 @@
 package com.risingpadel.core.insights
 
+import com.risingpadel.core.model.GameRecord
 import com.risingpadel.core.model.HealthMetrics
 import com.risingpadel.core.model.HeartRateSample
 import com.risingpadel.core.model.PadelSession
@@ -9,6 +10,7 @@ import com.risingpadel.core.model.Shot
 import com.risingpadel.core.model.ShotFeatures
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
+import com.risingpadel.core.score.Side
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -47,6 +49,70 @@ class InsightEngineTest {
 
     private fun insight(session: PadelSession, category: InsightCategory) =
         engine.insights(session).firstOrNull { it.category == category }
+
+    // --- saque contra resto ---
+
+    private fun games(vararg pairs: Pair<Side, Side>, everyMs: Long = 120_000L) =
+        pairs.mapIndexed { i, (server, winner) ->
+            GameRecord(offsetMs = (i + 1) * everyMs, server = server, winner = winner)
+        }
+
+    @Test
+    fun `compara los juegos ganados sacando y restando`() {
+        val shots = (0 until 40).map { shot(it * 20_000L) }
+        val recorded = games(
+            Side.US to Side.US,
+            Side.THEM to Side.THEM,
+            Side.US to Side.US,
+            Side.THEM to Side.THEM,
+            Side.US to Side.US,
+            Side.THEM to Side.THEM,
+        )
+
+        val idea = engine.insights(session(shots).copy(games = recorded))
+            .firstOrNull { "saque" in it.headline }
+
+        assertNotNull(idea)
+        assertTrue("3 de 3" in idea.detail, "detalle inesperado: ${idea.detail}")
+        assertTrue("0 de 3" in idea.detail)
+    }
+
+    @Test
+    fun `con pocos juegos no concluye nada del saque`() {
+        val shots = (0 until 40).map { shot(it * 20_000L) }
+        val recorded = games(Side.US to Side.US, Side.THEM to Side.THEM)
+
+        val ideas = engine.insights(session(shots).copy(games = recorded))
+
+        assertTrue(ideas.none { "saque" in it.headline || "restando" in it.headline })
+    }
+
+    @Test
+    fun `atribuye cada golpeo al juego en el que se dio`() {
+        val recorded = games(
+            Side.US to Side.US,
+            Side.THEM to Side.THEM,
+            everyMs = 100_000L,
+        )
+        // Uno en el primer juego (saca US) y dos en el segundo (saca THEM).
+        val shots = listOf(shot(50_000), shot(150_000), shot(190_000))
+
+        val sacando = engine.shotsWhileServing(session(shots).copy(games = recorded), Side.US)
+        val restando = engine.shotsWhileServing(session(shots).copy(games = recorded), Side.THEM)
+
+        assertEquals(1, sacando.size)
+        assertEquals(2, restando.size)
+    }
+
+    @Test
+    fun `los golpeos del juego sin terminar quedan fuera`() {
+        val recorded = games(Side.US to Side.US, everyMs = 100_000L)
+        val shots = listOf(shot(50_000), shot(500_000))
+
+        val sacando = engine.shotsWhileServing(session(shots).copy(games = recorded), Side.US)
+
+        assertEquals(1, sacando.size, "el golpeo posterior al último juego cerrado no cuenta")
+    }
 
     // --- puntos ---
 

@@ -60,6 +60,35 @@ public final class SessionRecorder {
 
     public var matchRef: MatchRef?
 
+    private var gameRecords: [GameRecord] = []
+
+    /// Juegos cerrados hasta ahora.
+    public var games: [GameRecord] { gameRecords }
+
+    /// Avisa de un cambio del marcador para anotar los juegos que se cierren.
+    ///
+    /// Se compara antes/después en vez de que el llamante decida: así el reloj solo tiene
+    /// que pasar los dos marcadores y la regla de "cuándo se cerró un juego y quién
+    /// sacaba" vive en un único sitio, con tests.
+    ///
+    /// El servidor del juego es el de **antes** del punto: al cerrarse un juego el
+    /// marcador ya ha rotado el saque para el siguiente.
+    public func onScoreChanged(previous: MatchScore, current: MatchScore, monotonicMs: Int64) {
+        let winner: Side
+        if current.gamesWon(.us) > previous.gamesWon(.us) {
+            winner = .us
+        } else if current.gamesWon(.them) > previous.gamesWon(.them) {
+            winner = .them
+        } else {
+            return
+        }
+        gameRecords.append(GameRecord(
+            offsetMs: max(monotonicMs - startedAtMonotonicMs, 0),
+            server: previous.server,
+            winner: winner
+        ))
+    }
+
     /// Marcador del partido, si el jugador lo está llevando. El reloj lo mantiene aparte
     /// del conteo de golpeos: se puede jugar con marcador y sin él, y una sesión sin
     /// marcador sigue siendo una sesión válida.
@@ -87,6 +116,7 @@ public final class SessionRecorder {
         self.startedAtEpochMs = startedAtEpochMs
         self.startedAtMonotonicMs = monotonicMs
         collectedShots.removeAll()
+        gameRecords.removeAll()
         lastHeartRateBpm = nil
         lastHeartRateAtMs = nil
         maxObservedBpm = 0
@@ -175,6 +205,7 @@ public final class SessionRecorder {
             shots: collectedShots,
             health: shareHealth ? buildHealth() : .empty,
             score: score,
+            games: gameRecords,
             matchRef: matchRef
         )
         sessionId = nil
