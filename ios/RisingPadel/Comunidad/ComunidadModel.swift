@@ -13,6 +13,23 @@ struct ComunidadPost: Identifiable, Equatable {
     let tarjeta: LigaMatch?
     let etiquetas: [String]
     let creado: String
+    var reacciones: Int
+    var miReaccion: String?
+    var comentarios: Int
+}
+
+struct ComunidadComentario: Identifiable, Equatable {
+    let id: Int
+    let alias: String
+    let texto: String
+}
+
+struct ComunidadRankingFila: Identifiable, Equatable {
+    let alias: String
+    let partidos: Int
+    let victorias: Int
+    let golpeos: Int
+    var id: String { alias }
 }
 
 struct ComunidadUsuario: Identifiable, Equatable {
@@ -67,6 +84,8 @@ final class ComunidadModel: ObservableObject {
     @Published private(set) var posts: [ComunidadPost] = []
     @Published private(set) var usuarios: [ComunidadUsuario] = []
     @Published private(set) var jugando: [ComunidadEnVivo] = []
+    /// La semana en curso entre tú y los que sigues, con datos de partidos reales.
+    @Published private(set) var ranking: [ComunidadRankingFila] = []
     @Published var message: String?
     /// Partido ajeno abierto desde una notificación o desde el muro.
     @Published var espectador: ComunidadEnVivo?
@@ -140,6 +159,9 @@ final class ComunidadModel: ObservableObject {
                 let card: String?
                 let creado: String
                 let etiquetas: String?
+                let reacciones: Int?
+                let miReaccion: String?
+                let comentarios: Int?
             }
             let posts: [Fila]
         }
@@ -153,7 +175,27 @@ final class ComunidadModel: ObservableObject {
                         try? JSONDecoder().decode(LigaMatch.self, from: Data($0.utf8))
                     },
                     etiquetas: fila.etiquetas?.split(separator: ",").map(String.init) ?? [],
-                    creado: String(fila.creado.prefix(10))
+                    creado: String(fila.creado.prefix(10)),
+                    reacciones: fila.reacciones ?? 0,
+                    miReaccion: fila.miReaccion,
+                    comentarios: fila.comentarios ?? 0
+                )
+            }
+        }
+        struct Ranking: Decodable {
+            struct Fila: Decodable {
+                let alias: String
+                let partidos: Int
+                let victorias: Int?
+                let golpeos: Int?
+            }
+            let ranking: [Fila]
+        }
+        if let lista: Ranking = await llamar("GET", "v1/comunidad/ranking") {
+            ranking = lista.ranking.map {
+                ComunidadRankingFila(
+                    alias: $0.alias, partidos: $0.partidos,
+                    victorias: $0.victorias ?? 0, golpeos: $0.golpeos ?? 0
                 )
             }
         }
@@ -198,6 +240,44 @@ final class ComunidadModel: ObservableObject {
         }
         let _: [String: Int]? = await llamarCrudo("POST", "v1/comunidad/publicar", json: body)
         await refrescar()
+    }
+
+    /// Reacciona (o quita la reacción repitiéndola). El estado local se adelanta al
+    /// servidor: una reacción que tarda un segundo en pintarse no parece tuya.
+    func reaccionar(_ post: ComunidadPost, emoji: String = "🎾") async {
+        if let index = posts.firstIndex(of: post) {
+            if posts[index].miReaccion == emoji {
+                posts[index].miReaccion = nil
+                posts[index].reacciones -= 1
+            } else {
+                if posts[index].miReaccion == nil { posts[index].reacciones += 1 }
+                posts[index].miReaccion = emoji
+            }
+        }
+        let _: [String: String]? = await llamarCrudo(
+            "POST", "v1/comunidad/reaccion", json: ["postId": post.id, "emoji": emoji]
+        )
+    }
+
+    func comentarios(de post: ComunidadPost) async -> [ComunidadComentario] {
+        struct Lista: Decodable {
+            struct Fila: Decodable { let id: Int; let alias: String; let text: String }
+            let comentarios: [Fila]
+        }
+        guard let lista: Lista = await llamar("GET", "v1/comunidad/comentarios/\(post.id)")
+        else { return [] }
+        return lista.comentarios.map {
+            ComunidadComentario(id: $0.id, alias: $0.alias, texto: $0.text)
+        }
+    }
+
+    func comentar(_ post: ComunidadPost, texto: String) async {
+        let _: [String: String]? = await llamarCrudo(
+            "POST", "v1/comunidad/comentar", json: ["postId": post.id, "texto": texto]
+        )
+        if let index = posts.firstIndex(where: { $0.id == post.id }) {
+            posts[index].comentarios += 1
+        }
     }
 
     func borrar(_ post: ComunidadPost) async {
@@ -251,11 +331,7 @@ final class ComunidadModel: ObservableObject {
             let (data, respuesta) = try await URLSession.shared.data(for: request)
             guard let http = respuesta as? HTTPURLResponse else { return nil }
             guard (200..<300).contains(http.statusCode) else {
-                struct Fallo: Decodable {
-                    struct Detalle: Decodable { let message: String }
-                    let error: Detalle
-                }
-                message = (try? JSONDecoder().decode(Fallo.self, from: data))?.error.message
+                message = (try? JSONDecoder().decode(FalloServidor.self, from: data))?.error.message
                     ?? "Error \(http.statusCode)"
                 return nil
             }
@@ -266,6 +342,13 @@ final class ComunidadModel: ObservableObject {
             return nil
         }
     }
+}
+
+/// El shape de error del worker. A nivel de fichero: Swift no permite declarar tipos
+/// dentro de una función genérica.
+private struct FalloServidor: Decodable {
+    struct Detalle: Decodable { let message: String }
+    let error: Detalle
 }
 
 extension Notification.Name {

@@ -93,6 +93,19 @@ export async function push(env, userIds, titulo, cuerpo, payload = {}) {
   );
 }
 
+/** Apunta el resultado de un partido en vivo terminado. Una vez por sesión. */
+export async function apuntarResultado(env, user, sessionId, estado) {
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO results (user, session, date, won, shots) VALUES (?, ?, ?, ?, ?)"
+  ).bind(
+    user.id,
+    sessionId,
+    new Date().toISOString().slice(0, 10),
+    estado?.score?.winner === "us" ? 1 : 0,
+    estado?.shotCount ?? 0
+  ).run();
+}
+
 /** Avisa a los seguidores de que este usuario acaba de empezar un partido. */
 export async function avisarPartidoEnVivo(env, user, sessionId) {
   const { results } = await env.DB.prepare(
@@ -174,13 +187,83 @@ export async function comunidad(request, env, path) {
     const { results } = await env.DB.prepare(
       `SELECT p.id, u.alias, p.text, p.card, p.created_at AS creado,
               (SELECT GROUP_CONCAT(u2.alias) FROM post_tags t
-                 JOIN users u2 ON u2.id = t.user WHERE t.post = p.id) AS etiquetas
+                 JOIN users u2 ON u2.id = t.user WHERE t.post = p.id) AS etiquetas,
+              (SELECT COUNT(*) FROM reactions r WHERE r.post = p.id) AS reacciones,
+              (SELECT emoji FROM reactions r WHERE r.post = p.id AND r.user = ?1) AS miReaccion,
+              (SELECT COUNT(*) FROM comments c WHERE c.post = p.id) AS comentarios
          FROM posts p JOIN users u ON u.id = p.user
         WHERE (p.user = ?1 OR p.user IN (SELECT followed FROM follows WHERE follower = ?1))
           AND p.user NOT IN (SELECT blocked FROM blocks WHERE user = ?1)
         ORDER BY p.id DESC LIMIT 50`
     ).bind(yo.id).all();
     return json(200, { posts: results ?? [] });
+  }
+
+  if (ruta === "/reaccion" && metodo === "POST") {
+    const { postId, emoji } = await request.json().catch(() => ({}));
+    if (!postId) return error(400, "falta_post", "Falta el post");
+    const limpio = String(emoji || "🎾").slice(0, 8);
+    const actual = await env.DB.prepare(
+      "SELECT emoji FROM reactions WHERE post = ? AND user = ?"
+    ).bind(postId, yo.id).first();
+    if (actual?.emoji === limpio) {
+      // La misma otra vez la quita: el toggle de toda la vida.
+      await env.DB.prepare("DELETE FROM reactions WHERE post = ? AND user = ?")
+        .bind(postId, yo.id).run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO reactions (post, user, emoji) VALUES (?1, ?2, ?3)
+           ON CONFLICT(post, user) DO UPDATE SET emoji = ?3`
+      ).bind(postId, yo.id, limpio).run();
+    }
+    return new Response(null, { status: 204 });
+  }
+
+  const comentarios = ruta.match(/^\/comentarios\/(\d+)$/);
+  if (comentarios && metodo === "GET") {
+    const { results } = await env.DB.prepare(
+      `SELECT c.id, u.alias, c.text, c.created_at AS creado
+         FROM comments c JOIN users u ON u.id = c.user
+        WHERE c.post = ?1
+          AND c.user NOT IN (SELECT blocked FROM blocks WHERE user = ?2)
+        ORDER BY c.id LIMIT 100`
+    ).bind(comentarios[1], yo.id).all();
+    return json(200, { comentarios: results ?? [] });
+  }
+
+  if (ruta === "/comentar" && metodo === "POST") {
+    const { postId, texto } = await request.json().catch(() => ({}));
+    const text = (texto || "").trim().slice(0, 300);
+    if (!postId || !text) return error(400, "vacio", "Escribe algo");
+    await env.DB.prepare(
+      "INSERT INTO comments (post, user, text, created_at) VALUES (?, ?, ?, ?)"
+    ).bind(postId, yo.id, text, ahora()).run();
+    // El comentario avisa al dueño del post (si no soy yo mismo).
+    const dueno = await env.DB.prepare("SELECT user FROM posts WHERE id = ?")
+      .bind(postId).first();
+    if (dueno && dueno.user !== yo.id) {
+      await push(env, [dueno.user], "Nuevo comentario",
+        `${yo.alias}: ${text.slice(0, 80)}`, { post: { id: postId } });
+    }
+    return new Response(null, { status: 204 });
+  }
+
+  if (ruta === "/ranking" && metodo === "GET") {
+    // La semana en curso (lunes a hoy), entre tú y los que sigues. Los datos salen de
+    // los partidos en vivo terminados, que el worker apunta él solo.
+    const hoy = new Date();
+    const lunes = new Date(hoy);
+    lunes.setUTCDate(hoy.getUTCDate() - ((hoy.getUTCDay() + 6) % 7));
+    const desde = lunes.toISOString().slice(0, 10);
+    const { results } = await env.DB.prepare(
+      `SELECT u.alias, COUNT(*) AS partidos, SUM(r.won) AS victorias, SUM(r.shots) AS golpeos
+         FROM results r JOIN users u ON u.id = r.user
+        WHERE r.date >= ?1
+          AND (r.user = ?2 OR r.user IN (SELECT followed FROM follows WHERE follower = ?2))
+        GROUP BY u.alias
+        ORDER BY partidos DESC, victorias DESC LIMIT 20`
+    ).bind(desde, yo.id).all();
+    return json(200, { desde, ranking: results ?? [] });
   }
 
   if (ruta === "/publicar" && metodo === "POST") {

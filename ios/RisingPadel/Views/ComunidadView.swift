@@ -9,6 +9,7 @@ struct ComunidadView: View {
     @State private var texto = ""
     @State private var adjuntarPartido = false
     @State private var buscando = false
+    @State private var comentando: ComunidadPost?
 
     var body: some View {
         NavigationStack {
@@ -39,6 +40,9 @@ struct ComunidadView: View {
             .sheet(item: $comunidad.espectador) { vivo in
                 LiveSpectatorView(vivo: vivo)
             }
+            .sheet(item: $comentando) { post in
+                ComentariosView(post: post).environmentObject(comunidad)
+            }
             .alert(
                 comunidad.message ?? "",
                 isPresented: Binding(
@@ -58,6 +62,9 @@ struct ComunidadView: View {
             VStack(spacing: 12) {
                 if !comunidad.jugando.isEmpty {
                     jugandoStrip
+                }
+                if comunidad.ranking.count >= 2 {
+                    rankingCard
                 }
                 composer
                 ForEach(comunidad.posts) { post in
@@ -99,6 +106,46 @@ struct ComunidadView: View {
                     .buttonStyle(.plain)
                 }
             }
+        }
+    }
+
+    /// La semana en curso entre tú y los tuyos, con partidos de verdad (los que el
+    /// servidor apunta al terminar cada partido en vivo).
+    private var rankingCard: some View {
+        PadelCard(title: "La semana", icon: "chart.bar.fill") {
+            VStack(spacing: 6) {
+                HStack {
+                    Text("").frame(maxWidth: .infinity, alignment: .leading)
+                    Text("PJ").frame(width: 36)
+                    Text("V").frame(width: 36)
+                    Text("Golpeos").frame(width: 62)
+                }
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+                ForEach(Array(comunidad.ranking.enumerated()), id: \.element.id) { index, fila in
+                    HStack {
+                        Text("\(medalla(index)) @\(fila.alias)")
+                            .font(.system(size: 13, weight: fila.alias == comunidad.alias ? .bold : .medium, design: .rounded))
+                            .foregroundStyle(T.tinta)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(fila.partidos)").frame(width: 36)
+                        Text("\(fila.victorias)").foregroundStyle(T.verde).frame(width: 36)
+                        Text("\(fila.golpeos)").foregroundStyle(T.pista).frame(width: 62)
+                    }
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                }
+            }
+        }
+    }
+
+    private func medalla(_ index: Int) -> String {
+        switch index {
+        case 0: return "🥇"
+        case 1: return "🥈"
+        case 2: return "🥉"
+        default: return " "
         }
     }
 
@@ -162,6 +209,35 @@ struct ComunidadView: View {
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(T.tintaSuave)
                 }
+
+                HStack(spacing: 16) {
+                    Button {
+                        Task { await comunidad.reaccionar(post) }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("🎾")
+                            if post.reacciones > 0 {
+                                Text("\(post.reacciones)").monospacedDigit()
+                            }
+                        }
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(post.miReaccion != nil ? T.pista : T.tintaSuave)
+                    }
+                    Button {
+                        comentando = post
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "bubble.right")
+                            if post.comentarios > 0 {
+                                Text("\(post.comentarios)").monospacedDigit()
+                            }
+                        }
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                    }
+                    Spacer()
+                }
+                .buttonStyle(.plain)
             }
         }
         .contextMenu {
@@ -241,6 +317,73 @@ struct ComunidadRegistroView: View {
                 .disabled(servidor.isEmpty || alias.count < 2 || creando)
             }
             .padding(20)
+        }
+    }
+}
+
+/// Los comentarios de un post: hilo simple, del más viejo al más nuevo.
+struct ComentariosView: View {
+    @EnvironmentObject private var comunidad: ComunidadModel
+    @Environment(\.dismiss) private var dismiss
+    let post: ComunidadPost
+
+    @State private var comentarios: [ComunidadComentario] = []
+    @State private var texto = ""
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("@\(post.alias): \(post.texto)")
+                            .font(.system(size: 13, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                        Divider()
+                        ForEach(comentarios) { comentario in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("@\(comentario.alias)")
+                                    .font(.system(size: 12, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(T.pista)
+                                Text(comentario.texto)
+                                    .font(.system(size: 14, design: .rounded))
+                                    .foregroundStyle(T.tinta)
+                            }
+                        }
+                        if comentarios.isEmpty {
+                            Text("Sé el primero en comentar.")
+                                .font(.system(size: 13, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                }
+                HStack(spacing: 8) {
+                    TextField("Comenta…", text: $texto)
+                        .textFieldStyle(.roundedBorder)
+                    Button {
+                        let contenido = texto
+                        texto = ""
+                        Task {
+                            await comunidad.comentar(post, texto: contenido)
+                            comentarios = await comunidad.comentarios(de: post)
+                        }
+                    } label: {
+                        Image(systemName: "paperplane.fill")
+                    }
+                    .disabled(texto.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(12)
+            }
+            .background(T.fondo)
+            .navigationTitle("Comentarios")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Cerrar") { dismiss() }
+                }
+            }
+            .task { comentarios = await comunidad.comentarios(de: post) }
         }
     }
 }

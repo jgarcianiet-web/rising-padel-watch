@@ -17,7 +17,7 @@
 // el partido. El sessionId es un UUID aleatorio — no se puede enumerar — y el estado no
 // lleva salud más allá del pulso instantáneo, que solo va si el emisor comparte salud.
 
-import { avisarPartidoEnVivo, comunidad, usuarioDe } from "./comunidad.js";
+import { apuntarResultado, avisarPartidoEnVivo, comunidad, usuarioDe } from "./comunidad.js";
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -43,8 +43,9 @@ export default {
         if (!user && !autorizado(request, env)) return texto(401, "Token inválido");
         const body = await request.text();
         if (body.length > 16_384) return texto(413, "Estado demasiado grande");
+        let estado;
         try {
-          JSON.parse(body);
+          estado = JSON.parse(body);
         } catch {
           return texto(400, "El estado tiene que ser JSON");
         }
@@ -53,10 +54,16 @@ export default {
         const esNuevo = user && (await env.LIVE.get(key)) === null;
         await env.LIVE.put(key, body, { expirationTtl: LIVE_TTL_SECONDS });
         if (user) {
-          await env.LIVE.put(`live-user:${user.alias}`, live[1].toLowerCase(), {
+          const sessionId = live[1].toLowerCase();
+          await env.LIVE.put(`live-user:${user.alias}`, sessionId, {
             expirationTtl: 2 * 60 * 60,
           });
-          if (esNuevo) await avisarPartidoEnVivo(env, user, live[1].toLowerCase());
+          if (esNuevo) await avisarPartidoEnVivo(env, user, sessionId);
+          if (estado?.completed) {
+            // Partido terminado: al ranking semanal, y fuera de "está jugando".
+            await apuntarResultado(env, user, sessionId, estado);
+            await env.LIVE.delete(`live-user:${user.alias}`);
+          }
         }
         return new Response(null, { status: 204 });
       }

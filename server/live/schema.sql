@@ -43,6 +43,33 @@ CREATE TABLE IF NOT EXISTS blocks (
   PRIMARY KEY (user, blocked)
 );
 
+-- Una reacción por persona y post; repetir la misma la quita, otra la sustituye.
+CREATE TABLE IF NOT EXISTS reactions (
+  post INTEGER NOT NULL REFERENCES posts(id),
+  user INTEGER NOT NULL REFERENCES users(id),
+  emoji TEXT NOT NULL,
+  PRIMARY KEY (post, user)
+);
+
+CREATE TABLE IF NOT EXISTS comments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  post INTEGER NOT NULL REFERENCES posts(id),
+  user INTEGER NOT NULL REFERENCES users(id),
+  text TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+-- Un resultado por partido en vivo terminado: lo apunta el worker solo, con el último
+-- estado (completed=true). Es lo que alimenta el ranking semanal.
+CREATE TABLE IF NOT EXISTS results (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user INTEGER NOT NULL REFERENCES users(id),
+  session TEXT NOT NULL UNIQUE,
+  date TEXT NOT NULL,
+  won INTEGER NOT NULL DEFAULT 0,
+  shots INTEGER NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   reporter INTEGER NOT NULL REFERENCES users(id),
