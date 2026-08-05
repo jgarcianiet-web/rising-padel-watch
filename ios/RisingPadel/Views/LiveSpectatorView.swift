@@ -45,7 +45,7 @@ struct LiveSpectatorView: View {
                         OutcomeBadge(text: "final", color: T.tintaSuave)
                     } else {
                         HStack(spacing: 6) {
-                            Circle().fill(T.rojo).frame(width: 8, height: 8)
+                            Circle().fill(T.rojo).frame(width: 8, height: 8).modifier(Pulse())
                             Text("EN VIVO")
                                 .font(.system(size: 11, weight: .heavy, design: .rounded))
                                 .kerning(1.4)
@@ -59,29 +59,23 @@ struct LiveSpectatorView: View {
                         .foregroundStyle(T.tintaSuave)
                 }
 
+                // El mismo marcador de retransmisión que la portada del propio partido:
+                // una fila por equipo, sets en columnas y el punto en juego en grande.
+                // "us" es el lado del que juega, no el del que mira.
                 if let score = estado.score {
-                    HStack(spacing: 14) {
-                        ForEach(Array(score.sets.enumerated()), id: \.offset) { _, set in
-                            Text("\(set.us)-\(set.them)")
-                                .font(.system(size: 28, weight: .heavy, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(T.tinta)
-                        }
-                        Spacer()
-                        if !estado.completed, let pUs = estado.pointsUs, let pThem = estado.pointsThem {
-                            VStack(alignment: .trailing, spacing: 1) {
-                                Text("\(pUs) – \(pThem)")
-                                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                                    .monospacedDigit()
-                                    .foregroundStyle(T.pista)
-                                if let serving = estado.serving {
-                                    // "us" es el lado del que juega, no el del que mira.
-                                    Text(serving == "us" ? "saca @\(vivo.alias)" : "resta @\(vivo.alias)")
-                                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                        .foregroundStyle(T.tintaSuave)
-                                }
-                            }
-                        }
+                    VStack(spacing: 6) {
+                        filaEquipo(
+                            nombre: "@\(vivo.alias)", color: .blue,
+                            sets: score.sets.map(\.us),
+                            puntos: estado.completed ? nil : estado.pointsUs,
+                            saca: estado.serving == "us"
+                        )
+                        filaEquipo(
+                            nombre: "RIVALES", color: .orange,
+                            sets: score.sets.map(\.them),
+                            puntos: estado.completed ? nil : estado.pointsThem,
+                            saca: estado.serving == "them"
+                        )
                     }
                 }
 
@@ -97,6 +91,43 @@ struct LiveSpectatorView: View {
                 .foregroundStyle(T.tintaSuave)
             }
         }
+    }
+
+    private func filaEquipo(
+        nombre: String, color: Color, sets: [Int], puntos: String?, saca: Bool
+    ) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(saca ? T.bola : .clear)
+                .frame(width: 8, height: 8)
+            Text(nombre)
+                .font(.system(size: 12, weight: .heavy, design: .rounded))
+                .kerning(0.8)
+                .foregroundStyle(color)
+                .frame(width: 100, alignment: .leading)
+                .lineLimit(1)
+            ForEach(Array(sets.enumerated()), id: \.offset) { index, juego in
+                Text("\(juego)")
+                    .font(.system(size: 18, weight: index == sets.count - 1 ? .heavy : .semibold,
+                                  design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(index == sets.count - 1 ? T.tinta : T.tintaSuave)
+                    .frame(width: 20)
+            }
+            Spacer()
+            if let puntos {
+                Text(puntos)
+                    .font(.system(size: 26, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(minWidth: 52)
+                    .padding(.vertical, 3)
+                    .background(color, in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
     }
 
     /// El mismo bucle que la página web del espectador: GET cada 5 s hasta el FINAL.
