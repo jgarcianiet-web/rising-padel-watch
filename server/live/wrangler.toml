@@ -33,5 +33,15 @@ database_id = "PON_AQUI_EL_ID_DE_D1"
 binding = "FOTOS"
 bucket_name = "rising-padel-fotos"
 
+# ── Dominio propio (para comercializar) ──
+# El workers.dev es largo y de prestado. Con un dominio en Cloudflare (Registrar,
+# ~10 €/año), se descomenta esto y la URL pasa a ser https://api.tudominio.com:
+#   1. Compra el dominio en el panel (Registrar → Register domain).
+#   2. Descomenta y pon tu dominio; empuja: el deploy lo engancha solo.
+#   3. Cambia `servidorOficial` en ComunidadView.swift a la URL nueva.
+# [[routes]]
+# pattern = "api.tudominio.com"
+# custom_domain = true
+
 [vars]
 APNS_TOPIC = "com.risingpadel.watch"

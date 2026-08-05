@@ -1,0 +1,45 @@
+# Compila los APK de Android (móvil y Wear OS) y los deja como artefactos
+# descargables del run: Actions → Android APK → el run → Artifacts.
+#
+# Son builds de depuración, firmadas con la clave de debug: perfectas para instalar a
+# mano ("orígenes desconocidos") y probar. El camino serio de distribución es Google
+# Play (pista interna), que necesita cuenta de desarrollador (25 USD una vez) y firma
+# propia — está documentado abajo como siguiente paso.
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/smartwatch-golf-swing-app-85eb8o]
+    paths:
+      - "android/**"
+      - ".github/workflows/android-apk.yml"
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Compilar APKs de depuración
+        run: gradle :mobile:assembleDebug :wear:assembleDebug
+
+      - name: Publicar APK del móvil
+        uses: actions/upload-artifact@v4
+        with:
+          name: rising-padel-movil
+          path: android/mobile/build/outputs/apk/debug/*.apk
+
+      - name: Publicar APK del reloj (Wear OS)
+        uses: actions/upload-artifact@v4
+        with:
+          name: rising-padel-wear
+          path: android/wear/build/outputs/apk/debug/*.apk

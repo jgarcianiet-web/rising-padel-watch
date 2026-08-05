@@ -352,6 +352,11 @@ struct ComunidadRegistroView: View {
     @AppStorage("leagueBaseURL") private var servidor = ""
     @State private var alias = ""
     @State private var creando = false
+    @State private var servidorPropio = false
+
+    /// El servidor oficial, de serie: nadie debería tener que teclear una URL para
+    /// unirse. El campo solo aparece si se quiere apuntar a un servidor propio.
+    static let servidorOficial = "https://rising-padel-live.rising-padel-2d82dd5fe2.workers.dev"
 
     var body: some View {
         ScrollView {
@@ -369,18 +374,34 @@ struct ComunidadRegistroView: View {
 
                 PadelCard {
                     VStack(spacing: 10) {
-                        TextField("https://rising-padel-live.….workers.dev", text: $servidor)
-                            .keyboardType(.URL)
-                            .autocorrectionDisabled()
-                            .textInputAutocapitalization(.never)
                         TextField("Tu alias (ej: jesus-g)", text: $alias)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                        // El servidor viene de serie: la URL solo aparece para quien
+                        // monte el suyo. Nadie teclea un workers.dev para unirse.
+                        if servidorPropio {
+                            TextField("https://tu-servidor.workers.dev", text: $servidor)
+                                .keyboardType(.URL)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                        }
                     }
                 }
 
                 Button {
+                    servidorPropio.toggle()
+                } label: {
+                    Text(servidorPropio ? "Usar el servidor oficial" : "Tengo mi propio servidor")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                }
+                .buttonStyle(.plain)
+
+                Button {
                     creando = true
+                    if !servidorPropio || servidor.isEmpty {
+                        servidor = Self.servidorOficial
+                    }
                     Task {
                         await comunidad.registrar(servidor: servidor, alias: alias)
                         creando = false
@@ -395,7 +416,7 @@ struct ComunidadRegistroView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(servidor.isEmpty || alias.count < 2 || creando)
+                .disabled(alias.count < 2 || creando)
             }
             .padding(20)
         }
