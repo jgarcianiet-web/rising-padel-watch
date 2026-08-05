@@ -52,7 +52,10 @@ export default {
         // El aviso a los seguidores sale solo con el PRIMER estado del partido: si ya
         // había clave, es un punto más, no un partido nuevo.
         const esNuevo = user && (await env.LIVE.get(key)) === null;
-        await env.LIVE.put(key, body, { expirationTtl: LIVE_TTL_SECONDS });
+        // Con cuenta, el estado guarda el alias: la página del espectador pone
+        // nombre a la fila azul. Los decodificadores de las apps lo ignoran.
+        if (user) estado.alias = user.alias;
+        await env.LIVE.put(key, JSON.stringify(estado), { expirationTtl: LIVE_TTL_SECONDS });
         if (user) {
           const sessionId = live[1].toLowerCase();
           await env.LIVE.put(`live-user:${user.alias}`, sessionId, {
@@ -185,12 +188,19 @@ function paginaEspectador(id) {
   .punto { width: 8px; height: 8px; border-radius: 50%; background: var(--rojo); animation: latido 1.2s infinite; }
   .final .punto { animation: none; background: var(--suave); }
   @keyframes latido { 50% { opacity: .25; } }
-  .sets { display: flex; gap: 8px; margin: 16px 0 4px; }
-  .set { border: 1px solid var(--borde); border-radius: 10px; padding: 6px 10px; font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .puntos { display: flex; align-items: baseline; justify-content: center; gap: 18px; margin: 18px 0 6px; font-size: 56px; font-weight: 900; font-variant-numeric: tabular-nums; }
-  .puntos small { font-size: 22px; color: var(--suave); font-weight: 700; }
-  .lados { display: flex; justify-content: center; gap: 40px; color: var(--suave); font-size: 13px; font-weight: 600; }
-  .saca::before { content: "●"; color: var(--verde); margin-right: 5px; font-size: 10px; vertical-align: 2px; }
+  /* El marcador de retransmisión: una fila por equipo, los mismos colores que la app. */
+  .equipos { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .equipo { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 12px; }
+  .equipo.azul { background: rgba(41,98,255,.10); color: #2962ff; }
+  .equipo.naranja { background: rgba(255,122,26,.12); color: #f06d0a; }
+  .equipo .bola { flex: 0 0 10px; color: #f4d03f; font-size: 10px; }
+  .equipo .nombre { flex: 0 1 auto; min-width: 0; font-size: 13px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .equipo .set { width: 22px; text-align: center; font-size: 19px; font-weight: 700; color: var(--suave); font-variant-numeric: tabular-nums; }
+  .equipo .set.actual { color: var(--tinta); font-weight: 900; }
+  .equipo .chip { margin-left: auto; min-width: 56px; text-align: center; font-size: 24px; font-weight: 900; color: #fff; border-radius: 9px; padding: 2px 8px; font-variant-numeric: tabular-nums; }
+  .equipo.azul .chip { background: #2962ff; }
+  .equipo.naranja .chip { background: #f06d0a; }
+  #crono { margin-left: auto; font-variant-numeric: tabular-nums; }
   .metricas { display: flex; justify-content: space-around; margin-top: 16px; text-align: center; }
   .metricas b { display: block; font-size: 20px; font-variant-numeric: tabular-nums; }
   #ritmo { width: 100%; height: 64px; margin-top: 14px; display: none; }
@@ -202,7 +212,7 @@ function paginaEspectador(id) {
 <body>
 <main>
   <div class="carta" id="carta">
-    <div class="cabecera"><span class="punto"></span><span id="estado">EN VIVO</span></div>
+    <div class="cabecera"><span class="punto"></span><span id="estado">EN VIVO</span><span id="crono"></span></div>
     <div id="cuerpo" class="aviso">Buscando el partido…</div>
     <canvas id="ritmo" width="760" height="128"></canvas>
   </div>
@@ -235,22 +245,35 @@ function pintaRitmo() {
   ctx.stroke();
 }
 
-function etiqueta(lado) { return lado === "us" ? "Nosotros" : "Ellos"; }
+// La fila de un equipo: bolita de saque, nombre, sets en columnas y el punto en
+// juego en grande — el mismo marcador de retransmisión que la app.
+function fila(clase, nombre, sets, lado, s) {
+  const saca = !s.completed && s.serving === lado;
+  const setsHtml = sets
+    .map((v, i) => '<span class="set' + (i === sets.length - 1 ? " actual" : "") + '">' + v + "</span>")
+    .join("");
+  const puntos = lado === "us" ? s.pointsUs : s.pointsThem;
+  const chip = !s.completed && puntos != null ? '<span class="chip">' + puntos + "</span>" : "";
+  return '<div class="equipo ' + clase + '"><span class="bola">' + (saca ? "●" : "") +
+         '</span><span class="nombre">' + nombre + "</span>" + setsHtml + chip + "</div>";
+}
 
 function pinta(s) {
-  const sets = (s.score && s.score.sets || [])
-    .map((x) => '<span class="set">' + x.us + "–" + x.them + "</span>")
-    .join("");
-  const saca = s.serving;
-  let html = "";
-  if (sets) html += '<div class="sets">' + sets + "</div>";
-  if (s.pointsUs != null && !s.completed) {
-    html += '<div class="puntos"><span>' + s.pointsUs + '</span><small>·</small><span>' + s.pointsThem + "</span></div>";
-    html += '<div class="lados"><span' + (saca === "us" ? ' class="saca"' : "") + '>Nosotros</span>' +
-            "<span" + (saca === "them" ? ' class="saca"' : "") + ">Ellos</span></div>";
-  }
+  const sets = (s.score && s.score.sets) || [];
+  // El alias solo viaja si el que publica tiene cuenta; el marcador se ve igual.
+  const quien = s.alias ? "@" + s.alias : "JUGADOR";
+  let html =
+    '<div class="equipos">' +
+    fila("azul", quien, sets.map((x) => x.us), "us", s) +
+    fila("naranja", "RIVALES", sets.map((x) => x.them), "them", s) +
+    "</div>";
   if (s.completed && s.score && s.score.winner) {
-    html += '<div class="ganador">Ganan ' + etiqueta(s.score.winner).toLowerCase() + "</div>";
+    html += '<div class="ganador">' +
+      (s.score.winner === "us" ? "Gana " + quien : "Ganan los rivales") + "</div>";
+  }
+  if (s.elapsedSeconds) {
+    const m = Math.floor(s.elapsedSeconds / 60), seg = s.elapsedSeconds % 60;
+    $("#crono").textContent = m + ":" + String(seg).padStart(2, "0");
   }
   const m = [];
   if (s.shotCount) m.push("<div><b>" + s.shotCount + "</b><span>golpeos</span></div>");
