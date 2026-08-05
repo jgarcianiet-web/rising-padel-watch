@@ -1,0 +1,90 @@
+# Despliega el servidor (marcador en vivo + comunidad) en Cloudflare SIN ordenador:
+# se lanza con un botón desde la app o la web de GitHub (Actions → Desplegar servidor
+# → Run workflow). Crea el KV y la D1 si no existen, aplica el esquema, sube los
+# secretos de APNs desde los secretos del repo y despliega. Es idempotente: se puede
+# relanzar siempre que se cambie el código del worker.
+#
+# Secretos del repo que necesita (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   token con plantilla "Edit Cloudflare Workers" + D1 + KV
+#   CLOUDFLARE_ACCOUNT_ID  el Account ID del panel de Cloudflare
+#   APNS_KEY_P8            (opcional) clave .p8 de APNs para las notificaciones push
+#   APNS_KEY_ID            (opcional) su Key ID
+#   APPLE_TEAM_ID          ya existe: lo usa también la firma de las builds
+name: Desplegar servidor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server/live
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar wrangler
+        run: npm install -g wrangler
+
+      - name: Crear el almacén KV y la base D1 si no existen
+        run: |
+          set -euo pipefail
+          # Crear es idempotente a base de ignorar el "ya existe" y releer la lista.
+          wrangler kv namespace create LIVE 2>/dev/null || true
+          KV_ID=$(wrangler kv namespace list | python3 -c "
+          import json,sys
+          datos = json.load(sys.stdin)
+          print(next((n['id'] for n in datos if 'LIVE' in n['title']), ''))")
+          test -n "$KV_ID" || { echo 'No se pudo crear el KV'; exit 1; }
+
+          wrangler d1 create rising-padel 2>/dev/null || true
+          D1_ID=$(wrangler d1 list --json | python3 -c "
+          import json,sys
+          datos = json.load(sys.stdin)
+          print(next((d['uuid'] for d in datos if d['name'] == 'rising-padel'), ''))")
+          test -n "$D1_ID" || { echo 'No se pudo crear la D1'; exit 1; }
+
+          # Los ids entran en el wrangler.toml del checkout, no del repo: cada cuenta
+          # de Cloudflare tiene los suyos y no se versionan.
+          sed -i "s/PON_AQUI_EL_ID_DEL_NAMESPACE/$KV_ID/; s/PON_AQUI_EL_ID_DE_D1/$D1_ID/" wrangler.toml
+
+      - name: Aplicar el esquema de la comunidad
+        run: wrangler d1 execute rising-padel --file=schema.sql --remote -y
+
+      - name: Desplegar
+        run: |
+          set -euo pipefail
+          wrangler deploy | tee salida.txt
+          URL=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' salida.txt | head -1 || true)
+          {
+            echo "## Servidor desplegado"
+            echo ""
+            echo "**URL para la app:** ${URL:-mírala en el log de arriba}"
+            echo ""
+            echo "Pega esa URL al crear tu cuenta en la pestaña Comunidad."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Subir los secretos de APNs (si están configurados)
+        env:
+          APNS_KEY_P8: ${{ secrets.APNS_KEY_P8 }}
+          APNS_KEY_ID: ${{ secrets.APNS_KEY_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          # Sin clave de APNs la comunidad funciona igual, solo que sin notificaciones:
+          # el muro, seguir y el marcador en vivo no dependen del push.
+          if [ -n "$APNS_KEY_P8" ]; then
+            printf %s "$APNS_KEY_P8" | wrangler secret put APNS_KEY_P8
+            printf %s "$APNS_KEY_ID" | wrangler secret put APNS_KEY_ID
+            printf %s "$APPLE_TEAM_ID" | wrangler secret put APNS_TEAM_ID
+            echo "Push configurado."
+          else
+            echo "Sin APNS_KEY_P8: se despliega sin notificaciones push."
+          fi

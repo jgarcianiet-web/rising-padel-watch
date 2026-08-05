@@ -22,7 +22,31 @@ El `GET` es público a propósito — el enlace se comparte —, pero el id es u
 aleatorio imposible de adivinar y el estado no lleva salud más allá del pulso, que
 solo va si el emisor comparte salud en Ajustes.
 
-## Desplegar (una vez, ~5 minutos)
+## Desplegar SIN ordenador (recomendado)
+
+Todo desde el navegador del móvil, una sola vez:
+
+1. Crea una cuenta gratuita en [dash.cloudflare.com](https://dash.cloudflare.com/sign-up).
+2. En el panel: **My Profile → API Tokens → Create Token → plantilla "Edit Cloudflare
+   Workers"** (añade permisos de **D1** y **Workers KV Storage** si la plantilla no los
+   trae). Copia el token.
+3. El **Account ID** está en la portada del panel (sección Workers & Pages, columna
+   derecha).
+4. En GitHub: **Settings → Secrets and variables → Actions** y añade
+   `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`.
+5. (Opcional, para las notificaciones push) En
+   [developer.apple.com → Keys](https://developer.apple.com/account/resources/authkeys/list)
+   crea una clave con **Apple Push Notifications service** activado, descarga el `.p8`
+   y añade su contenido como secreto `APNS_KEY_P8` y su Key ID como `APNS_KEY_ID`.
+   El `APPLE_TEAM_ID` ya existe como secreto de las builds.
+6. En GitHub: **Actions → Desplegar servidor → Run workflow**. Al terminar, el resumen
+   del run enseña la **URL** — es la que pegas al crear tu cuenta en la pestaña
+   Comunidad de la app.
+
+El workflow es idempotente: crea el KV y la D1 solo si faltan, y se puede relanzar
+cuando cambie el código del worker.
+
+## Desplegar con ordenador (alternativa, ~5 minutos)
 
 Hace falta una cuenta gratuita de [Cloudflare](https://dash.cloudflare.com/sign-up) y
 Node instalado.
