@@ -14,6 +14,14 @@ name: Desplegar servidor
 
 on:
   workflow_dispatch:
+  # También al empujar cambios del servidor en la rama de desarrollo: el botón manual
+  # de GitHub solo aparece para workflows de la rama principal, y así el despliegue
+  # sale solo con cada cambio del worker. Sin secretos de Cloudflare, falla inofensivo.
+  push:
+    branches: [claude/smartwatch-golf-swing-app-85eb8o]
+    paths:
+      - "server/live/**"
+      - ".github/workflows/desplegar-servidor.yml"
 
 jobs:
   desplegar:
