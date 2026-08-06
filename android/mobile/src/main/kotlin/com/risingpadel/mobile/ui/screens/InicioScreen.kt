@@ -163,7 +163,7 @@ fun InicioScreen(
                 }
             }
 
-            Card(Modifier.fillMaxWidth(), onClick = onOpenSession) {
+            Card(onClick = onOpenSession, modifier = Modifier.fillMaxWidth()) {
                 Row(
                     Modifier.fillMaxWidth().padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,

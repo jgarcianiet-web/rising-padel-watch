@@ -208,7 +208,7 @@ private fun ReviewDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(tipo.label, style = MaterialTheme.typography.bodyMedium)
+                        Text(tipo.label(), style = MaterialTheme.typography.bodyMedium)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             androidx.compose.material3.TextButton(onClick = {
                                 counts[tipo.wireName] =
