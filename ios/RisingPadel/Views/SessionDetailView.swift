@@ -11,12 +11,12 @@ struct SessionDetailView: View {
 
     @State private var matchId = ""
     @State private var leagueId = ""
+    @State private var masAbierto = false
 
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
                 heroCard
-                if let score = session.score { scoreCard(score) }
                 // Las ideas van arriba, antes que las gráficas: son la conclusión, y las
                 // gráficas son la prueba. Quien solo mira diez segundos el móvil al salir
                 // de la pista se lleva lo importante.
@@ -48,10 +48,10 @@ struct SessionDetailView: View {
                 // Los rasgos crudos golpe a golpe: la herramienta para validar en pista
                 // los convenios del giróscopo sin depurador. Solo en modo desarrollador.
                 if model.developerMode { diagnosticsCard }
-                leagueCard
-                matchLinkCard
-                syncCard
-                deleteButton
+                // La cola administrativa va plegada: enviar a la liga, vincular partido,
+                // estado de sincronización y borrado se usan una vez o ninguna — no
+                // tienen por qué pesar lo mismo que el resultado o el nivel.
+                masSection
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -78,7 +78,7 @@ struct SessionDetailView: View {
                         Text("\(session.totalShots)")
                             .font(.padelDisplay(56))
                             .monospacedDigit()
-                            .foregroundStyle(T.pista)
+                            .foregroundStyle(T.lima)
                         Text("golpeos")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(T.tintaSuave)
@@ -86,6 +86,30 @@ struct SessionDetailView: View {
                     Spacer()
                     if let score = session.score {
                         OutcomeBadge(text: outcomeLabel(score), color: outcomeColor(score))
+                    }
+                }
+
+                // El resultado vive en el héroe, no en su propia tarjeta: es parte del
+                // titular de la sesión, no un matiz.
+                if let score = session.score {
+                    HStack(spacing: 10) {
+                        ForEach(Array(score.allSets.enumerated()), id: \.offset) { _, set in
+                            Text("\(set.us)-\(set.them)")
+                                .font(.system(size: 22, weight: .heavy, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(set.us > set.them ? T.pista : T.tintaSuave)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    set.us > set.them ? T.pistaTinte : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                )
+                        }
+                        Spacer()
+                        Text(rulesLabel(score))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                            .multilineTextAlignment(.trailing)
                     }
                 }
 
@@ -122,6 +146,31 @@ struct SessionDetailView: View {
         }
     }
 
+    /// La cola administrativa, plegada: se abre cuando hace falta y no compite con el
+    /// contenido de la sesión.
+    private var masSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            DisclosureGroup(isExpanded: $masAbierto) {
+                VStack(spacing: 12) {
+                    leagueCard
+                    matchLinkCard
+                    syncCard
+                    deleteButton
+                }
+                .padding(.top, 12)
+            } label: {
+                SectionLabel("Liga, sincronización y más", icon: "ellipsis.circle")
+            }
+            .tint(T.tintaSuave)
+        }
+        .padding(16)
+        .background(T.superficie, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(T.borde, lineWidth: 1)
+        )
+    }
+
     private func warning(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
@@ -133,32 +182,6 @@ struct SessionDetailView: View {
     }
 
     // MARK: Resultado
-
-    private func scoreCard(_ score: MatchScore) -> some View {
-        PadelCard(title: "Resultado", icon: "trophy.fill") {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    ForEach(Array(score.allSets.enumerated()), id: \.offset) { _, set in
-                        VStack(spacing: 2) {
-                            Text("\(set.us)-\(set.them)")
-                                .font(.system(size: 22, weight: .heavy, design: .rounded))
-                                .monospacedDigit()
-                                .foregroundStyle(set.us > set.them ? T.pista : T.tintaSuave)
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            set.us > set.them ? T.pistaTinte : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        )
-                    }
-                }
-                Text(rulesLabel(score))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(T.tintaSuave)
-            }
-        }
-    }
 
     private func outcomeLabel(_ score: MatchScore) -> String {
         guard score.isFinished else { return "sin terminar" }

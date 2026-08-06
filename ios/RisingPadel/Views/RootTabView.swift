@@ -69,6 +69,7 @@ struct RootTabView: View {
 /// gráficas, salud. Sin pasos intermedios.
 struct LastSessionView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var liga: LigaModel
     @State private var showingSettings = false
 
     var body: some View {
@@ -96,7 +97,7 @@ struct LastSessionView: View {
                         .padding(.vertical, 12)
                     }
                 } else if let last = model.sessions.first {
-                    SessionDetailView(session: last)
+                    inicio(last)
                 } else {
                     emptyState
                 }
@@ -114,6 +115,150 @@ struct LastSessionView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView().environmentObject(model)
+            }
+        }
+    }
+
+    // MARK: La portada de tres segundos
+
+    /// Lo que un jugador quiere saber al abrir la app, sin buscarlo: su nivel y si
+    /// sube, cómo viene la racha y cómo va la temporada. La última sesión completa
+    /// queda a un toque, no encima.
+    private func inicio(_ last: PadelSession) -> some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                heroInicio
+                NavigationLink {
+                    SessionDetailView(session: last)
+                } label: {
+                    resumenUltima(last)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .navigationTitle("Inicio")
+    }
+
+    /// Nivel de la última sesión puntuable; sin ella, la media del historial.
+    private var nivelActual: Float? {
+        model.sessions.first { $0.level.gradedShots > 0 }?.level.overall
+            ?? model.playerAverageLevel
+    }
+
+    private var heroInicio: some View {
+        PadelCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: -2) {
+                        Text(nivelActual.map { String(format: "%.1f", $0) } ?? "—")
+                            .font(.padelDisplay(54))
+                            .monospacedDigit()
+                            .foregroundStyle(T.lima)
+                        Text("nivel actual")
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                    Spacer()
+                    tendencia
+                }
+
+                racha
+
+                // La meta de la temporada, si la hay: el "12 de 20" que empuja a jugar.
+                if let temporada = liga.temporadaActual,
+                   let objetivo = temporada.objetivoPartidos, objetivo > 0 {
+                    let jugados = liga.matchesTemporadaActual.count
+                    PadelBar(
+                        label: "Partidos de la temporada",
+                        value: "\(jugados)/\(objetivo)",
+                        fraction: Float(jugados) / Float(objetivo),
+                        color: T.lima
+                    )
+                }
+
+                if let objetivo = liga.state.objetivos.first {
+                    HStack(spacing: 6) {
+                        Image(systemName: "target")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(T.lima)
+                        Text(objetivo)
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(T.tinta)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(T.limaTinte, in: Capsule())
+                }
+            }
+        }
+    }
+
+    /// Flecha de tendencia: la última sesión contra la media del historial.
+    @ViewBuilder
+    private var tendencia: some View {
+        if let nivel = nivelActual, let media = model.playerAverageLevel,
+           abs(nivel - media) >= 0.05 {
+            let sube = nivel >= media
+            HStack(spacing: 4) {
+                Image(systemName: sube ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size: 12, weight: .heavy))
+                Text(String(format: "%+.1f", nivel - media))
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+            }
+            .foregroundStyle(sube ? T.verde : T.rojo)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background((sube ? T.verde : T.rojo).opacity(0.12), in: Capsule())
+        }
+    }
+
+    /// Los últimos cinco partidos de la liga, como letras: V V D V V.
+    @ViewBuilder
+    private var racha: some View {
+        let ultimos = liga.matches.sorted { $0.id > $1.id }.prefix(5)
+        if !ultimos.isEmpty {
+            HStack(spacing: 6) {
+                Text("RACHA")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .kerning(1.2)
+                    .foregroundStyle(T.tintaSuave)
+                ForEach(Array(ultimos.enumerated()), id: \.offset) { _, match in
+                    let victoria = match.resultado == "victoria"
+                    Text(victoria ? "V" : "D")
+                        .font(.system(size: 12, weight: .heavy, design: .rounded))
+                        .foregroundStyle(.white)
+                        .frame(width: 22, height: 22)
+                        .background(victoria ? T.verde : T.rojo, in: Circle())
+                }
+            }
+        }
+    }
+
+    private func resumenUltima(_ last: PadelSession) -> some View {
+        PadelCard(title: "Última sesión", icon: "figure.tennis") {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(formatSessionDate(last.startedAtEpochMs))
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(T.tinta)
+                    Text("\(last.totalShots) golpeos · \(formatDuration(last.durationSeconds))")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                }
+                Spacer()
+                if let score = last.score, score.isFinished {
+                    OutcomeBadge(
+                        text: score.winner == .us ? "ganado" : "perdido",
+                        color: score.winner == .us ? T.verde : T.rojo
+                    )
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(T.tintaSuave)
             }
         }
     }

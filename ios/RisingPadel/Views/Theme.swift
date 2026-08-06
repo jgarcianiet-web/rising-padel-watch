@@ -8,18 +8,25 @@ import UIKit
 /// app funcione en modo oscuro: la identidad se mantiene (mismo azul, misma lima) y solo
 /// se invierten fondo y tinta.
 enum T {
-    static let fondo = dynamic(light: 0xF5F3EC, dark: 0x11151D)
-    static let superficie = dynamic(light: 0xFFFFFF, dark: 0x1A202B)
-    static let tinta = dynamic(light: 0x152238, dark: 0xECEFF4)
-    static let tintaSuave = dynamic(light: 0x152238, dark: 0xECEFF4, alpha: 0.58)
-    static let borde = dynamic(light: 0x152238, dark: 0xFFFFFF, alpha: 0.12)
+    // El oscuro es el navy profundo del icono; el claro, papel frío con tinta navy.
+    // Así la app y su icono son la misma marca, no dos productos.
+    static let fondo = dynamic(light: 0xF2F5F9, dark: 0x0A1626)
+    static let superficie = dynamic(light: 0xFFFFFF, dark: 0x13233C)
+    static let tinta = dynamic(light: 0x0E2038, dark: 0xEAF0F7)
+    static let tintaSuave = dynamic(light: 0x0E2038, dark: 0xEAF0F7, alpha: 0.58)
+    static let borde = dynamic(light: 0x0E2038, dark: 0xFFFFFF, alpha: 0.12)
 
     /// Azul de pista: el color de marca y el de las series principales.
     static let pista = dynamic(light: 0x1E56A8, dark: 0x5B93E8)
     static let pistaTinte = dynamic(light: 0xE4ECF8, dark: 0x1E56A8, alpha: 0.22)
 
-    /// Lima de pelota: se reserva para el acento, nunca para texto largo.
-    static let bola = dynamic(light: 0xA8B411, dark: 0xC9D621)
+    /// Lima de pelota: el acento de la marca — cifras héroe y momentos clave, nunca
+    /// texto largo. En oscuro es el lima neón del icono.
+    static let lima = dynamic(light: 0x8FA50F, dark: 0xCDE94F)
+    static let limaTinte = dynamic(light: 0x8FA50F, dark: 0xCDE94F, alpha: 0.14)
+
+    /// Alias histórico del lima (la bolita de saque y compañía).
+    static let bola = lima
 
     static let rojo = dynamic(light: 0xD0455B, dark: 0xE8697D)
     static let verde = dynamic(light: 0x1F8A5B, dark: 0x3FBF87)
