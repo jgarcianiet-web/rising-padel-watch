@@ -369,6 +369,19 @@ final class LigaModel: ObservableObject {
         return url
     }
 
+    /// El estado de la liga como JSON, para la copia de seguridad automática.
+    func backupData() -> Data? {
+        try? JSONEncoder().encode(state)
+    }
+
+    /// Restaura la liga desde la copia de seguridad. Solo pisa si el JSON es válido.
+    func restoreBackup(_ data: Data) {
+        guard let stored = try? JSONDecoder().decode(LigaState.self, from: data) else { return }
+        state = stored
+        save()
+        mirrorObjectivesForWatch()
+    }
+
     // MARK: Persistencia
 
     private func load() {

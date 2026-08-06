@@ -44,11 +44,33 @@ class WatchSessionListenerService : WearableListenerService() {
                 if (existing != null) return@forEach
 
                 container.sessions.save(session)
+
+                // Cada sesión nueva renueva la copia de seguridad del servidor:
+                // reinstalar la app nunca vuelve a costar el historial.
+                subirCopia(container)
             }
         }
         dataEvents.release()
 
         SyncScheduler.requestSyncNow(this)
+    }
+
+    private suspend fun subirCopia(container: com.risingpadel.mobile.AppContainer) {
+        val api = com.risingpadel.mobile.data.ComunidadApi(applicationContext) {
+            com.risingpadel.mobile.data.ComunidadApi.SERVIDOR_OFICIAL
+        }
+        if (!api.tieneCuenta) return
+        container.sessions.refresh()
+        val copia = com.risingpadel.mobile.data.CopiaSeguridad(
+            creadaEpochMs = System.currentTimeMillis(),
+            sesiones = container.sessions.sessions.value,
+            ligaJson = com.risingpadel.mobile.data.LigaStore(applicationContext).export(),
+        )
+        api.subirCopia(
+            json.encodeToString(
+                com.risingpadel.mobile.data.CopiaSeguridad.serializer(), copia
+            ).toByteArray()
+        )
     }
 
     private companion object {

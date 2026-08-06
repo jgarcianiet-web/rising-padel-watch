@@ -308,6 +308,18 @@ final class AppModel: ObservableObject {
         refresh()
     }
 
+    /// Mete en el almacén las sesiones de una copia de seguridad. Las que ya existen
+    /// no se tocan: la copia rellena huecos, nunca pisa lo local.
+    func restoreSessions(_ restored: [PadelSession]) -> Int {
+        var añadidas = 0
+        for session in restored where store.get(session.sessionId) == nil {
+            store.upsert(session)
+            añadidas += 1
+        }
+        refresh()
+        return añadidas
+    }
+
     /// Guarda la revisión del jugador: sus recuentos mandan sobre los del reloj.
     ///
     /// La sesión no vuelve a la cola de subida: la revisión es local (la liga de la

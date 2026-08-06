@@ -147,9 +147,64 @@ export async function comunidad(request, env, path) {
     return json(201, { alias: limpio, token });
   }
 
+  // Recuperar la cuenta: alias + código de recuperación → el token de siempre.
+  // Es la única puerta de vuelta si se pierde el token (móvil nuevo, Android
+  // desinstalado): sin código, la cuenta es irrecuperable a propósito — no hay
+  // correo ni contraseña que resetear.
+  if (ruta === "/recuperar" && metodo === "POST") {
+    const { alias, codigo } = await request.json().catch(() => ({}));
+    const fila = await env.DB.prepare(
+      `SELECT u.alias, u.token FROM users u
+         JOIN recovery_codes r ON r.user_id = u.id
+        WHERE u.alias = ? AND r.code = ?`
+    ).bind((alias || "").toLowerCase().trim(), (codigo || "").toUpperCase().trim()).first();
+    if (!fila) return error(401, "no_coincide", "Ese alias y código no coinciden");
+    return json(200, { alias: fila.alias, token: fila.token });
+  }
+
   // Todo lo demás exige cuenta.
   const yo = await usuarioDe(request, env);
   if (!yo) return error(401, "sin_cuenta", "Token inválido");
+
+  // El código de recuperación del usuario: se crea una vez y no cambia. Quien lo
+  // pide, debe guardarlo — es lo único que devuelve la cuenta si se pierde el token.
+  if (ruta === "/recuperacion" && metodo === "POST") {
+    // Legible a propósito: 8 caracteres sin ambiguos (ni 0/O ni 1/I/L).
+    const alfabeto = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+    let codigo = "";
+    const bytes = crypto.getRandomValues(new Uint8Array(8));
+    for (const b of bytes) codigo += alfabeto[b % alfabeto.length];
+    await env.DB.prepare(
+      "INSERT OR IGNORE INTO recovery_codes (user_id, code) VALUES (?, ?)"
+    ).bind(yo.id, codigo).run();
+    const fila = await env.DB.prepare(
+      "SELECT code FROM recovery_codes WHERE user_id = ?"
+    ).bind(yo.id).first();
+    return json(200, { codigo: fila.code });
+  }
+
+  // La copia de seguridad del usuario: un único objeto en R2 que se machaca en cada
+  // subida. Es lo que hace que reinstalar la app no borre nada: el token sobrevive
+  // en el Llavero y con él vuelve el historial entero.
+  if (ruta === "/copia" && metodo === "PUT") {
+    if (!env.FOTOS) return error(500, "sin_r2", "El servidor no tiene R2 configurado");
+    const cuerpo = await request.arrayBuffer();
+    if (cuerpo.byteLength > 20 * 1024 * 1024) {
+      return error(413, "muy_grande", "La copia supera los 20 MB");
+    }
+    await env.FOTOS.put(`copias/${yo.id}.json`, cuerpo, {
+      httpMetadata: { contentType: "application/json" },
+    });
+    return json(200, { guardada: true, bytes: cuerpo.byteLength });
+  }
+  if (ruta === "/copia" && metodo === "GET") {
+    if (!env.FOTOS) return error(404, "sin_r2", "Sin copias");
+    const objeto = await env.FOTOS.get(`copias/${yo.id}.json`);
+    if (!objeto) return error(404, "sin_copia", "No hay ninguna copia guardada");
+    return new Response(objeto.body, {
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
 
   if (ruta === "/usuarios" && metodo === "GET") {
     const q = new URL(request.url).searchParams.get("q")?.toLowerCase() ?? "";

@@ -174,6 +174,76 @@ final class ComunidadModel: ObservableObject {
         await refrescar()
     }
 
+    /// Vuelve a una cuenta existente con alias + código de recuperación: la puerta de
+    /// vuelta cuando el token se perdió (móvil nuevo, app desinstalada en Android).
+    func recuperar(servidor: String, alias: String, codigo: String) async {
+        guard let respuesta: [String: String] = await llamar(
+            "POST", "v1/comunidad/recuperar", base: servidor,
+            body: [
+                "alias": alias.lowercased().trimmingCharacters(in: .whitespaces),
+                "codigo": codigo.uppercased().trimmingCharacters(in: .whitespaces),
+            ],
+            auth: false
+        ) else { return }
+        guard let token = respuesta["token"], let alias = respuesta["alias"] else {
+            message = "Respuesta rara del servidor"
+            return
+        }
+        ComunidadCuenta.write("alias", alias)
+        ComunidadCuenta.write("token", token)
+        self.alias = alias
+        baseURL = servidor
+        KeychainTokenStore.write(token)
+        await pedirPermisoDePush()
+        await refrescar()
+    }
+
+    /// El código de recuperación de la cuenta: se crea la primera vez y no cambia.
+    /// Quien lo pide debe guardarlo — es lo único que devuelve la cuenta sin token.
+    func codigoRecuperacion() async -> String? {
+        let respuesta: [String: String]? = await llamar("POST", "v1/comunidad/recuperacion")
+        return respuesta?["codigo"]
+    }
+
+    // MARK: Copia de seguridad
+
+    /// Sube la copia (JSON en crudo). Un solo hueco por usuario: machaca la anterior.
+    func subirCopia(_ data: Data) async -> Bool {
+        guard tieneCuenta, var request = peticionCruda("PUT", "v1/comunidad/copia") else {
+            return false
+        }
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+        guard let (_, respuesta) = try? await URLSession.shared.data(for: request),
+              let http = respuesta as? HTTPURLResponse, (200..<300).contains(http.statusCode)
+        else { return false }
+        return true
+    }
+
+    func descargarCopia() async -> Data? {
+        guard tieneCuenta, let request = peticionCruda("GET", "v1/comunidad/copia") else {
+            return nil
+        }
+        guard let (data, respuesta) = try? await URLSession.shared.data(for: request),
+              (respuesta as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return data
+    }
+
+    /// Petición con el token pero sin pasar por el decodificador JSON: la copia viaja
+    /// en crudo (puede pesar megas) y el mensaje de error genérico aquí no ayuda.
+    private func peticionCruda(_ metodo: String, _ ruta: String) -> URLRequest? {
+        var raiz = baseURL.trimmingCharacters(in: .whitespaces)
+        while raiz.hasSuffix("/") { raiz.removeLast() }
+        guard !raiz.isEmpty, let url = URL(string: raiz + "/" + ruta) else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = metodo
+        request.timeoutInterval = 60
+        if let token = ComunidadCuenta.read("token") {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
     private func pedirPermisoDePush() async {
         let concedido = (try? await UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge])) ?? false

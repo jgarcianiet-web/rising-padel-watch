@@ -58,6 +58,9 @@ fun ComunidadScreen() {
     var aviso by remember { mutableStateOf<String?>(null) }
     var buscando by remember { mutableStateOf(false) }
     var viendo by remember { mutableStateOf<ComunidadApi.EnVivo?>(null) }
+    var recuperando by remember { mutableStateOf(false) }
+    var codigo by remember { mutableStateOf("") }
+    var codigoPropio by remember { mutableStateOf<String?>(null) }
 
     suspend fun refrescar() {
         posts = api.muro()
@@ -85,16 +88,34 @@ fun ComunidadScreen() {
                 label = { Text("Tu alias (ej: jesus-g)") },
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (recuperando) {
+                OutlinedTextField(
+                    value = codigo,
+                    onValueChange = { codigo = it },
+                    label = { Text("Código de recuperación") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
             Button(
                 onClick = {
                     scope.launch {
-                        val error = api.registrar(aliasNuevo)
+                        val error = if (recuperando) {
+                            api.recuperar(aliasNuevo, codigo)
+                        } else {
+                            api.registrar(aliasNuevo)
+                        }
                         if (error == null) alias = api.alias else aviso = error
                     }
                 },
-                enabled = aliasNuevo.length >= 2,
+                enabled = aliasNuevo.length >= 2 && (!recuperando || codigo.length >= 6),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Crear mi cuenta") }
+            ) { Text(if (recuperando) "Recuperar mi cuenta" else "Crear mi cuenta") }
+            TextButton(onClick = { recuperando = !recuperando }) {
+                Text(
+                    if (recuperando) "Quiero crear una cuenta nueva"
+                    else "Ya tenía cuenta (tengo mi código)"
+                )
+            }
             aviso?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
         return
@@ -197,6 +218,19 @@ fun ComunidadScreen() {
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+        }
+
+        // El código que devuelve la cuenta si se pierde el token (en Android la
+        // desinstalación lo borra). Se enseña bajo demanda, para apuntarlo.
+        item {
+            codigoPropio?.let { visible ->
+                Text(
+                    "Tu código de recuperación: $visible — apúntalo en un sitio seguro.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } ?: TextButton(onClick = {
+                scope.launch { codigoPropio = api.codigoRecuperacion() ?: "sin conexión" }
+            }) { Text("Ver mi código de recuperación") }
         }
     }
 }

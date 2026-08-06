@@ -80,6 +80,67 @@ class ComunidadApi(context: Context, private val baseUrl: () -> String) {
         return null
     }
 
+    /**
+     * Vuelve a una cuenta existente con alias + código de recuperación: la puerta de
+     * vuelta cuando el token se perdió (la desinstalación en Android lo borra).
+     * Devuelve null si fue bien o el mensaje de error.
+     */
+    suspend fun recuperar(aliasCuenta: String, codigo: String): String? {
+        val respuesta = llamar(
+            "POST", "v1/comunidad/recuperar",
+            body = buildJsonObject {
+                put("alias", aliasCuenta.lowercase().trim())
+                put("codigo", codigo.uppercase().trim())
+            },
+            auth = false,
+        ) ?: return "Sin conexión con la comunidad"
+        val error = respuesta.jsonObject["error"]?.jsonObject
+        if (error != null) return error["message"]?.jsonPrimitive?.content ?: "Error"
+        alias = respuesta.jsonObject["alias"]?.jsonPrimitive?.content
+        token = respuesta.jsonObject["token"]?.jsonPrimitive?.content
+        return null
+    }
+
+    /** El código de recuperación de la cuenta: se crea la primera vez y no cambia. */
+    suspend fun codigoRecuperacion(): String? =
+        llamar("POST", "v1/comunidad/recuperacion")
+            ?.jsonObject?.get("codigo")?.jsonPrimitive?.content
+
+    // ─── Copia de seguridad (JSON en crudo: puede pesar megas) ───
+
+    suspend fun subirCopia(datos: ByteArray): Boolean = withContext(Dispatchers.IO) {
+        val portador = token ?: return@withContext false
+        runCatching {
+            val conexion = URL("${raiz()}/v1/comunidad/copia").openConnection() as HttpURLConnection
+            conexion.requestMethod = "PUT"
+            conexion.connectTimeout = 15_000
+            conexion.readTimeout = 60_000
+            conexion.setRequestProperty("Authorization", "Bearer $portador")
+            conexion.setRequestProperty("Content-Type", "application/json")
+            conexion.doOutput = true
+            conexion.outputStream.use { it.write(datos) }
+            conexion.responseCode in 200..299
+        }.getOrDefault(false)
+    }
+
+    suspend fun descargarCopia(): String? = withContext(Dispatchers.IO) {
+        val portador = token ?: return@withContext null
+        runCatching {
+            val conexion = URL("${raiz()}/v1/comunidad/copia").openConnection() as HttpURLConnection
+            conexion.requestMethod = "GET"
+            conexion.connectTimeout = 15_000
+            conexion.readTimeout = 60_000
+            conexion.setRequestProperty("Authorization", "Bearer $portador")
+            if (conexion.responseCode == 200) {
+                conexion.inputStream.bufferedReader().use { it.readText() }
+            } else {
+                null
+            }
+        }.getOrNull()
+    }
+
+    private fun raiz(): String = baseUrl().trim().trimEnd('/')
+
     suspend fun muro(): List<Post> {
         val respuesta = llamar("GET", "v1/comunidad/muro") ?: return emptyList()
         return respuesta.jsonObject["posts"]?.jsonArray.orEmpty().map { fila ->

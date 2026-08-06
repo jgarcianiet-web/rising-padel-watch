@@ -37,8 +37,42 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
     val message: StateFlow<String?> = _message.asStateFlow()
 
     init {
-        viewModelScope.launch { container.sessions.refresh() }
+        viewModelScope.launch {
+            container.sessions.refresh()
+            restaurarCopiaSiHaceFalta()
+        }
         replicateSettingsToWatch()
+    }
+
+    /**
+     * Al arrancar con la app vacía pero con cuenta (recuperada o superviviente), el
+     * historial vuelve solo del servidor. La copia rellena huecos, nunca pisa lo local.
+     */
+    private suspend fun restaurarCopiaSiHaceFalta() {
+        if (sessions.value.isNotEmpty()) return
+        val api = com.risingpadel.mobile.data.ComunidadApi(getApplication()) {
+            com.risingpadel.mobile.data.ComunidadApi.SERVIDOR_OFICIAL
+        }
+        if (!api.tieneCuenta) return
+        val texto = api.descargarCopia() ?: return
+        val copia = runCatching {
+            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+                .decodeFromString(
+                    com.risingpadel.mobile.data.CopiaSeguridad.serializer(), texto
+                )
+        }.getOrNull() ?: return
+        var añadidas = 0
+        for (sesion in copia.sesiones) {
+            if (container.sessions.get(sesion.sessionId) == null) {
+                container.sessions.save(sesion)
+                añadidas++
+            }
+        }
+        copia.ligaJson?.let { LigaStore(getApplication()).import(it) }
+        container.sessions.refresh()
+        if (añadidas > 0) {
+            _message.value = "Copia restaurada: $añadidas sesión(es) y tu liga"
+        }
     }
 
     /**

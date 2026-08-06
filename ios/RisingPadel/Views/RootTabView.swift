@@ -29,11 +29,18 @@ struct RootTabView: View {
         // reloj se convierte en partido de la liga sin tocar nada. El id del partido es
         // la fecha de inicio, así que repetirse es inocuo (actualiza, no duplica).
         .onChange(of: model.sessions.first?.sessionId) {
-            guard UserDefaults.standard.bool(forKey: "ligaAutoGuardar"),
-                  let session = model.sessions.first,
-                  session.score != nil else { return }
-            liga.saveMatch(from: session, playerAverage: model.playerAverageLevel)
+            if UserDefaults.standard.bool(forKey: "ligaAutoGuardar"),
+               let session = model.sessions.first,
+               session.score != nil {
+                liga.saveMatch(from: session, playerAverage: model.playerAverageLevel)
+            }
+            // Cada sesión nueva renueva la copia de seguridad del servidor: reinstalar
+            // la app nunca vuelve a costar el historial.
+            Task { await subirCopia() }
         }
+        // Al arrancar con la app vacía pero con cuenta en el Llavero (una
+        // reinstalación), el historial vuelve solo del servidor.
+        .task { await restaurarSiHaceFalta() }
         // El azul de pista es el color de marca: tiñe pestañas, enlaces y controles.
         .tint(T.pista)
         // El aviso vive en la raíz y no en una pestaña: un mensaje de sincronización
@@ -61,6 +68,31 @@ struct RootTabView: View {
                 .environmentObject(model)
                 .environmentObject(liga)
                 .environmentObject(comunidad)
+        }
+    }
+
+    // MARK: Copia de seguridad
+
+    private func subirCopia() async {
+        guard comunidad.tieneCuenta,
+              let data = CopiaSeguridad.construir(
+                  sesiones: model.sessions, liga: liga.backupData()
+              ) else { return }
+        if await comunidad.subirCopia(data) {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "ultimaCopia")
+        }
+    }
+
+    private func restaurarSiHaceFalta() async {
+        guard model.sessions.isEmpty, comunidad.tieneCuenta,
+              let data = await comunidad.descargarCopia(),
+              let copia = CopiaSeguridad.abrir(data) else { return }
+        let añadidas = model.restoreSessions(copia.sesiones)
+        if let ligaJson = copia.ligaJson?.data(using: .utf8) {
+            liga.restoreBackup(ligaJson)
+        }
+        if añadidas > 0 {
+            model.message = "Copia restaurada: \(añadidas) sesión(es) y tu liga"
         }
     }
 }

@@ -114,3 +114,10 @@ CREATE TABLE IF NOT EXISTS reports (
   reason TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL
 );
+
+-- El código de recuperación: la única puerta de vuelta a una cuenta sin token.
+-- Se genera una vez y no cambia.
+CREATE TABLE IF NOT EXISTS recovery_codes (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  code TEXT NOT NULL
+);

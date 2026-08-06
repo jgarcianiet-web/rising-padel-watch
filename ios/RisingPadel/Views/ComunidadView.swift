@@ -353,6 +353,9 @@ struct ComunidadRegistroView: View {
     @State private var alias = ""
     @State private var creando = false
     @State private var servidorPropio = false
+    /// Modo "ya tenía cuenta": alias + código de recuperación en vez de crear una.
+    @State private var recuperando = false
+    @State private var codigo = ""
 
     /// El servidor oficial, de serie: nadie debería tener que teclear una URL para
     /// unirse. El campo solo aparece si se quiere apuntar a un servidor propio.
@@ -377,6 +380,12 @@ struct ComunidadRegistroView: View {
                         TextField("Tu alias (ej: jesus-g)", text: $alias)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                        if recuperando {
+                            TextField("Código de recuperación", text: $codigo)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.characters)
+                                .font(.system(.body, design: .monospaced))
+                        }
                         // El servidor viene de serie: la URL solo aparece para quien
                         // monte el suyo. Nadie teclea un workers.dev para unirse.
                         if servidorPropio {
@@ -387,6 +396,16 @@ struct ComunidadRegistroView: View {
                         }
                     }
                 }
+
+                Button {
+                    recuperando.toggle()
+                } label: {
+                    Text(recuperando ? "Quiero crear una cuenta nueva"
+                                     : "Ya tenía cuenta (tengo mi código)")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                }
+                .buttonStyle(.plain)
 
                 Button {
                     servidorPropio.toggle()
@@ -403,20 +422,26 @@ struct ComunidadRegistroView: View {
                         servidor = Self.servidorOficial
                     }
                     Task {
-                        await comunidad.registrar(servidor: servidor, alias: alias)
+                        if recuperando {
+                            await comunidad.recuperar(
+                                servidor: servidor, alias: alias, codigo: codigo
+                            )
+                        } else {
+                            await comunidad.registrar(servidor: servidor, alias: alias)
+                        }
                         creando = false
                     }
                 } label: {
                     if creando {
                         ProgressView().frame(maxWidth: .infinity)
                     } else {
-                        Text("Crear mi cuenta")
+                        Text(recuperando ? "Recuperar mi cuenta" : "Crear mi cuenta")
                             .font(.system(size: 15, weight: .bold, design: .rounded))
                             .frame(maxWidth: .infinity)
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(alias.count < 2 || creando)
+                .disabled(alias.count < 2 || creando || (recuperando && codigo.count < 6))
             }
             .padding(20)
         }

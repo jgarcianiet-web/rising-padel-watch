@@ -3,6 +3,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var liga: LigaModel
+    @EnvironmentObject private var comunidad: ComunidadModel
+    @AppStorage("ultimaCopia") private var ultimaCopia: Double = 0
+    @State private var copiando = false
+    @State private var codigoRecuperacion: String?
     @Environment(\.dismiss) private var dismiss
 
     @State private var token = ""
@@ -13,6 +18,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 leagueSection
+                copiaSection
                 ligaLocalSection
                 coachSection
                 privacySection
@@ -64,6 +70,63 @@ struct SettingsView: View {
     }
 
     @AppStorage("ligaAutoGuardar") private var ligaAutoGuardar = false
+
+    /// Copia de seguridad en el servidor de la comunidad: se renueva sola con cada
+    /// sesión y se restaura sola al reinstalar. Aquí solo viven el estado, el botón
+    /// manual y el código de recuperación.
+    @ViewBuilder
+    private var copiaSection: some View {
+        if comunidad.tieneCuenta {
+            Section {
+                if ultimaCopia > 0 {
+                    LabeledContent("Última copia") {
+                        Text(Date(timeIntervalSince1970: ultimaCopia),
+                             format: .dateTime.day().month().hour().minute())
+                    }
+                } else {
+                    Text("Todavía no hay ninguna copia. Se hace sola con cada sesión.")
+                        .font(.footnote)
+                        .foregroundStyle(T.tintaSuave)
+                }
+                Button(copiando ? "Guardando…" : "Guardar copia ahora") {
+                    copiando = true
+                    Task {
+                        if let data = CopiaSeguridad.construir(
+                            sesiones: model.sessions, liga: liga.backupData()
+                        ), await comunidad.subirCopia(data) {
+                            ultimaCopia = Date().timeIntervalSince1970
+                            model.message = "Copia guardada en el servidor"
+                        } else {
+                            model.message = "No se pudo guardar la copia"
+                        }
+                        copiando = false
+                    }
+                }
+                .disabled(copiando)
+
+                if let codigo = codigoRecuperacion {
+                    LabeledContent("Código de recuperación") {
+                        Text(codigo)
+                            .font(.system(.body, design: .monospaced).bold())
+                            .textSelection(.enabled)
+                    }
+                    Text("Apúntalo en un sitio seguro: es lo único que devuelve tu "
+                         + "cuenta si pierdes el móvil. No lo compartas.")
+                        .font(.footnote)
+                        .foregroundStyle(T.tintaSuave)
+                } else {
+                    Button("Ver mi código de recuperación") {
+                        Task { codigoRecuperacion = await comunidad.codigoRecuperacion() }
+                    }
+                }
+            } header: {
+                Text("Copia de seguridad")
+            } footer: {
+                Text("El historial y la liga se guardan en tu cuenta de la comunidad "
+                     + "con cada sesión. Al reinstalar la app, vuelven solos.")
+            }
+        }
+    }
 
     private var ligaLocalSection: some View {
         Section {
