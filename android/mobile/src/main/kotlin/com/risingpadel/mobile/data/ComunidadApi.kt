@@ -26,6 +26,12 @@ import java.net.URLEncoder
  */
 class ComunidadApi(context: Context, private val baseUrl: () -> String) {
 
+    companion object {
+        /** El servidor oficial, de serie: el mismo que lleva iOS. */
+        const val SERVIDOR_OFICIAL =
+            "https://rising-padel-live.rising-padel-2d82dd5fe2.workers.dev"
+    }
+
     data class Post(
         val id: Int,
         val alias: String,
@@ -148,6 +154,18 @@ class ComunidadApi(context: Context, private val baseUrl: () -> String) {
     /** El último estado en vivo de una sesión, en crudo, para el visor. */
     suspend fun estadoEnVivo(sessionId: String): JsonObject? =
         llamar("GET", "v1/live/$sessionId", auth = false)?.jsonObject
+
+    /**
+     * Republica el estado en vivo que llega del reloj Wear. El token de la cuenta
+     * identifica al jugador: el servidor avisa a sus seguidores con el primer estado y
+     * apunta el resultado al ranking con el último (completed).
+     */
+    suspend fun publicarEnVivo(sessionId: String, estadoJson: String): Boolean {
+        if (token == null) return false
+        val estado = runCatching { json.parseToJsonElement(estadoJson).jsonObject }
+            .getOrNull() ?: return false
+        return llamar("PUT", "v1/live/$sessionId", body = estado) != null
+    }
 
     // ─── HTTP ───
 

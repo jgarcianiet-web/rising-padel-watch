@@ -8,6 +8,9 @@ import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.MatchRef
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.model.PlayerProfile
+import com.risingpadel.core.model.SessionReview
+import com.risingpadel.core.liga.LigaMapper
+import com.risingpadel.mobile.data.LigaStore
 import com.risingpadel.mobile.PadelMobileApp
 import com.risingpadel.mobile.data.AppPreferences
 import com.risingpadel.mobile.sync.SyncScheduler
@@ -84,6 +87,35 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
 
     fun deleteSession(sessionId: String) {
         viewModelScope.launch { container.sessions.delete(sessionId) }
+    }
+
+    /**
+     * Guarda la revisión del jugador: sus recuentos mandan sobre los del reloj. Si el
+     * partido ya estaba en la liga, se reescribe con los recuentos corregidos (mismo
+     * id: actualiza, no duplica).
+     */
+    fun applyReview(sessionId: String, correctedCounts: Map<String, Int>) {
+        viewModelScope.launch {
+            val session = container.sessions.get(sessionId) ?: return@launch
+            val updated = session.copy(
+                review = SessionReview(correctedCounts, System.currentTimeMillis())
+            )
+            container.sessions.save(updated)
+            container.sessions.refresh()
+
+            val store = LigaStore(getApplication())
+            val state = store.load()
+            if (state.matches.any { it.id == updated.startedAtEpochMs }) {
+                val media = sessions.value
+                    .map { it.level }.filter { it.gradedShots > 0 }.map { it.overall }
+                    .takeIf { it.isNotEmpty() }?.average()?.toFloat()
+                val match = LigaMapper.matchFrom(updated, media, state.objetivos)
+                store.save(state.copy(
+                    matches = state.matches.filter { it.id != match.id } + match
+                ))
+            }
+            _message.value = "Revisión guardada: tus recuentos mandan"
+        }
     }
 
     /** Vincula la sesión con un partido de la liga y la devuelve a la cola de subida. */

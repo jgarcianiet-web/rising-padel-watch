@@ -43,6 +43,23 @@
         </service>
 
         <!--
+            Recibe el estado en vivo del partido desde el reloj y lo republica al
+            servidor con el token de la cuenta: el reloj emite, el móvil firma.
+        -->
+        <service
+            android:name=".sync.LiveStateListenerService"
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_WEARABLE_LISTENER">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/padel/live" />
+            </intent-filter>
+        </service>
+
+        <!--
             Recibe el fichero de datos de entrenamiento del reloj. Va por canal y no por
             Data Layer porque puede pesar decenas de megas.
         -->

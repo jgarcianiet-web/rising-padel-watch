@@ -63,6 +63,7 @@ fun SessionDetailScreen(
     onLinkMatch: (matchId: String, leagueId: String?) -> Unit,
     onDelete: () -> Unit,
     onOpenSettings: (() -> Unit)? = null,
+    onApplyReview: ((Map<String, Int>) -> Unit)? = null,
 ) {
     // El guardado en la liga vive aquí y no en un ViewModel: es una acción puntual
     // sobre el fichero-estado de la liga, el mismo que la pestaña Liga.
@@ -101,6 +102,9 @@ fun SessionDetailScreen(
             FrequencyChartCard(session)
             ProgressChartCard(session, playerAverageLevel)
             ShotBreakdown(session)
+            if (onApplyReview != null && session.shots.isNotEmpty()) {
+                ReviewCard(session, onApplyReview)
+            }
             if (!session.health.isEmpty) HealthCard(session)
             LigaSaveCard(session, playerAverageLevel)
             MatchLinkCard(session, onLinkMatch)
@@ -110,6 +114,130 @@ fun SessionDetailScreen(
             }
         }
     }
+}
+
+/**
+ * "¿Acertó el reloj?": el jugador corrige los recuentos y sus números mandan en la
+ * liga y en los objetivos. La comparación con lo que contó el reloj es la medida real
+ * de la precisión del detector — la verdad-terreno que solo quien jugó puede dar.
+ */
+@Composable
+private fun ReviewCard(session: PadelSession, onApplyReview: (Map<String, Int>) -> Unit) {
+    var revisando by remember { mutableStateOf(false) }
+    val precision = session.reviewAccuracy
+
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("¿Acertó el reloj?", style = MaterialTheme.typography.titleMedium)
+            if (precision != null) {
+                Text(
+                    "${(precision * 100).toInt()}% de precisión según tu revisión",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (precision >= 0.85f) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error,
+                )
+                Text(
+                    "La liga y los objetivos usan tus recuentos.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                androidx.compose.material3.TextButton(onClick = { revisando = true }) {
+                    Text("Volver a revisar")
+                }
+            } else {
+                Text(
+                    "Repasa los recuentos y corrige los que no cuadren. Tus " +
+                        "correcciones mandan en la liga y en los objetivos.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(onClick = { revisando = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Revisar recuentos")
+                }
+            }
+        }
+    }
+
+    if (revisando) {
+        ReviewDialog(
+            session = session,
+            onSave = { corregidos ->
+                onApplyReview(corregidos)
+                revisando = false
+            },
+            onClose = { revisando = false },
+        )
+    }
+}
+
+@Composable
+private fun ReviewDialog(
+    session: PadelSession,
+    onSave: (Map<String, Int>) -> Unit,
+    onClose: () -> Unit,
+) {
+    // Los tipos que se revisan: lo detectado más los golpes altos, que son los que más
+    // se confunden entre sí — "fueron 3 smashes aunque contara 0" es el caso útil.
+    val altos = setOf(
+        com.risingpadel.core.model.ShotType.BANDEJA,
+        com.risingpadel.core.model.ShotType.VIBORA,
+        com.risingpadel.core.model.ShotType.SMASH,
+    )
+    val tipos = com.risingpadel.core.model.ShotType.entries.filter {
+        it != com.risingpadel.core.model.ShotType.UNKNOWN &&
+            (it in session.shotsByType || it in altos)
+    }
+    val counts = remember {
+        val base = session.effectiveShotsByType
+        androidx.compose.runtime.mutableStateMapOf<String, Int>().apply {
+            tipos.forEach { put(it.wireName, base[it] ?: 0) }
+        }
+    }
+
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onClose,
+        title = { Text("Revisar recuentos") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "El reloj contó ${session.totalShots} golpeos. Deja cada recuento " +
+                        "en lo que de verdad pasó.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                tipos.forEach { tipo ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(tipo.label, style = MaterialTheme.typography.bodyMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            androidx.compose.material3.TextButton(onClick = {
+                                counts[tipo.wireName] =
+                                    ((counts[tipo.wireName] ?: 0) - 1).coerceAtLeast(0)
+                            }) { Text("−") }
+                            Text(
+                                "${counts[tipo.wireName] ?: 0}",
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            androidx.compose.material3.TextButton(onClick = {
+                                counts[tipo.wireName] = (counts[tipo.wireName] ?: 0) + 1
+                            }) { Text("+") }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                // Solo viajan los tipos que difieren del reloj: la revisión es la
+                // lista de correcciones, no una copia de todos los recuentos.
+                val detectados = session.shotsByType.mapKeys { it.key.wireName }
+                onSave(counts.filter { (wire, valor) -> valor != (detectados[wire] ?: 0) })
+            }) { Text("Guardar") }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onClose) { Text("Cancelar") }
+        },
+    )
 }
 
 @Composable

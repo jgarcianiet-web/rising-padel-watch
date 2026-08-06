@@ -8,6 +8,7 @@ import com.risingpadel.wear.score.ScoreHaptics
 import com.risingpadel.wear.score.ScoreSession
 import com.risingpadel.wear.sensors.MotionCollector
 import com.risingpadel.wear.training.TrainingSession
+import com.risingpadel.wear.transport.LiveStateSender
 import com.risingpadel.wear.transport.PhoneSessionSender
 import com.risingpadel.wear.transport.TrainingDataSender
 
@@ -20,6 +21,7 @@ class WearContainer(context: Context) {
     val motionCollector by lazy { MotionCollector(context) }
     val exerciseTracker by lazy { ExerciseTracker(context) }
     val phoneSender by lazy { PhoneSessionSender(context) }
+    val liveStateSender by lazy { LiveStateSender(context) }
     val haptics by lazy { ScoreHaptics(context) }
     val trainingDataSender by lazy { TrainingDataSender(context) }
 

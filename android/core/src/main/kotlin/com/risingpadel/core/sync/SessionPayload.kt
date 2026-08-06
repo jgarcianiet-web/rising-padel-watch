@@ -317,7 +317,9 @@ private fun SessionLevel.toPayloadOrNull(): LevelPayload? {
     )
 }
 
-private fun MatchScore.toPayload() = ScorePayload(
+// Público porque el estado en vivo del reloj Wear lo reutiliza: el marcador que viaja
+// al espectador es el mismo shape que el de la sesión terminada.
+fun MatchScore.toPayload() = ScorePayload(
     rules = ScoreRulesPayload(
         deuceFormat = rules.deuceFormat.wireName,
         setsToWin = rules.setsToWin,

@@ -18,9 +18,13 @@ import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.model.Platform
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
+import com.risingpadel.core.score.MatchScore
 import com.risingpadel.core.score.ScoreRules
 import com.risingpadel.core.score.Side
 import com.risingpadel.core.session.SessionRecorder
+import com.risingpadel.core.sync.LiveScorePayload
+import com.risingpadel.core.sync.toPayload
+import java.time.Instant
 import com.risingpadel.wear.PadelWearApp
 import com.risingpadel.wear.R
 import com.risingpadel.wear.ui.MainActivity
@@ -188,8 +192,12 @@ class PadelExerciseService : LifecycleService() {
             }
 
             tickerJob = launch {
+                container.liveStateSender.reset()
                 while (isActive) {
                     publishSnapshot(preferences.profile.watchOnRacketArm)
+                    // El estado en vivo viaja al móvil, que lo republica al servidor
+                    // con su token. Deduplicado en el emisor: solo va lo que cambió.
+                    publishLive(container, completed = false)
                     delay(1_000)
                 }
             }
@@ -240,6 +248,11 @@ class PadelExerciseService : LifecycleService() {
             val container = (application as PadelWearApp).container
             runCatching { container.exerciseTracker.end() }
 
+            // El último estado en vivo sale ANTES de cerrar el marcador, con
+            // completed=true: es lo que apunta el resultado al ranking y saca al
+            // jugador de "está jugando ahora".
+            publishLive(container, completed = true)
+
             // El marcador se cierra antes que la sesión para que el resultado viaje
             // dentro de ella y no en un mensaje aparte que pueda perderse.
             current.score = container.scoreSession.finish()
@@ -261,6 +274,31 @@ class PadelExerciseService : LifecycleService() {
             )
             stopForegroundAndSelf()
         }
+    }
+
+    /// El estado en vivo del partido, con el mismo shape que publica el Apple Watch.
+    private suspend fun publishLive(
+        container: com.risingpadel.wear.WearContainer,
+        completed: Boolean,
+    ) {
+        val current = recorder ?: return
+        val sessionId = current.currentSessionId ?: return
+        val score: MatchScore? = container.scoreSession.state.value
+        val ui = _state.value
+        container.liveStateSender.sendIfChanged(
+            LiveScorePayload(
+                sessionId = sessionId,
+                updatedAt = Instant.now().toString(),
+                completed = completed || score?.isFinished == true,
+                score = score?.toPayload(),
+                pointsUs = score?.takeIf { !it.isFinished }?.pointsLabel(Side.US),
+                pointsThem = score?.takeIf { !it.isFinished }?.pointsLabel(Side.THEM),
+                serving = score?.takeIf { !it.isFinished }?.server?.wireName,
+                shotCount = ui.shotCount,
+                heartRateBpm = if (shareHealth) ui.heartRateBpm else null,
+                elapsedSeconds = ui.elapsedSeconds,
+            )
+        )
     }
 
     private fun publishSnapshot(watchOnRacketArm: Boolean) {

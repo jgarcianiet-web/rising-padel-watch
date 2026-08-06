@@ -93,6 +93,33 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
     val navController = rememberNavController()
     val context = androidx.compose.ui.platform.LocalContext.current
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
+
+    // El onboarding solo existe para quien de verdad empieza de cero: con sesiones o
+    // cuenta de comunidad previas se da por hecho sin enseñarlo.
+    val onboardingPrefs = remember {
+        context.getSharedPreferences("onboarding", android.content.Context.MODE_PRIVATE)
+    }
+    val onboardingDone = remember {
+        androidx.compose.runtime.mutableStateOf(
+            onboardingPrefs.getBoolean("done", false) ||
+                com.risingpadel.mobile.data.ComunidadApi(context) {
+                    com.risingpadel.mobile.data.ComunidadApi.SERVIDOR_OFICIAL
+                }.tieneCuenta
+        )
+    }
+    LaunchedEffect(sessions) {
+        if (sessions.isNotEmpty() && !onboardingDone.value) {
+            onboardingPrefs.edit().putBoolean("done", true).apply()
+            onboardingDone.value = true
+        }
+    }
+    if (!onboardingDone.value) {
+        com.risingpadel.mobile.ui.screens.OnboardingScreen(onDone = {
+            onboardingPrefs.edit().putBoolean("done", true).apply()
+            onboardingDone.value = true
+        })
+        return
+    }
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -155,8 +182,8 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
             startDestination = Routes.LAST,
             modifier = Modifier.padding(padding),
         ) {
-            // Lo primero al abrir: la última sesión con todo su detalle — resultado,
-            // nivel, gráficas y salud. Es lo que se viene a mirar al salir de la pista.
+            // La portada de tres segundos: nivel, racha, meta y objetivo. La última
+            // sesión completa queda a un toque — el mismo diseño que iOS.
             composable(Routes.LAST) {
                 val last = sessions.firstOrNull()
                 if (last == null) {
@@ -167,16 +194,11 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                         onSyncNow = viewModel::syncNow,
                     )
                 } else {
-                    SessionDetailScreen(
+                    com.risingpadel.mobile.ui.screens.InicioScreen(
                         session = last,
                         playerAverageLevel = playerAverageLevel,
-                        onBack = null,
+                        onOpenSession = { navController.navigate(Routes.detail(last.sessionId)) },
                         onOpenSettings = { navController.navigate(Routes.SETTINGS) },
-                        onRetrySync = { viewModel.retrySession(last.sessionId) },
-                        onLinkMatch = { matchId, leagueId ->
-                            viewModel.linkToMatch(last.sessionId, matchId, leagueId)
-                        },
-                        onDelete = { viewModel.deleteSession(last.sessionId) },
                     )
                 }
             }
@@ -233,6 +255,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                         viewModel.deleteSession(session.sessionId)
                         navController.popBackStack()
                     },
+                    onApplyReview = { viewModel.applyReview(session.sessionId, it) },
                 )
             }
 

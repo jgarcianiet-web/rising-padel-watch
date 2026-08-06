@@ -1,30 +1,38 @@
 package com.risingpadel.mobile.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 
-private val PadelGreen = Color(0xFF1B7F5A)
-private val PadelGreenLight = Color(0xFF7BE3A6)
-private val PadelSand = Color(0xFFE8C57A)
+// La paleta de la marca, la misma que iOS y que el icono: azul de pista como color
+// principal, lima de pelota como acento, y en oscuro el navy profundo del icono.
+private val Pista = Color(0xFF1E56A8)
+private val PistaClaro = Color(0xFF5B93E8)
+private val Lima = Color(0xFF8FA50F)
+private val LimaNeon = Color(0xFFCDE94F)
 
 private val LightColors = lightColorScheme(
-    primary = PadelGreen,
-    secondary = Color(0xFF4F6354),
-    tertiary = PadelSand,
+    primary = Pista,
+    secondary = Lima,
+    tertiary = LimaNeon,
+    background = Color(0xFFF2F5F9),
+    surface = Color(0xFFFFFFFF),
+    onBackground = Color(0xFF0E2038),
+    onSurface = Color(0xFF0E2038),
 )
 
 private val DarkColors = darkColorScheme(
-    primary = PadelGreenLight,
-    secondary = Color(0xFFB6CCBB),
-    tertiary = PadelSand,
+    primary = PistaClaro,
+    secondary = LimaNeon,
+    tertiary = LimaNeon,
+    background = Color(0xFF0A1626),
+    surface = Color(0xFF13233C),
+    surfaceVariant = Color(0xFF1A2C48),
+    onBackground = Color(0xFFEAF0F7),
+    onSurface = Color(0xFFEAF0F7),
 )
 
 @Composable
@@ -32,15 +40,8 @@ fun RisingPadelTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit,
 ) {
-    val colorScheme = when {
-        // En Android 12+ se respeta el color del sistema; la paleta propia es el respaldo.
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColors
-        else -> LightColors
-    }
+    // Nada de colores dinámicos del sistema: la app y su icono son una marca, y en
+    // cada móvil se tiene que ver igual — como en iOS.
+    val colorScheme = if (darkTheme) DarkColors else LightColors
     MaterialTheme(colorScheme = colorScheme, content = content)
 }

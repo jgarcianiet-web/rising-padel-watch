@@ -35,8 +35,8 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 
-/** El servidor oficial, de serie: el mismo que lleva iOS. */
-private const val SERVIDOR_OFICIAL = "https://rising-padel-live.rising-padel-2d82dd5fe2.workers.dev"
+/** El servidor oficial, de serie: vive en ComunidadApi para que lo comparta el sync. */
+private const val SERVIDOR_OFICIAL = ComunidadApi.SERVIDOR_OFICIAL
 
 /**
  * La comunidad en Android: registro por alias, muro con reacciones, quién está jugando
