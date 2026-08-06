@@ -1,5 +1,6 @@
 import PadelCore
 import PhotosUI
+import UIKit
 import SwiftUI
 
 /// Envoltorio Identifiable para abrir el perfil de un alias en un sheet.
@@ -13,21 +14,29 @@ struct ComunidadView: View {
     @EnvironmentObject private var comunidad: ComunidadModel
     @EnvironmentObject private var liga: LigaModel
 
-    @State private var texto = ""
-    @State private var adjuntarPartido = false
+    /// Muro (0) o La semana (1): el muro es para leer; lo competitivo, a su sitio.
+    @State private var seccion = 0
+    @State private var publicando = false
     @State private var buscando = false
     @State private var comentando: ComunidadPost?
     @State private var retando = false
     @State private var torneando = false
     @State private var perfilDe: PerfilRef?
-    @State private var fotoElegida: PhotosPickerItem?
-    @State private var fotoData: Data?
 
     var body: some View {
         NavigationStack {
             Group {
                 if comunidad.tieneCuenta {
-                    muro
+                    VStack(spacing: 0) {
+                        Picker("", selection: $seccion) {
+                            Text("Muro").tag(0)
+                            Text("La semana").tag(1)
+                        }
+                        .pickerStyle(.segmented)
+                        .padding(.horizontal, 16)
+                        .padding(.top, 4)
+                        if seccion == 0 { muro } else { semana }
+                    }
                 } else {
                     ComunidadRegistroView()
                 }
@@ -45,21 +54,22 @@ struct ComunidadView: View {
                         .accessibilityLabel("Buscar gente")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
-                        Menu {
-                            Button { retando = true } label: {
-                                Label("Retos", systemImage: "bolt.fill")
-                            }
-                            Button { torneando = true } label: {
-                                Label("Torneo", systemImage: "trophy")
-                            }
+                        Button {
+                            publicando = true
                         } label: {
-                            Image(systemName: "gamecontroller")
+                            Image(systemName: "square.and.pencil")
                         }
+                        .accessibilityLabel("Publicar")
                     }
                 }
             }
             .sheet(isPresented: $buscando) {
                 ComunidadBuscarView().environmentObject(comunidad)
+            }
+            .sheet(isPresented: $publicando) {
+                ComunidadComposerView()
+                    .environmentObject(comunidad)
+                    .environmentObject(liga)
             }
             .sheet(item: $comunidad.espectador) { vivo in
                 LiveSpectatorView(vivo: vivo)
@@ -96,16 +106,12 @@ struct ComunidadView: View {
                 if !comunidad.jugando.isEmpty {
                     jugandoStrip
                 }
-                if comunidad.ranking.count >= 2 {
-                    rankingCard
-                }
-                composer
                 ForEach(comunidad.posts) { post in
                     postCard(post)
                 }
                 if comunidad.posts.isEmpty {
                     Text("El muro está vacío: sigue a alguien con el botón de arriba, "
-                         + "o publica tú el primero.")
+                         + "o publica tú el primero con el lápiz.")
                         .font(.system(size: 13, design: .rounded))
                         .foregroundStyle(T.tintaSuave)
                         .padding(.top, 24)
@@ -114,27 +120,86 @@ struct ComunidadView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
-    /// Quién de los tuyos está en pista ahora: un toque y a mirar.
+    /// Lo competitivo, en su sitio: el ranking semanal y las puertas a retos y torneo.
+    private var semana: some View {
+        ScrollView {
+            VStack(spacing: 12) {
+                if comunidad.ranking.count >= 2 {
+                    rankingCard
+                } else {
+                    Text("El ranking se enciende cuando tú y los tuyos termináis "
+                         + "partidos en vivo esta semana.")
+                        .font(.system(size: 13, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                        .padding(.top, 12)
+                }
+                puerta("Retos", icono: "bolt.fill",
+                       detalle: "Reta a quien sigues: bandejas, víboras, victorias…") {
+                    retando = true
+                }
+                puerta("Torneo", icono: "trophy",
+                       detalle: "Monta un cuadro con tu grupo y que salga un campeón.") {
+                    torneando = true
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+    }
+
+    private func puerta(
+        _ titulo: String, icono: String, detalle: String, accion: @escaping () -> Void
+    ) -> some View {
+        Button(action: accion) {
+            PadelCard {
+                HStack(spacing: 12) {
+                    Image(systemName: icono)
+                        .font(.system(size: 20))
+                        .foregroundStyle(T.pista)
+                        .frame(width: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(titulo)
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundStyle(T.tinta)
+                        Text(detalle)
+                            .font(.system(size: 12, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(T.tintaSuave)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Quién de los tuyos está en pista ahora: chips compactos, un toque y a mirar.
     private var jugandoStrip: some View {
-        PadelCard {
-            VStack(alignment: .leading, spacing: 8) {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
                 ForEach(comunidad.jugando) { vivo in
                     Button {
                         comunidad.espectador = vivo
                     } label: {
-                        HStack(spacing: 8) {
-                            Circle().fill(T.rojo).frame(width: 8, height: 8)
-                            Text("\(vivo.alias) está jugando ahora")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                        HStack(spacing: 6) {
+                            Circle().fill(T.rojo).frame(width: 7, height: 7).modifier(Pulse())
+                            Text("@\(vivo.alias)")
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
                                 .foregroundStyle(T.tinta)
-                            Spacer()
-                            Text("VER")
-                                .font(.system(size: 11, weight: .heavy, design: .rounded))
-                                .kerning(1.2)
-                                .foregroundStyle(T.pista)
+                            Text("EN VIVO")
+                                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                .kerning(0.8)
+                                .foregroundStyle(T.rojo)
                         }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(T.superficie, in: Capsule())
+                        .overlay(Capsule().strokeBorder(T.rojo.opacity(0.35), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                 }
@@ -179,71 +244,6 @@ struct ComunidadView: View {
         case 1: return "🥈"
         case 2: return "🥉"
         default: return " "
-        }
-    }
-
-    private var composer: some View {
-        PadelCard {
-            VStack(alignment: .leading, spacing: 8) {
-                TextField("Cuenta algo… (@alias para etiquetar)", text: $texto, axis: .vertical)
-                    .font(.system(size: 14, design: .rounded))
-                if let fotoData, let imagen = UIImage(data: fotoData) {
-                    Image(uiImage: imagen)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 120)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(alignment: .topTrailing) {
-                            Button {
-                                self.fotoData = nil
-                                fotoElegida = nil
-                            } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.white)
-                                    .padding(6)
-                            }
-                        }
-                }
-                HStack {
-                    if liga.matches.first != nil {
-                        Toggle(isOn: $adjuntarPartido) {
-                            Label("Partido", systemImage: "trophy")
-                                .font(.system(size: 12, design: .rounded))
-                        }
-                        .toggleStyle(.button)
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                    PhotosPicker(selection: $fotoElegida, matching: .images) {
-                        Label("Foto", systemImage: "photo")
-                            .font(.system(size: 12, design: .rounded))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .onChange(of: fotoElegida) {
-                        Task {
-                            fotoData = try? await fotoElegida?
-                                .loadTransferable(type: Data.self)
-                        }
-                    }
-                    Spacer()
-                    Button {
-                        let tarjeta = adjuntarPartido ? liga.matches.first : nil
-                        let contenido = texto
-                        let foto = fotoData
-                        texto = ""
-                        adjuntarPartido = false
-                        fotoData = nil
-                        fotoElegida = nil
-                        Task { await comunidad.publicar(texto: contenido, tarjeta: tarjeta, foto: foto) }
-                    } label: {
-                        Label("Publicar", systemImage: "paperplane.fill")
-                            .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(texto.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
         }
     }
 
@@ -347,6 +347,127 @@ struct ComunidadView: View {
 /// El alta: servidor + alias. El token que devuelve el servidor es la cuenta entera y
 /// se guarda en el Llavero; el mismo registro deja configurados el marcador en vivo y
 /// la subida de sesiones.
+/// La hoja de publicar: con su propio foco y su botón de cerrar, el teclado nunca
+/// secuestra el muro. La foto se comprime aquí a JPEG de verdad antes de subir — el
+/// original del carrete puede ser HEIC de varios megas, que el servidor rechaza.
+struct ComunidadComposerView: View {
+    @EnvironmentObject private var comunidad: ComunidadModel
+    @EnvironmentObject private var liga: LigaModel
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var texto = ""
+    @State private var adjuntarPartido = false
+    @State private var fotoElegida: PhotosPickerItem?
+    @State private var fotoData: Data?
+    @State private var enviando = false
+    @FocusState private var enfocado: Bool
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    TextField("Cuenta algo… (@alias para etiquetar)", text: $texto, axis: .vertical)
+                        .font(.system(size: 15, design: .rounded))
+                        .lineLimit(4...10)
+                        .focused($enfocado)
+                        .padding(12)
+                        .background(T.superficie, in: RoundedRectangle(cornerRadius: 12))
+
+                    if let fotoData, let imagen = UIImage(data: fotoData) {
+                        Image(uiImage: imagen)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(height: 160)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    self.fotoData = nil
+                                    fotoElegida = nil
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(.white)
+                                        .shadow(radius: 2)
+                                        .padding(8)
+                                }
+                            }
+                    }
+
+                    HStack(spacing: 8) {
+                        PhotosPicker(selection: $fotoElegida, matching: .images) {
+                            Label("Foto", systemImage: "photo")
+                                .font(.system(size: 13, design: .rounded))
+                        }
+                        .buttonStyle(.bordered)
+                        .onChange(of: fotoElegida) {
+                            Task {
+                                let crudo = try? await fotoElegida?
+                                    .loadTransferable(type: Data.self)
+                                fotoData = crudo.flatMap(Self.comprimir)
+                            }
+                        }
+                        if liga.matches.first != nil {
+                            Toggle(isOn: $adjuntarPartido) {
+                                Label("Último partido", systemImage: "trophy")
+                                    .font(.system(size: 13, design: .rounded))
+                            }
+                            .toggleStyle(.button)
+                            .buttonStyle(.bordered)
+                        }
+                        Spacer()
+                    }
+                }
+                .padding(16)
+            }
+            .background(T.fondo)
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("Publicar")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancelar") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        enviando = true
+                        let tarjeta = adjuntarPartido ? liga.matches.first : nil
+                        Task {
+                            await comunidad.publicar(
+                                texto: texto, tarjeta: tarjeta, foto: fotoData
+                            )
+                            dismiss()
+                        }
+                    } label: {
+                        if enviando {
+                            ProgressView()
+                        } else {
+                            Text("Publicar").fontWeight(.bold)
+                        }
+                    }
+                    .disabled(texto.trimmingCharacters(in: .whitespaces).isEmpty || enviando)
+                }
+            }
+            .onAppear { enfocado = true }
+        }
+    }
+
+    /// JPEG de verdad y tamaño de red social: lado mayor a 1600 px y calidad 0.8.
+    /// Un original de 8 MB queda en unos cientos de KB, muy por debajo del límite
+    /// de 3 MB del servidor, y lo puede pintar cualquier cliente.
+    private static func comprimir(_ data: Data) -> Data? {
+        guard let imagen = UIImage(data: data) else { return nil }
+        let maximo: CGFloat = 1600
+        let escala = min(1, maximo / max(imagen.size.width, imagen.size.height))
+        let destino = CGSize(width: imagen.size.width * escala,
+                             height: imagen.size.height * escala)
+        let render = UIGraphicsImageRenderer(size: destino)
+        let redimensionada = render.image { _ in
+            imagen.draw(in: CGRect(origin: .zero, size: destino))
+        }
+        return redimensionada.jpegData(compressionQuality: 0.8)
+    }
+}
+
 struct ComunidadRegistroView: View {
     @EnvironmentObject private var comunidad: ComunidadModel
     @AppStorage("leagueBaseURL") private var servidor = ""
