@@ -67,6 +67,7 @@ fun LigaMatchDetailScreen(match: LigaMatch, objetivos: List<String>, onBack: () 
                 linea("Posición", if (match.posicion == "reves") "revés" else "derecha")
                 if (match.club.isNotEmpty()) linea("Club", match.club)
                 if (match.companero.isNotEmpty()) linea("Compañero", match.companero)
+                match.rivales?.takeIf { it.isNotEmpty() }?.let { linea("Rivales", it) }
             }
 
             if (match.nivel != null || match.nivelBand != null || match.totalGolpes != null) {

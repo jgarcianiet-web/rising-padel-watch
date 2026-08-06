@@ -20,6 +20,7 @@ struct LigaMatchFormView: View {
     @State private var marcador: [LigaSetMarcador]
     @State private var club: String
     @State private var companero: String
+    @State private var rivales: String
     @State private var nivel: String
     @State private var nivelBand: String
     @State private var mejorGolpe: String
@@ -42,6 +43,7 @@ struct LigaMatchFormView: View {
         _marcador = State(initialValue: sets)
         _club = State(initialValue: editing?.club ?? "")
         _companero = State(initialValue: editing?.companero ?? "")
+        _rivales = State(initialValue: editing?.rivales ?? "")
         _nivel = State(initialValue: editing?.nivel.map { String(format: "%.2f", $0) } ?? "")
         _nivelBand = State(initialValue: editing?.nivelBand.map { String(format: "%.1f", $0) } ?? "")
         _mejorGolpe = State(initialValue: editing?.mejorGolpe ?? "")
@@ -102,6 +104,12 @@ struct LigaMatchFormView: View {
             TextField("Compañero (opcional)", text: $companero)
             if !liga.companerosPrevios.isEmpty {
                 chipsPrevios(liga.companerosPrevios, seleccion: $companero)
+            }
+            // Los rivales alimentan el cara a cara: "Juan y Pedro" cuenta un partido
+            // contra cada uno.
+            TextField("Rivales (ej: Juan y Pedro)", text: $rivales)
+            if !liga.rivalesPrevios.isEmpty {
+                chipsPrevios(liga.rivalesPrevios, seleccion: $rivales)
             }
         }
     }
@@ -287,6 +295,8 @@ struct LigaMatchFormView: View {
             marcador: setsStr.isEmpty ? editing?.marcador : jugados,
             club: club.trimmingCharacters(in: .whitespaces),
             companero: companero.trimmingCharacters(in: .whitespaces),
+            rivales: rivales.trimmingCharacters(in: .whitespaces).isEmpty
+                ? nil : rivales.trimmingCharacters(in: .whitespaces),
             nivel: Double(nivel.replacingOccurrences(of: ",", with: ".")),
             nivelBand: Double(nivelBand.replacingOccurrences(of: ",", with: ".")),
             mejorGolpe: mejorGolpe.isEmpty ? nil : mejorGolpe,

@@ -22,7 +22,66 @@ struct LigaGolpeAgregado: Identifiable {
     var id: String { golpe }
 }
 
+/// El cara a cara con una persona: cuántas veces has jugado contra (o con) ella y cómo
+/// fue. `ultimos` son los resultados más recientes, true = victoria, el último el más
+/// nuevo — para pintar la mini-racha VVDVV. Espejo del core Kotlin, con tests allí.
+struct LigaCaraACara: Identifiable {
+    let nombre: String
+    let partidos: Int
+    let victorias: Int
+    let ultimos: [Bool]
+
+    var id: String { nombre }
+    var pctVictorias: Int { partidos == 0 ? 0 : victorias * 100 / partidos }
+}
+
 enum LigaMetrics {
+
+    /// Estadísticas contra cada rival. `rivales` es texto libre ("Juan y Pedro"): se
+    /// separa por comas, " y ", "/" o "&" y se agrupa por nombre normalizado; se
+    /// enseña la grafía de la primera vez. Más partidos primero; a igualdad, alfabético.
+    static func caraACara(_ matches: [LigaMatch]) -> [LigaCaraACara] {
+        agrupa(matches) { partirNombres($0.rivales ?? "") }
+    }
+
+    /// Lo mismo, pero con la pareja: con quién juegas y cómo os va.
+    static func conPareja(_ matches: [LigaMatch]) -> [LigaCaraACara] {
+        agrupa(matches) { partirNombres($0.companero) }
+    }
+
+    /// "Juan y Pedro" → ["Juan", "Pedro"]. Separadores: coma, " y ", "/", "&".
+    static func partirNombres(_ texto: String) -> [String] {
+        texto.replacingOccurrences(of: " y ", with: ",")
+            .replacingOccurrences(of: "/", with: ",")
+            .replacingOccurrences(of: "&", with: ",")
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private static func agrupa(
+        _ matches: [LigaMatch], nombresDe: (LigaMatch) -> [String]
+    ) -> [LigaCaraACara] {
+        var grafias: [String: String] = [:]
+        var resultados: [String: [Bool]] = [:]
+        for match in cronologico(matches) {
+            for nombre in nombresDe(match) {
+                let clave = nombre.lowercased()
+                if grafias[clave] == nil { grafias[clave] = nombre }
+                resultados[clave, default: []].append(match.resultado == "victoria")
+            }
+        }
+        return resultados
+            .map { clave, lista in
+                LigaCaraACara(
+                    nombre: grafias[clave] ?? clave,
+                    partidos: lista.count,
+                    victorias: lista.filter { $0 }.count,
+                    ultimos: Array(lista.suffix(5))
+                )
+            }
+            .sorted { ($0.partidos, $1.nombre) > ($1.partidos, $0.nombre) }
+    }
 
     // MARK: Rachas
 

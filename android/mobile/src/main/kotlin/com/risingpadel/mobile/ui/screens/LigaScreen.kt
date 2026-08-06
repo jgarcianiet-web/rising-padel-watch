@@ -143,6 +143,31 @@ fun LigaScreen(onOpenMatch: (Long) -> Unit = {}) {
             }
         }
 
+        // El cara a cara: contra quién juegas y cómo te va, y con qué pareja. Los
+        // rivales llegan del backup o de la ficha editada en iOS; sin ellos, sin filas.
+        val rivales = LigaMetrics.caraACara(delPeriodo)
+        val parejas = LigaMetrics.conPareja(delPeriodo)
+        if (rivales.isNotEmpty() || parejas.isNotEmpty()) {
+            item {
+                Card {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (rivales.isNotEmpty()) {
+                            Text("Contra quién", style = MaterialTheme.typography.titleMedium)
+                            rivales.take(6).forEach { fila -> filaCaraACara(fila) }
+                        }
+                        if (parejas.isNotEmpty()) {
+                            Text(
+                                "Con quién",
+                                style = MaterialTheme.typography.titleMedium,
+                                modifier = Modifier.padding(top = if (rivales.isEmpty()) 0.dp else 8.dp),
+                            )
+                            parejas.take(4).forEach { fila -> filaCaraACara(fila) }
+                        }
+                    }
+                }
+            }
+        }
+
         // Todas las temporadas frente a frente, más el historial previo a la primera.
         if (state.temporadas.isNotEmpty()) {
             item {
@@ -233,6 +258,24 @@ private fun filaTemporada(nombre: String, ms: List<LigaMatch>) {
                 (bien?.let { " · $it% bien" } ?: "") +
                 (nivel?.let { " · %.1f".format(it) } ?: ""),
             style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/** Una fila del cara a cara: nombre, balance G-P y porcentaje de victorias. */
+@Composable
+private fun filaCaraACara(fila: com.risingpadel.core.liga.LigaCaraACara) {
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(fila.nombre, style = MaterialTheme.typography.bodyMedium)
+        Text(
+            "${fila.victorias}-${fila.partidos - fila.victorias} · ${fila.pctVictorias}%",
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (fila.pctVictorias >= 50) MaterialTheme.colorScheme.primary
+            else MaterialTheme.colorScheme.error,
         )
     }
 }

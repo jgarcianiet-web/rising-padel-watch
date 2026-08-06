@@ -26,9 +26,12 @@ struct LigaSeasonView: View {
                 objetivosCard(matches)
                 statsCard("Por posición", icon: "arrow.left.arrow.right", filas: LigaMetrics.statsPosicion(matches))
                 statsCard("Competitivo y amistoso", icon: "flag.2.crossed", filas: LigaMetrics.statsTipo(matches))
-                if !LigaMetrics.statsCompanero(matches).isEmpty {
-                    statsCard("Con cada compañero", icon: "person.2.fill", filas: LigaMetrics.statsCompanero(matches))
-                }
+                // El cara a cara: contra quién juegas y cómo te va, y con qué pareja.
+                // Los rivales se apuntan al editar el partido; sin ellos no hay filas.
+                caraACaraCard("Contra quién", icon: "figure.2.arms.open",
+                              filas: LigaMetrics.caraACara(matches))
+                caraACaraCard("Con quién", icon: "person.2.fill",
+                              filas: LigaMetrics.conPareja(matches))
                 golpesCard(matches)
             }
             .padding(.horizontal, 16)
@@ -37,6 +40,46 @@ struct LigaSeasonView: View {
         .background(T.fondo)
         .navigationTitle("Temporada")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    /// Una fila por persona: nombre, la mini-racha de los últimos partidos (verde
+    /// victoria, rojo derrota), el balance G-P y el porcentaje.
+    @ViewBuilder
+    private func caraACaraCard(
+        _ titulo: String, icon: String, filas: [LigaCaraACara]
+    ) -> some View {
+        if !filas.isEmpty {
+            PadelCard(title: titulo, icon: icon) {
+                VStack(spacing: 10) {
+                    ForEach(filas.prefix(6)) { fila in
+                        HStack(spacing: 8) {
+                            Text(fila.nombre)
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .foregroundStyle(T.tinta)
+                                .lineLimit(1)
+                            Spacer()
+                            HStack(spacing: 3) {
+                                ForEach(Array(fila.ultimos.enumerated()), id: \.offset) { _, victoria in
+                                    Circle()
+                                        .fill(victoria ? T.verde : T.rojo)
+                                        .frame(width: 7, height: 7)
+                                }
+                            }
+                            Text("\(fila.victorias)-\(fila.partidos - fila.victorias)")
+                                .font(.system(size: 13, weight: .heavy, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(T.tinta)
+                                .frame(minWidth: 34, alignment: .trailing)
+                            Text("\(fila.pctVictorias)%")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(fila.pctVictorias >= 50 ? T.verde : T.rojo)
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: Cabecera

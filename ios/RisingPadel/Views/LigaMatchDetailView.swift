@@ -156,6 +156,7 @@ struct LigaMatchDetailView: View {
                 }
                 if !m.club.isEmpty { linea("Club", m.club) }
                 if !m.companero.isEmpty { linea("Compañero", m.companero) }
+                if let rivales = m.rivales, !rivales.isEmpty { linea("Rivales", rivales) }
             }
         }
     }

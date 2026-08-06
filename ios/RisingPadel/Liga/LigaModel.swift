@@ -41,6 +41,7 @@ final class LigaModel: ObservableObject {
     /// Clubes ya usados, para rellenar con un toque (los 6 últimos, como en la Expo).
     var clubesPrevios: [String] { previos(\.club) }
     var companerosPrevios: [String] { previos(\.companero) }
+    var rivalesPrevios: [String] { previos { $0.rivales ?? "" } }
 
     private func previos(_ campo: (LigaMatch) -> String) -> [String] {
         var vistos = Set<String>()
@@ -128,6 +129,23 @@ final class LigaModel: ObservableObject {
                         + "\(bien)% bien jugados, \(nivel)."
                 )
             }
+        }
+        // El cara a cara alimenta consejos concretos: "contra Juan pierdes el 70%,
+        // y contra él tu revés cae" es mejor consejo que uno genérico.
+        let rivales = LigaMetrics.caraACara(matches(de: actual)).prefix(4)
+        if !rivales.isEmpty {
+            lineas.append("CARA A CARA de la temporada (solo si es relevante, úsalo):")
+            for rival in rivales {
+                lineas.append(
+                    "- contra \(rival.nombre): \(rival.victorias) de \(rival.partidos) ganados"
+                )
+            }
+        }
+        let parejas = LigaMetrics.conPareja(matches(de: actual)).prefix(2)
+        for pareja in parejas {
+            lineas.append(
+                "- con \(pareja.nombre) de pareja: \(pareja.victorias) de \(pareja.partidos) ganados"
+            )
         }
         return lineas.joined(separator: "\n")
     }

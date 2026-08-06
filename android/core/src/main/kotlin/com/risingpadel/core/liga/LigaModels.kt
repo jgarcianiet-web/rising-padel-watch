@@ -54,6 +54,9 @@ data class LigaMatch(
     val marcador: List<LigaSetMarcador>? = null,
     val club: String = "",
     val companero: String = "",
+    /** Los rivales del partido, en texto libre ("Juan y Pedro"). Campo nuevo de esta
+     * app: un backup viejo no lo trae y la app Expo lo ignora. */
+    val rivales: String? = null,
     val nivel: Double? = null,
     val nivelBand: Double? = null,
     val mejorGolpe: String? = null,
@@ -133,7 +136,68 @@ data class LigaState(
 )
 
 /** Las métricas de temporada que ya usa iOS, para que Android pinte las mismas. */
+/**
+ * El cara a cara con una persona: cuántas veces has jugado contra (o con) ella y cómo
+ * fue. `ultimos` son los resultados más recientes, true = victoria, el último el más
+ * nuevo — para pintar la mini-racha VVDVV.
+ */
+@Serializable
+data class LigaCaraACara(
+    val nombre: String,
+    val partidos: Int,
+    val victorias: Int,
+    val ultimos: List<Boolean>,
+) {
+    val pctVictorias: Int get() = if (partidos == 0) 0 else victorias * 100 / partidos
+}
+
 object LigaMetrics {
+
+    /**
+     * Estadísticas contra cada rival. El campo `rivales` es texto libre ("Juan y
+     * Pedro"), así que se separa por comas, "y", "/" o "&" y se agrupa por nombre
+     * normalizado (espacios fuera, mayúsculas da igual); se enseña la grafía de la
+     * primera vez. Orden: más partidos primero, y a igualdad, alfabético.
+     */
+    fun caraACara(matches: List<LigaMatch>): List<LigaCaraACara> =
+        agrupa(matches) { partirNombres(it.rivales ?: "") }
+
+    /** Lo mismo, pero con la pareja: con quién juegas y cómo os va. */
+    fun conPareja(matches: List<LigaMatch>): List<LigaCaraACara> =
+        agrupa(matches) { partirNombres(it.companero) }
+
+    /** "Juan y Pedro" → ["Juan", "Pedro"]. Separadores: coma, " y ", "/", "&". */
+    fun partirNombres(texto: String): List<String> =
+        texto.split(",", " y ", "/", "&")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+
+    private fun agrupa(
+        matches: List<LigaMatch>,
+        nombresDe: (LigaMatch) -> List<String>,
+    ): List<LigaCaraACara> {
+        // clave normalizada → (grafía original, resultados en orden cronológico)
+        val grafias = LinkedHashMap<String, String>()
+        val resultados = LinkedHashMap<String, MutableList<Boolean>>()
+        for (match in cronologico(matches)) {
+            for (nombre in nombresDe(match)) {
+                val clave = nombre.lowercase()
+                grafias.getOrPut(clave) { nombre }
+                resultados.getOrPut(clave) { mutableListOf() }
+                    .add(match.resultado == "victoria")
+            }
+        }
+        return resultados.entries
+            .map { (clave, lista) ->
+                LigaCaraACara(
+                    nombre = grafias.getValue(clave),
+                    partidos = lista.size,
+                    victorias = lista.count { it },
+                    ultimos = lista.takeLast(5),
+                )
+            }
+            .sortedWith(compareByDescending<LigaCaraACara> { it.partidos }.thenBy { it.nombre })
+    }
 
     fun racha(matches: List<LigaMatch>): Int {
         var racha = 0

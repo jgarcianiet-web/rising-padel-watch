@@ -56,6 +56,9 @@ struct LigaMatch: Codable, Equatable, Identifiable {
     var marcador: [LigaSetMarcador]?
     var club: String
     var companero: String
+    /// Los rivales del partido, en texto libre ("Juan y Pedro"). Campo nuevo de
+    /// esta app: un backup viejo no lo trae y la app Expo lo ignora.
+    var rivales: String?
     var nivel: Double?
     var nivelBand: Double?
     var mejorGolpe: String?
@@ -87,6 +90,7 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         marcador = try c.decodeIfPresent([LigaSetMarcador].self, forKey: .marcador)
         club = try c.decodeIfPresent(String.self, forKey: .club) ?? ""
         companero = try c.decodeIfPresent(String.self, forKey: .companero) ?? ""
+        rivales = try c.decodeIfPresent(String.self, forKey: .rivales)
         nivel = try c.decodeIfPresent(Double.self, forKey: .nivel)
         nivelBand = try c.decodeIfPresent(Double.self, forKey: .nivelBand)
         mejorGolpe = try c.decodeIfPresent(String.self, forKey: .mejorGolpe)
@@ -116,6 +120,7 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         marcador: [LigaSetMarcador]? = nil,
         club: String = "",
         companero: String = "",
+        rivales: String? = nil,
         nivel: Double? = nil,
         nivelBand: Double? = nil,
         mejorGolpe: String? = nil,
@@ -143,6 +148,7 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         self.marcador = marcador
         self.club = club
         self.companero = companero
+        self.rivales = rivales
         self.nivel = nivel
         self.nivelBand = nivelBand
         self.mejorGolpe = mejorGolpe
