@@ -61,14 +61,14 @@ class WatchSessionListenerService : WearableListenerService() {
         }
         if (!api.tieneCuenta) return
         container.sessions.refresh()
-        val copia = com.risingpadel.mobile.data.CopiaSeguridad(
+        val copia = com.risingpadel.core.sync.CopiaSeguridad(
             creadaEpochMs = System.currentTimeMillis(),
             sesiones = container.sessions.sessions.value,
             ligaJson = com.risingpadel.mobile.data.LigaStore(applicationContext).export(),
         )
         api.subirCopia(
             json.encodeToString(
-                com.risingpadel.mobile.data.CopiaSeguridad.serializer(), copia
+                com.risingpadel.core.sync.CopiaSeguridad.serializer(), copia
             ).toByteArray()
         )
     }

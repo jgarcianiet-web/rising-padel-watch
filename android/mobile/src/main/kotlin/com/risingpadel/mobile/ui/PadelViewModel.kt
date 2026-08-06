@@ -58,7 +58,7 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
         val copia = runCatching {
             kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
                 .decodeFromString(
-                    com.risingpadel.mobile.data.CopiaSeguridad.serializer(), texto
+                    com.risingpadel.core.sync.CopiaSeguridad.serializer(), texto
                 )
         }.getOrNull() ?: return
         var añadidas = 0

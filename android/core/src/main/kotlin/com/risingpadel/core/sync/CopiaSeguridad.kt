@@ -1,4 +1,4 @@
-package com.risingpadel.mobile.data
+package com.risingpadel.core.sync
 
 import com.risingpadel.core.model.PadelSession
 import kotlinx.serialization.Serializable
