@@ -51,9 +51,11 @@ object LigaMapper {
         }
         if (voleas.isNotEmpty()) golpes.add(LigaGolpeSesion("Volea", round1(voleas.average())))
 
+        // Los recuentos con la revisión del jugador aplicada: si dijo que fueron 12
+        // bandejas, la liga y los objetivos ven 12, contara lo que contara el reloj.
         val volumen = mutableListOf<LigaGolpeVolumen>()
         var voleaCount = 0
-        for ((type, count) in session.shotsByType) {
+        for ((type, count) in session.effectiveShotsByType) {
             if (type == ShotType.FOREHAND_VOLLEY || type == ShotType.BACKHAND_VOLLEY) {
                 voleaCount += count
             } else if (count > 0) {
@@ -70,8 +72,9 @@ object LigaMapper {
 
         // Los objetivos que el reloj puede medir se marcan solos; el resto queda a mano.
         val checks = objetivos.map { objetivo ->
-            ObjectiveEvaluator.evaluate(objetivo, session.shotsByType, session.totalShots)
-                ?.met ?: false
+            ObjectiveEvaluator.evaluate(
+                objetivo, session.effectiveShotsByType, session.effectiveTotalShots
+            )?.met ?: false
         }
 
         val score = session.score
@@ -90,7 +93,7 @@ object LigaMapper {
             bandFin = progression.lastOrNull()?.let { round1(it.level.toDouble()) },
             bandMediaJugador = playerAverage?.let { round1(it.toDouble()) },
             golpesVolumen = volumen.takeIf { it.isNotEmpty() }?.sortedByDescending { it.cantidad },
-            totalGolpes = session.totalShots,
+            totalGolpes = session.effectiveTotalShots,
             salud = if (session.health.isEmpty) null else LigaSaludPartido(
                 duracionMin = (session.durationSeconds / 60.0).roundToInt(),
                 pulsoMedio = session.health.heartRate?.meanBpm,

@@ -184,6 +184,24 @@ public struct HealthMetrics: Codable, Equatable, Sendable {
     }
 }
 
+/// La revisión del jugador tras la sesión: "el reloj contó 14 bandejas, fueron 12".
+///
+/// Es la verdad-terreno de la detección. Los recuentos corregidos mandan sobre los del
+/// reloj en la liga y en los objetivos, y la comparación entre ambos es la medida real
+/// de la precisión del detector — el dato que ninguna prueba de laboratorio puede dar.
+/// Las claves son los `wireName` del contrato, para que la revisión sobreviva a
+/// renombrar los casos del enum.
+public struct SessionReview: Codable, Equatable, Sendable {
+    /// Recuento corregido por tipo de golpe. Solo los tipos que el jugador tocó.
+    public let correctedCounts: [String: Int]
+    public let reviewedAtEpochMs: Int64
+
+    public init(correctedCounts: [String: Int], reviewedAtEpochMs: Int64) {
+        self.correctedCounts = correctedCounts
+        self.reviewedAtEpochMs = reviewedAtEpochMs
+    }
+}
+
 /// Estado de sincronización de una sesión con la app de liga.
 public enum SyncState: String, Codable, Sendable {
     /// Aún no se ha intentado, o se reintentará.
@@ -239,6 +257,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public let games: [GameRecord]
     public var matchRef: MatchRef?
     public var sync: SyncStatus
+    /// Corrección del jugador tras revisar los recuentos. Nil sin revisar.
+    public var review: SessionReview?
 
     public var id: String { sessionId }
 
@@ -253,7 +273,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         score: MatchScore? = nil,
         games: [GameRecord] = [],
         matchRef: MatchRef? = nil,
-        sync: SyncStatus = SyncStatus()
+        sync: SyncStatus = SyncStatus(),
+        review: SessionReview? = nil
     ) {
         self.sessionId = sessionId
         self.source = source
@@ -266,6 +287,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         self.games = games
         self.matchRef = matchRef
         self.sync = sync
+        self.review = review
     }
 
     /// Versión del esquema que se declara al subir **esta** sesión.
@@ -286,6 +308,43 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
 
     public var shotsByType: [ShotType: Int] {
         shots.reduce(into: [:]) { counts, shot in counts[shot.type, default: 0] += 1 }
+    }
+
+    /// Recuentos con la corrección del jugador aplicada; sin revisión, los del reloj.
+    ///
+    /// Es lo que deben leer la liga y los objetivos: si el jugador dijo que fueron 12
+    /// bandejas, fueron 12. Los recuentos del reloj quedan intactos en `shotsByType`
+    /// para poder medir siempre cuánto se equivocó.
+    public var effectiveShotsByType: [ShotType: Int] {
+        guard let review else { return shotsByType }
+        var counts = shotsByType
+        for (wire, corrected) in review.correctedCounts {
+            counts[ShotType.fromWire(wire)] = corrected
+        }
+        return counts.filter { $0.value > 0 }
+    }
+
+    public var effectiveTotalShots: Int {
+        review == nil ? totalShots : effectiveShotsByType.values.reduce(0, +)
+    }
+
+    /// Precisión del reloj según la revisión, de 0 a 1. Nil sin revisar.
+    ///
+    /// Se compara tipo a tipo: contar 14 bandejas cuando fueron 12 y 4 víboras cuando
+    /// fueron 6 son cuatro fallos, aunque el total (18) coincida.
+    public var reviewAccuracy: Float? {
+        guard review != nil else { return nil }
+        let detected = shotsByType
+        let effective = effectiveShotsByType
+        let types = Set(detected.keys).union(effective.keys)
+        var errores = 0
+        var reales = 0
+        for type in types {
+            errores += abs((detected[type] ?? 0) - (effective[type] ?? 0))
+            reales += effective[type] ?? 0
+        }
+        guard reales > 0 else { return errores == 0 ? 1 : 0 }
+        return max(0, 1 - Float(errores) / Float(reales))
     }
 
     public var intensity: ShotIntensity { .from(shots) }

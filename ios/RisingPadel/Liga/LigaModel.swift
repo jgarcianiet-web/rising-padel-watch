@@ -212,9 +212,11 @@ final class LigaModel: ObservableObject {
             golpes.append(LigaGolpeSesion(nombre: "Volea", nota: round1(voleas.reduce(0, +) / Double(voleas.count))))
         }
 
+        // Los recuentos con la revisión del jugador aplicada: si dijo que fueron 12
+        // bandejas, la liga y los objetivos ven 12, contara lo que contara el reloj.
         var volumen: [LigaGolpeVolumen] = []
         var voleaCount = 0
-        for (type, count) in session.shotsByType {
+        for (type, count) in session.effectiveShotsByType {
             if type == .forehandVolley || type == .backhandVolley {
                 voleaCount += count
             } else if let name = Self.catalogo[type], count > 0 {
@@ -241,8 +243,8 @@ final class LigaModel: ObservableObject {
         let checks = state.objetivos.map { objetivo -> Bool in
             guard let medida = ObjectiveEvaluator.evaluate(
                 objetivo,
-                shotsByType: session.shotsByType,
-                totalShots: session.totalShots
+                shotsByType: session.effectiveShotsByType,
+                totalShots: session.effectiveTotalShots
             ) else { return false }
             objetivosMedidos += 1
             return medida.met
@@ -267,7 +269,7 @@ final class LigaModel: ObservableObject {
             bandFin: progression.last.map { round1(Double($0.level)) },
             bandMediaJugador: playerAverage.map { round1(Double($0)) },
             golpesVolumen: volumen.isEmpty ? nil : volumen.sorted { $0.cantidad > $1.cantidad },
-            totalGolpes: session.totalShots,
+            totalGolpes: session.effectiveTotalShots,
             salud: session.health.isEmpty ? nil : LigaSaludPartido(
                 duracionMin: Int((Double(session.durationSeconds) / 60).rounded()),
                 pulsoMedio: session.health.heartRate?.meanBpm,

@@ -10,6 +10,7 @@ struct RootTabView: View {
     /// propio ciclo de vida, y el día que tenga cuentas será su propio módulo.
     @StateObject private var liga = LigaModel()
     @StateObject private var comunidad = ComunidadModel()
+    @AppStorage("onboardingDone") private var onboardingDone = false
 
     var body: some View {
         TabView {
@@ -45,6 +46,21 @@ struct RootTabView: View {
             )
         ) {
             Button("Vale", role: .cancel) { model.message = nil }
+        }
+        // El onboarding solo existe para quien de verdad empieza de cero: con sesiones
+        // o cuenta previas se da por hecho sin enseñarlo.
+        .onAppear {
+            if !model.sessions.isEmpty || comunidad.tieneCuenta {
+                onboardingDone = true
+            }
+        }
+        .fullScreenCover(
+            isPresented: Binding(get: { !onboardingDone }, set: { _ in })
+        ) {
+            OnboardingView()
+                .environmentObject(model)
+                .environmentObject(liga)
+                .environmentObject(comunidad)
         }
     }
 }

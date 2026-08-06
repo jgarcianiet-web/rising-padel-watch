@@ -34,6 +34,16 @@ struct SessionDetailView: View {
                     }
                 }
                 shotBreakdownCard
+                // La verdad-terreno: el jugador corrige los recuentos y sus números
+                // mandan en la liga y en los objetivos. Se lee del modelo y no del
+                // valor con el que se abrió la vista, para reflejar la corrección al
+                // instante sin salir y volver a entrar.
+                if !session.shots.isEmpty {
+                    SessionReviewCard(
+                        session: model.sessions.first { $0.sessionId == session.sessionId }
+                            ?? session
+                    )
+                }
                 if !session.health.isEmpty { healthCard }
                 // Los rasgos crudos golpe a golpe: la herramienta para validar en pista
                 // los convenios del giróscopo sin depurador. Solo en modo desarrollador.

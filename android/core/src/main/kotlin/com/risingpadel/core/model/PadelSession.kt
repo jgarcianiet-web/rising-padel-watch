@@ -139,6 +139,22 @@ enum class SyncState {
     NEEDS_AUTH,
 }
 
+/**
+ * La revisión del jugador tras la sesión: "el reloj contó 14 bandejas, fueron 12".
+ *
+ * Es la verdad-terreno de la detección. Los recuentos corregidos mandan sobre los del
+ * reloj en la liga y en los objetivos, y la comparación entre ambos es la medida real
+ * de la precisión del detector — el dato que ninguna prueba de laboratorio puede dar.
+ * Las claves son los `wireName` del contrato, para que la revisión sobreviva a
+ * renombrar los casos del enum.
+ */
+@Serializable
+data class SessionReview(
+    /** Recuento corregido por tipo de golpe. Solo los tipos que el jugador tocó. */
+    val correctedCounts: Map<String, Int>,
+    val reviewedAtEpochMs: Long,
+)
+
 @Serializable
 data class SyncStatus(
     val state: SyncState = SyncState.PENDING,
@@ -165,6 +181,8 @@ data class PadelSession(
     val games: List<GameRecord> = emptyList(),
     val matchRef: MatchRef? = null,
     val sync: SyncStatus = SyncStatus(),
+    /** Corrección del jugador tras revisar los recuentos. Null sin revisar. */
+    val review: SessionReview? = null,
 ) {
     val durationSeconds: Long get() = ((endedAtEpochMs - startedAtEpochMs) / 1000).coerceAtLeast(0)
 
@@ -172,6 +190,48 @@ data class PadelSession(
 
     val shotsByType: Map<ShotType, Int>
         get() = shots.groupingBy { it.type }.eachCount()
+
+    /**
+     * Recuentos con la corrección del jugador aplicada; sin revisión, los del reloj.
+     *
+     * Es lo que deben leer la liga y los objetivos: si el jugador dijo que fueron 12
+     * bandejas, fueron 12. Los recuentos del reloj quedan intactos en `shotsByType`
+     * para poder medir siempre cuánto se equivocó.
+     */
+    val effectiveShotsByType: Map<ShotType, Int>
+        get() {
+            val revision = review ?: return shotsByType
+            val counts = shotsByType.toMutableMap()
+            for ((wire, corrected) in revision.correctedCounts) {
+                counts[ShotType.fromWire(wire)] = corrected
+            }
+            return counts.filterValues { it > 0 }
+        }
+
+    val effectiveTotalShots: Int
+        get() = if (review == null) totalShots else effectiveShotsByType.values.sum()
+
+    /**
+     * Precisión del reloj según la revisión, de 0 a 1. Null sin revisar.
+     *
+     * Se compara tipo a tipo: contar 14 bandejas cuando fueron 12 y 4 víboras cuando
+     * fueron 6 son cuatro fallos, aunque el total (18) coincida.
+     */
+    val reviewAccuracy: Float?
+        get() {
+            if (review == null) return null
+            val detected = shotsByType
+            val effective = effectiveShotsByType
+            val types = detected.keys + effective.keys
+            var errores = 0
+            var reales = 0
+            for (type in types) {
+                errores += kotlin.math.abs((detected[type] ?: 0) - (effective[type] ?: 0))
+                reales += effective[type] ?: 0
+            }
+            if (reales == 0) return if (errores == 0) 1f else 0f
+            return (1f - errores.toFloat() / reales).coerceAtLeast(0f)
+        }
 
     val intensity: ShotIntensity get() = ShotIntensity.from(shots)
 

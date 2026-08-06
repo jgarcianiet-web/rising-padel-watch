@@ -308,6 +308,20 @@ final class AppModel: ObservableObject {
         refresh()
     }
 
+    /// Guarda la revisión del jugador: sus recuentos mandan sobre los del reloj.
+    ///
+    /// La sesión no vuelve a la cola de subida: la revisión es local (la liga de la
+    /// app ya la lee, y es la verdad-terreno para calibrar el detector).
+    func applyReview(sessionId: String, correctedCounts: [String: Int]) {
+        guard var session = store.get(sessionId) else { return }
+        session.review = SessionReview(
+            correctedCounts: correctedCounts,
+            reviewedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+        store.upsert(session)
+        refresh()
+    }
+
     /// Vincula la sesión con un partido de la liga y la devuelve a la cola de subida.
     func linkToMatch(sessionId: String, matchId: String, leagueId: String?) async {
         guard var session = store.get(sessionId) else { return }
