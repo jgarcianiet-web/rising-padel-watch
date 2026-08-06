@@ -166,11 +166,47 @@ struct LastSessionView: View {
                     resumenUltima(last)
                 }
                 .buttonStyle(.plain)
+                recordsCard
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
         .navigationTitle("Inicio")
+    }
+
+    /// Tus plusmarcas, siempre a la vista: pura motivación con cero coste de captura.
+    @ViewBuilder
+    private var recordsCard: some View {
+        let records = PersonalRecords.from(model.sessions)
+        let filas: [(String, String, String)] = [
+            records.velocidadMax.map { ("bolt.fill", "Pala más rápida", String(format: "%.0f km/h", $0.valor)) },
+            records.golpeosMax.map { ("figure.tennis", "Más golpeos", "\(Int($0.valor))") },
+            records.ritmoMax.map { ("metronome", "Mejor ritmo", String(format: "%.1f/min", $0.valor)) },
+            records.nivelMax.map { ("gauge.with.needle", "Mejor nivel", String(format: "%.1f", $0.valor)) },
+            records.smashesMax.map { ("flame.fill", "Más smashes", "\(Int($0.valor))") },
+        ].compactMap { $0 }
+        if !filas.isEmpty {
+            PadelCard(title: "Récords personales", icon: "trophy.fill") {
+                VStack(spacing: 8) {
+                    ForEach(filas, id: \.1) { icono, titulo, valor in
+                        HStack(spacing: 8) {
+                            Image(systemName: icono)
+                                .font(.system(size: 12))
+                                .foregroundStyle(T.lima)
+                                .frame(width: 18)
+                            Text(titulo)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(T.tinta)
+                            Spacer()
+                            Text(valor)
+                                .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                .monospacedDigit()
+                                .foregroundStyle(T.tinta)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     /// Nivel de la última sesión puntuable; sin ella, la media del historial.

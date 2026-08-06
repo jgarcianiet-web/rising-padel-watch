@@ -220,3 +220,153 @@ private func offsetLabel(_ offsetMs: Int64) -> String {
     let totalMinutes = Int(offsetMs / 60_000)
     return String(format: "%d:%02d", totalMinutes / 60, totalMinutes % 60)
 }
+
+// MARK: Golpe a golpe
+
+/// El partido entero en un vistazo: cada golpeo es un punto — tiempo en X, velocidad
+/// de pala en Y, color por tipo y tamaño según la violencia del impacto. Se ve cuándo
+/// apretaste, cuándo desapareció un golpe y las ráfagas de remates.
+struct ShotScatterChart: View {
+    let session: PadelSession
+
+    /// Los colores fijos por tipo: los mismos en la leyenda y sesión tras sesión.
+    private static let colores: KeyValuePairs<String, Color> = [
+        "Derecha": T.pista,
+        "Revés": Color(red: 0.49, green: 0.30, blue: 0.75),
+        "Volea": T.verde,
+        "Bandeja": Color.orange,
+        "Víbora": Color(red: 0.70, green: 0.27, blue: 0.44),
+        "Smash": T.rojo,
+        "Saque": T.tintaSuave,
+        "Otro": T.borde,
+    ]
+
+    private func etiqueta(_ type: ShotType) -> String {
+        switch type {
+        case .forehand: return "Derecha"
+        case .backhand: return "Revés"
+        case .forehandVolley, .backhandVolley: return "Volea"
+        case .bandeja: return "Bandeja"
+        case .vibora: return "Víbora"
+        case .smash: return "Smash"
+        case .serve: return "Saque"
+        case .unknown: return "Otro"
+        }
+    }
+
+    var body: some View {
+        Chart(session.shots, id: \.offsetMs) { shot in
+            PointMark(
+                x: .value("Minuto", Double(shot.offsetMs) / 60_000),
+                y: .value("km/h", shot.racketSpeedKmh)
+            )
+            .foregroundStyle(by: .value("Tipo", etiqueta(shot.type)))
+            // El área del punto crece con el impacto: un remate violento se ve gordo.
+            .symbolSize(by: .value("Impacto", shot.impactG))
+        }
+        .chartForegroundStyleScale(Self.colores)
+        .chartXAxisLabel("minuto")
+        .chartYAxisLabel("km/h de pala")
+        .chartLegend(position: .bottom, spacing: 6)
+        .frame(height: 220)
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: Fatiga — pulso contra ritmo
+
+/// El pulso medio por tramo frente al ritmo de golpeo del mismo tramo: la gráfica que
+/// enseña tu umbral físico — dónde el motor aprieta y el juego afloja.
+struct FatigueChart: View {
+    let session: PadelSession
+
+    private struct Tramo: Identifiable {
+        let id: Int
+        let etiqueta: String
+        let golpeos: Int
+        let bpm: Int?
+    }
+
+    private var tramos: [Tramo] {
+        let intervalo: Int64 = SessionAnalytics.interval10MinMs
+        let buckets = SessionAnalytics().shotFrequency(
+            session.shots,
+            durationMs: session.durationSeconds * 1000,
+            intervalMs: intervalo
+        )
+        return buckets.enumerated().map { index, bucket in
+            let lecturas = session.health.heartRateSeries
+                .filter { $0.offsetMs >= bucket.startMs && $0.offsetMs < bucket.endMs }
+                .map(\.bpm)
+            return Tramo(
+                id: index,
+                etiqueta: "\(bucket.endMs / 60_000)'",
+                golpeos: bucket.count,
+                bpm: lecturas.isEmpty ? nil : lecturas.reduce(0, +) / lecturas.count
+            )
+        }
+    }
+
+    /// Solo tiene sentido con serie de pulso: sin consentimiento de salud no existe.
+    static func disponible(_ session: PadelSession) -> Bool {
+        session.health.heartRateSeries.count >= 2 && !session.shots.isEmpty
+    }
+
+    var body: some View {
+        let datos = tramos
+        VStack(alignment: .leading, spacing: 10) {
+            Chart(datos) { tramo in
+                BarMark(
+                    x: .value("Tramo", tramo.etiqueta),
+                    y: .value("Golpeos", tramo.golpeos)
+                )
+                .foregroundStyle(T.pista.opacity(0.75))
+                .cornerRadius(3)
+            }
+            .chartYAxisLabel("golpeos")
+            .frame(height: 120)
+
+            Chart(datos.filter { $0.bpm != nil }) { tramo in
+                LineMark(
+                    x: .value("Tramo", tramo.etiqueta),
+                    y: .value("ppm", tramo.bpm ?? 0)
+                )
+                .foregroundStyle(T.rojo)
+                .lineStyle(StrokeStyle(lineWidth: 2.5))
+                PointMark(
+                    x: .value("Tramo", tramo.etiqueta),
+                    y: .value("ppm", tramo.bpm ?? 0)
+                )
+                .foregroundStyle(T.rojo)
+            }
+            .chartYScale(domain: .automatic(includesZero: false))
+            .chartYAxisLabel("pulso (ppm)")
+            .frame(height: 110)
+
+            if let aviso = lecturaFatiga(datos) {
+                Text(aviso)
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    /// La conclusión en una frase, solo cuando los datos la sostienen: el tramo de
+    /// pulso más alto frente al mejor tramo de ritmo.
+    private func lecturaFatiga(_ datos: [Tramo]) -> String? {
+        let conPulso = datos.filter { $0.bpm != nil }
+        guard conPulso.count >= 3,
+              let caliente = conPulso.max(by: { ($0.bpm ?? 0) < ($1.bpm ?? 0) }),
+              let mejor = datos.max(by: { $0.golpeos < $1.golpeos }),
+              let bpm = caliente.bpm,
+              mejor.golpeos > 0,
+              caliente.id != mejor.id
+        else { return nil }
+        let caida = 100 - caliente.golpeos * 100 / mejor.golpeos
+        guard caida >= 20 else { return nil }
+        return "En tu tramo de más pulso (\(bpm) ppm) el ritmo cayó un \(caida)% "
+            + "respecto a tu mejor tramo. Ahí está tu umbral físico."
+    }
+}

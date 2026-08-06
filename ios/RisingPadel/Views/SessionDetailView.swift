@@ -32,6 +32,16 @@ struct SessionDetailView: View {
                             playerAverage: model.playerAverageLevel
                         )
                     }
+                    // El partido punto a punto: cada golpeo con su velocidad, su tipo
+                    // y su violencia. La gráfica que enseña el relato de la sesión.
+                    PadelCard(title: "Golpe a golpe", icon: "circle.grid.cross") {
+                        ShotScatterChart(session: session)
+                    }
+                    if FatigueChart.disponible(session) {
+                        PadelCard(title: "Fatiga: pulso contra ritmo", icon: "heart.text.square") {
+                            FatigueChart(session: session)
+                        }
+                    }
                 }
                 shotBreakdownCard
                 // La verdad-terreno: el jugador corrige los recuentos y sus números
@@ -84,8 +94,17 @@ struct SessionDetailView: View {
                             .foregroundStyle(T.tintaSuave)
                     }
                     Spacer()
-                    if let score = session.score {
-                        OutcomeBadge(text: outcomeLabel(score), color: outcomeColor(score))
+                    VStack(alignment: .trailing, spacing: 6) {
+                        if let score = session.score {
+                            OutcomeBadge(text: outcomeLabel(score), color: outcomeColor(score))
+                        }
+                        // La sesión que ostenta alguna plusmarca lo luce aquí.
+                        if PersonalRecords.from(model.sessions).esDe(session.sessionId) {
+                            Text("🏆 RÉCORD")
+                                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                .kerning(1)
+                                .foregroundStyle(T.lima)
+                        }
                     }
                 }
 
