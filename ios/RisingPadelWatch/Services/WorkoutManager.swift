@@ -90,6 +90,16 @@ final class WorkoutManager: NSObject {
         }
     }
 
+    /// Pausa y reanuda el workout del sistema: congela los anillos y las métricas de
+    /// Salud mientras el partido está parado (agua, cambio de pista largo, charla).
+    func pause() {
+        session?.pause()
+    }
+
+    func resume() {
+        session?.resume()
+    }
+
     /// Cierra el workout y, si se estaban recogiendo métricas, lo guarda en Salud. No
     /// propaga errores: una sesión medida es más valiosa que un fallo al archivarla, y
     /// los golpeos ya están en memoria.

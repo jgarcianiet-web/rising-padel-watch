@@ -35,6 +35,13 @@ final class SessionController: ObservableObject {
     @Published private(set) var sessionLevel: SessionLevel?
     /// Objetivos de la liga que el reloj puede seguir él solo, con su progreso en vivo.
     @Published private(set) var objectiveProgress: [ObjectiveProgress] = []
+    /// Sesión en pausa: el workout de Salud se congela y los golpeos no cuentan. El
+    /// reloj del partido sigue corriendo — el tiempo de pista es tiempo de pista.
+    @Published private(set) var isPaused = false
+    /// Copia de `isPaused` legible desde la cola de sensores sin saltar de hilo. Se
+    /// escribe solo desde el hilo principal; leer un Bool desfasado un instante es
+    /// inofensivo (como mucho cuenta o descarta un golpeo fronterizo).
+    nonisolated(unsafe) private var pausedFlag = false
 
     @AppStorage("shareHealth") private var shareHealth = false
     @AppStorage("playerHand") private var playerHandRaw = Hand.right.rawValue
@@ -315,7 +322,9 @@ final class SessionController: ObservableObject {
 
         motionRecorder.start(sampleRateHz: DetectorConfig.default.sampleRateHz) { [weak self] sample in
             // El handler llega en la cola de sensores; solo se salta al hilo principal
-            // cuando hay un golpeo que enseñar.
+            // cuando hay un golpeo que enseñar. En pausa, la muestra se descarta: el
+            // peloteo de calentamiento o los botes en la mano no son golpeos.
+            guard self?.pausedFlag != true else { return }
             guard let shot = recorder.onMotion(sample) else { return }
             Task { @MainActor in
                 self?.shotCount = recorder.shots.count
@@ -375,8 +384,26 @@ final class SessionController: ObservableObject {
         ))
     }
 
+    /// Pausa el partido: el workout de Salud se congela y los golpeos dejan de contar.
+    /// El marcador y el reloj siguen — pausar es "estamos parados", no "no pasó".
+    func pause() {
+        guard status == .recording, !isPaused else { return }
+        isPaused = true
+        pausedFlag = true
+        workoutManager.pause()
+    }
+
+    func resume() {
+        guard isPaused else { return }
+        isPaused = false
+        pausedFlag = false
+        workoutManager.resume()
+    }
+
     func stop() async {
         guard let recorder, recorder.isRecording else { return }
+        // Finalizar en pausa es válido: se reanuda el workout para poder cerrarlo bien.
+        if isPaused { resume() }
         status = .saving
         stopTicker()
         motionRecorder.stop()

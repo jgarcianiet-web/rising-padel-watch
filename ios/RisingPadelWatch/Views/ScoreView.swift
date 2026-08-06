@@ -10,20 +10,14 @@ import WatchKit
 /// centro exacto y un toque ambiguo caía en "nosotros".
 ///
 /// **Mantener pulsado una zona deshace el último punto**, directo y sin menús: es la
-/// corrección frecuente. Finalizar exige **mantener pulsado el icono Y confirmar** —
-/// un punto mal anotado se deshace, una sesión cerrada no, así que un roce no puede
-/// cerrarla.
-///
-/// No se usa deslizar para nada: el deslizamiento horizontal está tomado por la
-/// navegación del sistema.
+/// corrección frecuente. Finalizar y pausar viven en la página de controles, deslizando
+/// a la izquierda — aquí no hay nada que pueda cerrar la sesión por un roce.
 struct ScoreView: View {
     let score: MatchScore
     let shotCount: Int
     let onPoint: (Side) -> Void
     let onUndo: () -> Void
     let onStop: () -> Void
-
-    @State private var confirmStop = false
 
     /// Colores fijos de identidad: nosotros azul, ellos naranja. La pareja azul/naranja
     /// se distingue también con daltonismo, y como es identidad y no posición, el cambio
@@ -39,10 +33,6 @@ struct ScoreView: View {
                 zone(.us)
                 centerStrip
                 zone(.them)
-            }
-            .confirmationDialog("¿Finalizar la sesión?", isPresented: $confirmStop) {
-                Button("Sí, finalizar", role: .destructive) { onStop() }
-                Button("Seguir jugando", role: .cancel) {}
             }
         }
     }
@@ -85,9 +75,7 @@ struct ScoreView: View {
         .onLongPressGesture(minimumDuration: 0.6) { onUndo() }
     }
 
-    /// La franja neutra: sets, estado y el control de finalizar. Aquí un toque no hace
-    /// nada; finalizar exige mantener pulsado Y confirmar — un punto mal anotado se
-    /// deshace, una sesión cerrada no.
+    /// La franja neutra: sets y estado. Aquí un toque no hace nada a propósito.
     private var centerStrip: some View {
         HStack(spacing: 6) {
             Text("\(setsLine) · \(statusLine)")
@@ -106,10 +94,6 @@ struct ScoreView: View {
                     .font(.system(size: 9))
                     .foregroundStyle(.tint)
             }
-            Image(systemName: "stop.circle")
-                .font(.system(size: 14))
-                .foregroundStyle(.secondary)
-                .onLongPressGesture(minimumDuration: 0.8) { confirmStop = true }
         }
         .padding(.horizontal, 4)
         .frame(height: 20)

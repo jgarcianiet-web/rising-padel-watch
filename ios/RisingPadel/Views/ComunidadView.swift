@@ -328,7 +328,7 @@ struct ComunidadView: View {
                     .buttonStyle(.plain)
                     Spacer()
                 }
-                Text(post.texto)
+                Text(Self.conMenciones(post.texto))
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(T.tinta)
                     .fixedSize(horizontal: false, vertical: true)
@@ -339,14 +339,34 @@ struct ComunidadView: View {
                         Rectangle().fill(T.borde)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .frame(height: 200)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 if let tarjeta = post.tarjeta {
-                    MatchShareCard(match: tarjeta)
-                        .scaleEffect(0.78, anchor: .topLeading)
-                        .frame(maxHeight: 200, alignment: .topLeading)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    // Compacta a propósito: en el muro el partido es un resultado que
+                    // se lee de un vistazo, no la lámina entera de compartir.
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(tarjeta.resultado.uppercased())
+                                .font(.system(size: 11, weight: .heavy, design: .rounded))
+                                .kerning(1)
+                                .foregroundStyle(tarjeta.resultado == "victoria" ? T.verde : T.rojo)
+                            Text(tarjeta.tipo + (tarjeta.club.isEmpty ? "" : " · \(tarjeta.club)"))
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                        }
+                        Spacer()
+                        Text(tarjeta.sets.replacingOccurrences(of: ", ", with: "  "))
+                            .font(.system(size: 17, weight: .heavy, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(T.tinta)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(T.fondo, in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12).strokeBorder(T.borde, lineWidth: 1)
+                    )
                 }
                 if !post.etiquetas.isEmpty {
                     Text(post.etiquetas.map { "@\($0)" }.joined(separator: " "))
@@ -743,6 +763,20 @@ struct ComunidadBuscarView: View {
                 }
             }
         }
+    }
+}
+
+extension ComunidadView {
+    /// Pinta de azul las @menciones dentro del texto de un post.
+    static func conMenciones(_ texto: String) -> AttributedString {
+        var resultado = AttributedString(texto)
+        for palabra in texto.split(separator: " ") where palabra.hasPrefix("@") {
+            if let rango = resultado.range(of: String(palabra)) {
+                resultado[rango].foregroundColor = T.pista
+                resultado[rango].font = .system(size: 14, weight: .bold, design: .rounded)
+            }
+        }
+        return resultado
     }
 }
 

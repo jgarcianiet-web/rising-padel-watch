@@ -12,19 +12,45 @@ struct WatchRootView: View {
     /// deducir después y sin ella no hay análisis de saque contra resto.
     @State private var choosingServer = false
 
+    /// Página visible durante la grabación: 0 = controles, 1 = partido. Se arranca en
+    /// el partido; los controles viven deslizando a la izquierda, como en Entreno.
+    @State private var paginaPartido = 1
+
     var body: some View {
         Group {
-            // Con marcador activo, el marcador **es** la pantalla del partido: es lo que
-            // el jugador mira y toca entre puntos. El conteo de golpeos sigue corriendo
-            // por debajo y aparece en la línea de estado.
-            if controller.status == .recording, let score = controller.score {
-                ScoreView(
-                    score: score,
-                    shotCount: controller.shotCount,
-                    onPoint: { controller.pointTo($0) },
-                    onUndo: { controller.undoPoint() },
-                    onStop: { Task { await controller.stop() } }
-                )
+            // Grabando, la sesión son dos páginas: deslizar a la izquierda saca los
+            // controles (pausar, reanudar, finalizar) y la de la derecha es el partido
+            // — el marcador si se lleva, o el contador de golpeos si no. Así ninguna
+            // pulsación de juego puede finalizar nada: finalizar es otra pantalla.
+            if controller.status == .recording {
+                TabView(selection: $paginaPartido) {
+                    SessionControlsView(paginaPartido: $paginaPartido).tag(0)
+                    Group {
+                        if let score = controller.score {
+                            ScoreView(
+                                score: score,
+                                shotCount: controller.shotCount,
+                                onPoint: { controller.pointTo($0) },
+                                onUndo: { controller.undoPoint() },
+                                onStop: { Task { await controller.stop() } }
+                            )
+                        } else {
+                            ScrollView {
+                                recordingContent.padding(.horizontal, 8)
+                            }
+                        }
+                    }
+                    .tag(1)
+                }
+                .tabViewStyle(.page)
+                // La pausa tapa la página del partido: se ve el estado de un vistazo y
+                // ningún roce anota puntos. En la página de controles no estorba — allí
+                // está el botón de reanudar.
+                .overlay {
+                    if controller.isPaused, paginaPartido == 1 {
+                        pausedOverlay
+                    }
+                }
                 // El aviso del entrenador tapa el marcador a propósito: si merece
                 // interrumpir, merece leerse. Un toque y vuelve el partido.
                 .overlay {
@@ -43,7 +69,7 @@ struct WatchRootView: View {
                         case .preparing:
                             loadingContent("Preparando…")
                         case .recording:
-                            recordingContent
+                            EmptyView()
                         case .saving:
                             loadingContent("Guardando…")
                         case .saved:
@@ -56,6 +82,32 @@ struct WatchRootView: View {
                 }
             }
         }
+    }
+
+    /// El telón de pausa: en grande, y con el camino de vuelta escrito.
+    private var pausedOverlay: some View {
+        VStack(spacing: 8) {
+            Image(systemName: "pause.circle.fill")
+                .font(.system(size: 30))
+                .foregroundStyle(.yellow)
+            Text("EN PAUSA")
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .kerning(1.5)
+            Text(formatDuration(controller.elapsedSeconds))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            Text("Desliza a la derecha\npara reanudar")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.black.opacity(0.9))
+        .contentShape(Rectangle())
+        // Tocar lleva a los controles, no reanuda: que un roce no ponga el partido en
+        // marcha. Reanudar es un botón con nombre, en su página.
+        .onTapGesture { paginaPartido = 0 }
     }
 
     /// Dos decisiones y ya: Partido (elige el 40-40 y arranca con marcador) o Entreno
@@ -246,11 +298,12 @@ struct WatchRootView: View {
                     .multilineTextAlignment(.center)
             }
 
-            Button("Parar") {
-                Task { await controller.stop() }
-            }
-            .buttonStyle(.bordered)
-            .padding(.top, 4)
+            // Parar vive en la página de controles (desliza a la izquierda), como en
+            // el partido: ningún toque de juego puede finalizar la sesión.
+            Text("◀︎ desliza para pausar o finalizar")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .padding(.top, 4)
         }
     }
 
