@@ -103,9 +103,7 @@ struct ComunidadView: View {
     private var muro: some View {
         ScrollView {
             VStack(spacing: 12) {
-                if !comunidad.jugando.isEmpty {
-                    jugandoStrip
-                }
+                historias
                 ForEach(comunidad.posts) { post in
                     postCard(post)
                 }
@@ -144,6 +142,12 @@ struct ComunidadView: View {
                        detalle: "Monta un cuadro con tu grupo y que salga un campeón.") {
                     torneando = true
                 }
+                if let mio = comunidad.alias {
+                    puerta("Mi perfil público", icono: "person.crop.circle",
+                           detalle: "Tus números, tus duelos y cómo te ven los demás.") {
+                        perfilDe = PerfilRef(alias: mio)
+                    }
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
@@ -178,92 +182,151 @@ struct ComunidadView: View {
         .buttonStyle(.plain)
     }
 
-    /// Quién de los tuyos está en pista ahora: chips compactos, un toque y a mirar.
-    private var jugandoStrip: some View {
+    /// La fila de historias: tú primero (atajo de publicar) y, con anillo rojo, los
+    /// que están jugando ahora mismo — un toque y a ver su partido en vivo.
+    private var historias: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 14) {
+                Button {
+                    publicando = true
+                } label: {
+                    VStack(spacing: 4) {
+                        AvatarView(alias: comunidad.alias ?? "yo", size: 56)
+                            .overlay(alignment: .bottomTrailing) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(T.lima)
+                                    .background(T.fondo, in: Circle())
+                            }
+                        Text("Tu post")
+                            .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                }
+                .buttonStyle(.plain)
+
                 ForEach(comunidad.jugando) { vivo in
                     Button {
                         comunidad.espectador = vivo
                     } label: {
-                        HStack(spacing: 6) {
-                            Circle().fill(T.rojo).frame(width: 7, height: 7).modifier(Pulse())
+                        VStack(spacing: 4) {
+                            AvatarView(alias: vivo.alias, size: 56)
+                                .padding(3)
+                                .overlay(
+                                    Circle().strokeBorder(
+                                        AngularGradient(
+                                            colors: [T.rojo, .orange, T.rojo],
+                                            center: .center
+                                        ),
+                                        lineWidth: 2.5
+                                    )
+                                )
                             Text("@\(vivo.alias)")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(T.tinta)
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                                .lineLimit(1)
                             Text("EN VIVO")
-                                .font(.system(size: 9, weight: .heavy, design: .rounded))
+                                .font(.system(size: 8.5, weight: .heavy, design: .rounded))
                                 .kerning(0.8)
                                 .foregroundStyle(T.rojo)
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(T.superficie, in: Capsule())
-                        .overlay(Capsule().strokeBorder(T.rojo.opacity(0.35), lineWidth: 1))
+                        .frame(width: 66)
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(.vertical, 2)
         }
     }
 
     /// La semana en curso entre tú y los tuyos, con partidos de verdad (los que el
     /// servidor apunta al terminar cada partido en vivo).
+    /// El podio del top 3 y la lista del resto: la semana con sabor a competición.
     private var rankingCard: some View {
-        PadelCard(title: "La semana", icon: "chart.bar.fill") {
-            VStack(spacing: 6) {
-                HStack {
-                    Text("").frame(maxWidth: .infinity, alignment: .leading)
-                    Text("PJ").frame(width: 36)
-                    Text("V").frame(width: 36)
-                    Text("Golpeos").frame(width: 62)
+        PadelCard(title: "Ranking semanal · partidos de verdad", icon: "chart.bar.fill") {
+            VStack(spacing: 14) {
+                let top = Array(comunidad.ranking.prefix(3))
+                // Orden de podio: plata, oro, bronce.
+                HStack(alignment: .bottom, spacing: 14) {
+                    if top.count > 1 { escalon(top[1], puesto: 1, altura: 54) }
+                    if !top.isEmpty { escalon(top[0], puesto: 0, altura: 76) }
+                    if top.count > 2 { escalon(top[2], puesto: 2, altura: 42) }
                 }
-                .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(T.tintaSuave)
-                ForEach(Array(comunidad.ranking.enumerated()), id: \.element.id) { index, fila in
-                    HStack {
-                        Text("\(medalla(index)) @\(fila.alias)")
-                            .font(.system(size: 13, weight: fila.alias == comunidad.alias ? .bold : .medium, design: .rounded))
-                            .foregroundStyle(T.tinta)
-                            .lineLimit(1)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Text("\(fila.partidos)").frame(width: 36)
-                        Text("\(fila.victorias)").foregroundStyle(T.verde).frame(width: 36)
-                        Text("\(fila.golpeos)").foregroundStyle(T.pista).frame(width: 62)
+                .frame(maxWidth: .infinity)
+
+                let resto = Array(comunidad.ranking.dropFirst(3))
+                if !resto.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(Array(resto.enumerated()), id: \.element.id) { index, fila in
+                            HStack(spacing: 8) {
+                                Text("\(index + 4)")
+                                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                                    .foregroundStyle(T.tintaSuave)
+                                    .frame(width: 18)
+                                Text("@\(fila.alias)")
+                                    .font(.system(size: 13, weight: fila.alias == comunidad.alias ? .heavy : .medium, design: .rounded))
+                                    .foregroundStyle(T.tinta)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text("\(fila.partidos) PJ · \(fila.victorias) V · \(fila.golpeos) golpeos")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                                    .monospacedDigit()
+                                    .foregroundStyle(T.tintaSuave)
+                            }
+                        }
                     }
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .monospacedDigit()
                 }
             }
         }
     }
 
-    private func medalla(_ index: Int) -> String {
-        switch index {
-        case 0: return "🥇"
-        case 1: return "🥈"
-        case 2: return "🥉"
-        default: return " "
+    private func escalon(_ fila: ComunidadRankingFila, puesto: Int, altura: CGFloat) -> some View {
+        VStack(spacing: 4) {
+            Text(["🥇", "🥈", "🥉"][puesto == 0 ? 0 : (puesto == 1 ? 1 : 2)])
+                .font(.system(size: 18))
+            AvatarView(alias: fila.alias, size: 48)
+            VStack(spacing: 1) {
+                Text("@\(fila.alias)")
+                    .font(.system(size: 11.5, weight: .heavy, design: .rounded))
+                    .foregroundStyle(fila.alias == comunidad.alias ? T.lima : T.tinta)
+                    .lineLimit(1)
+                Text("\(fila.partidos) PJ · \(fila.victorias) V")
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .frame(height: altura, alignment: .top)
+            .background(
+                puesto == 0 ? T.limaTinte : T.fondo,
+                in: UnevenRoundedRectangle(topLeadingRadius: 10, topTrailingRadius: 10)
+            )
         }
+        .frame(width: 92)
     }
 
     private func postCard(_ post: ComunidadPost) -> some View {
         PadelCard {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    // El alias abre su perfil: números, duelo de retos y seguir.
+                HStack(spacing: 10) {
+                    // El avatar y el alias abren su perfil: números, duelo y seguir.
                     Button {
                         perfilDe = PerfilRef(alias: post.alias)
                     } label: {
-                        Text("@\(post.alias)")
-                            .font(.system(size: 13, weight: .heavy, design: .rounded))
-                            .foregroundStyle(T.pista)
+                        HStack(spacing: 10) {
+                            AvatarView(alias: post.alias, size: 38)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("@\(post.alias)")
+                                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(T.tinta)
+                                Text(post.creado)
+                                    .font(.system(size: 11, design: .rounded))
+                                    .foregroundStyle(T.tintaSuave)
+                            }
+                        }
                     }
                     .buttonStyle(.plain)
                     Spacer()
-                    Text(post.creado)
-                        .font(.system(size: 11, design: .rounded))
-                        .foregroundStyle(T.tintaSuave)
                 }
                 Text(post.texto)
                     .font(.system(size: 14, design: .rounded))
@@ -291,29 +354,37 @@ struct ComunidadView: View {
                         .foregroundStyle(T.tintaSuave)
                 }
 
-                HStack(spacing: 16) {
+                HStack(spacing: 22) {
                     Button {
                         Task { await comunidad.reaccionar(post) }
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Text("🎾")
                             if post.reacciones > 0 {
                                 Text("\(post.reacciones)").monospacedDigit()
                             }
                         }
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(post.miReaccion != nil ? T.pista : T.tintaSuave)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(post.miReaccion != nil ? T.lima : T.tintaSuave)
                     }
                     Button {
                         comentando = post
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 5) {
                             Image(systemName: "bubble.right")
                             if post.comentarios > 0 {
                                 Text("\(post.comentarios)").monospacedDigit()
                             }
                         }
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                    }
+                    ShareLink(item: "\(post.texto) — @\(post.alias) en Rising Padel") {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.up.right")
+                            Text("Compartir")
+                        }
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
                         .foregroundStyle(T.tintaSuave)
                     }
                     Spacer()
@@ -672,5 +743,47 @@ struct ComunidadBuscarView: View {
                 }
             }
         }
+    }
+}
+
+/// El avatar de un alias: iniciales sobre un color estable derivado del propio alias,
+/// para que cada persona se reconozca de un vistazo sin subir ninguna imagen.
+struct AvatarView: View {
+    let alias: String
+    var size: CGFloat = 38
+
+    /// Paleta fija y con contraste sobre blanco: el color de cada alias no cambia.
+    private static let colores: [Color] = [
+        Color(red: 0.24, green: 0.42, blue: 0.75),
+        Color(red: 0.49, green: 0.30, blue: 0.75),
+        Color(red: 0.72, green: 0.33, blue: 0.18),
+        Color(red: 0.18, green: 0.50, blue: 0.44),
+        Color(red: 0.54, green: 0.43, blue: 0.18),
+        Color(red: 0.70, green: 0.27, blue: 0.44),
+        Color(red: 0.20, green: 0.45, blue: 0.60),
+    ]
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+            .overlay {
+                Text(iniciales)
+                    .font(.system(size: size * 0.38, weight: .heavy, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+    }
+
+    private var color: Color {
+        // Hash propio y estable: `hashValue` de Swift cambia entre ejecuciones.
+        let suma = alias.unicodeScalars.reduce(0) { ($0 &* 31) &+ Int($1.value) }
+        return Self.colores[abs(suma) % Self.colores.count]
+    }
+
+    private var iniciales: String {
+        let partes = alias.split(whereSeparator: { "-_. ".contains($0) })
+        let letras = partes.prefix(2).compactMap(\.first)
+        if letras.count >= 2 { return String(letras).uppercased() }
+        return alias.prefix(2).uppercased()
     }
 }
