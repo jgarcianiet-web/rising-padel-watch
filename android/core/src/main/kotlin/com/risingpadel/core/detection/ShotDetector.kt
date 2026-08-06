@@ -54,6 +54,8 @@ class ShotDetector(
 
     /** Reinicia el detector y fija el origen de tiempos de la sesión. */
     fun reset(referenceTimestampMs: Long? = null) {
+        elevationEma = 0f
+        elevationSamples = 0
         window.clear()
         referenceMs = referenceTimestampMs
         prevPrev = null
@@ -95,6 +97,7 @@ class ShotDetector(
 
     private fun evaluate(before: MotionSample?, s: MotionSample, after: MotionSample): Shot? {
         pushWindow(s)
+        updateElevationStats(s.gravity)
 
         if (s.timestampMs < refractoryUntilMs) {
             state = State.IDLE
@@ -116,7 +119,7 @@ class ShotDetector(
             State.SWINGING -> {
                 sweptAngleRad += gyroMag * dt
                 if (gyroMag > peakGyroRadS) peakGyroRadS = gyroMag
-                swingElevations += classifier.elevationDeg(s.gravity)
+                swingElevations += classifier.elevationDeg(s.gravity) * elevationSign
 
                 val duration = s.timestampMs - swingStartMs
                 val isImpact = accelMag > config.impactG &&
@@ -151,6 +154,27 @@ class ShotDetector(
         }
     }
 
+    // ─── Autocalibración del signo de la elevación ───
+    //
+    // El brazo pasa la mayor parte del partido colgando o bajo la horizontal, así que
+    // la media larga de la elevación de un partido real es claramente negativa. Si
+    // lleva un rato saliendo claramente "en alto", el eje del antebrazo está invertido
+    // para esta combinación de muñeca y corona — el ajuste manual no puede saberlo — y
+    // el signo se corrige aquí solo. Validado con verdad-terreno de pista: víboras y
+    // smashes reales salían con elevación negativa y las derechas de fondo con +70°.
+    private var elevationEma = 0f
+    private var elevationSamples = 0
+
+    private fun updateElevationStats(gravity: com.risingpadel.core.model.Vector3) {
+        val cruda = classifier.elevationDeg(gravity)
+        elevationEma += (cruda - elevationEma) * ELEVATION_EMA_ALPHA
+        elevationSamples++
+    }
+
+    /** −1 si el eje está invertido; +1 en cuanto hay dudas (mejor no tocar nada). */
+    private val elevationSign: Float
+        get() = if (elevationSamples >= ELEVATION_MIN_SAMPLES && elevationEma > ELEVATION_FLIPPED_DEG) -1f else 1f
+
     private fun trackOnset(s: MotionSample, gyroMag: Float, dt: Float) {
         if (gyroMag <= config.swingOnsetRadS) {
             onsetCount = 0
@@ -167,7 +191,7 @@ class ShotDetector(
             state = State.SWINGING
             swingStartMs = candidateStartMs
             swingElevations.clear()
-            swingElevations += classifier.elevationDeg(s.gravity)
+            swingElevations += classifier.elevationDeg(s.gravity) * elevationSign
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
             // que lo confirma.
             sweptAngleRad = pendingSweptRad
@@ -250,3 +274,9 @@ class ShotDetector(
         return if (dt <= 0f) defaultDt else dt.coerceAtMost(0.1f)
     }
 }
+
+// La autocalibración mira ~10 s de juego antes de decidir, y solo actúa con una media
+// inequívoca: un brazo no se sostiene a +15° de media durante minutos.
+private const val ELEVATION_EMA_ALPHA = 0.002f
+private const val ELEVATION_MIN_SAMPLES = 400
+private const val ELEVATION_FLIPPED_DEG = 15f

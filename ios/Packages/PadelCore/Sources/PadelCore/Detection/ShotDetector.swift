@@ -58,6 +58,35 @@ public final class ShotDetector {
         sweptAngleRad = 0
         peakGyroRadS = 0
         refractoryUntilMs = .min
+        elevationEMA = 0
+        elevationSamples = 0
+    }
+
+    // ─── Autocalibración del signo de la elevación ───
+    //
+    // El brazo pasa la mayor parte del partido colgando o bajo la horizontal, así que
+    // la media larga de la elevación de un partido real es claramente negativa. Si
+    // lleva un rato saliendo claramente "en alto", el eje del antebrazo está invertido
+    // para esta combinación de muñeca y corona — el ajuste manual no puede saberlo — y
+    // el signo se corrige aquí solo. Validado con verdad-terreno de pista: víboras y
+    // smashes reales salían con elevación negativa y las derechas de fondo con +70°.
+    // Mismos valores que el core Kotlin, con tests allí.
+    private var elevationEMA: Float = 0
+    private var elevationSamples = 0
+    private static let elevationEMAAlpha: Float = 0.002
+    private static let elevationMinSamples = 400
+    private static let elevationFlippedDeg: Float = 15
+
+    private func updateElevationStats(gravity: Vector3) {
+        let cruda = classifier.elevationDeg(gravity: gravity)
+        elevationEMA += (cruda - elevationEMA) * Self.elevationEMAAlpha
+        elevationSamples += 1
+    }
+
+    /// −1 si el eje está invertido; +1 en cuanto hay dudas (mejor no tocar nada).
+    private var elevationSign: Float {
+        elevationSamples >= Self.elevationMinSamples && elevationEMA > Self.elevationFlippedDeg
+            ? -1 : 1
     }
 
     /// Procesa una muestra. Devuelve el golpeo si esta muestra cierra uno.
@@ -91,6 +120,7 @@ public final class ShotDetector {
 
     private func evaluate(before: MotionSample?, current: MotionSample, next: MotionSample) -> Shot? {
         pushWindow(current)
+        updateElevationStats(gravity: current.gravity)
 
         if current.timestampMs < refractoryUntilMs {
             state = .idle
@@ -111,7 +141,7 @@ public final class ShotDetector {
         case .swinging:
             sweptAngleRad += gyroMag * dt
             if gyroMag > peakGyroRadS { peakGyroRadS = gyroMag }
-            swingElevations.append(classifier.elevationDeg(gravity: current.gravity))
+            swingElevations.append(classifier.elevationDeg(gravity: current.gravity) * elevationSign)
 
             let duration = current.timestampMs - swingStartMs
             let isImpact = accelMag > config.impactG
@@ -156,7 +186,7 @@ public final class ShotDetector {
             state = .swinging
             swingStartMs = candidateStartMs
             swingElevations.removeAll(keepingCapacity: true)
-            swingElevations.append(classifier.elevationDeg(gravity: sample.gravity))
+            swingElevations.append(classifier.elevationDeg(gravity: sample.gravity) * elevationSign)
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
             // que lo confirma.
             sweptAngleRad = pendingSweptRad
