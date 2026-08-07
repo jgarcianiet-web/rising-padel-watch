@@ -136,12 +136,12 @@ enum MotionFixtures {
               axialFraction: 0.2, elevationDeg: 78)
     }
 
-    /// Víbora: golpe alto con mucho efecto lateral — rotación axial alta sin ser remate.
-    /// La fracción axial es alta a propósito: en pista una derecha plana ya promedia
-    /// 6-11 rad/s de axial, y la víbora se define por vivir claramente por encima.
+    /// Víbora: golpe alto con efecto lateral claro sin la violencia del remate. Los
+    /// números vienen de pista (ago 2026): las víboras reales picaron 9.2-14.3 rad/s
+    /// (los remates, 10.6-21.4) con |axial| 4.1-5.4.
     static func vibora(startMs: Int64) -> [MotionSample] {
-        swing(startMs: startMs, peakGyroRadS: 21, swingDurationMs: 240, impactG: 8,
-              axialFraction: 0.85, elevationDeg: 80)
+        swing(startMs: startMs, peakGyroRadS: 13, swingDurationMs: 240, impactG: 8,
+              axialFraction: 0.5, elevationDeg: 80)
     }
 
     /// Smash: el remate — violento y corto, con el pico de giro por encima de todo.
@@ -150,9 +150,9 @@ enum MotionFixtures {
               axialFraction: 0.3, elevationDeg: 85)
     }
 
-    /// Saque: brazo alto y swing completo.
+    /// Saque: BAJO como el del pádel — se arma a la cintura — con un barrido enorme.
     static func serve(startMs: Int64) -> [MotionSample] {
         swing(startMs: startMs, peakGyroRadS: 28, swingDurationMs: 350, impactG: 9,
-              axialFraction: 0.6, elevationDeg: 70)
+              axialFraction: 0.6, elevationDeg: 15)
     }
 }
