@@ -389,9 +389,12 @@ struct WatchRootView: View {
         }
     }
 
-    private func formatDuration(_ seconds: Int64) -> String {
-        String(format: "%d:%02d", seconds / 60, seconds % 60)
-    }
+}
+
+/// A ámbito de fichero: la página de controles (SessionControlsView) enseña el mismo
+/// crono que el resto de pantallas del reloj.
+func formatDuration(_ seconds: Int64) -> String {
+    String(format: "%d:%02d", seconds / 60, seconds % 60)
 }
 
 extension ShotType {
