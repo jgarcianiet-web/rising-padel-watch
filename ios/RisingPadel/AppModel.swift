@@ -165,12 +165,63 @@ final class AppModel: ObservableObject {
             // además lo que dispara la replicación (se observa UserDefaults).
             matchObjectives: matchObjectivesRaw
                 .split(separator: "\n").map(String.init),
+            // Los umbrales del jugador viajan con los ajustes: se calculan aquí (el
+            // fichero de tandas vive en el móvil) pero quien mide es el reloj.
+            calibration: calibration,
             updatedAtEpochMs: Int64(settingsUpdatedAtMs)
         )
     }
 
     /// Espejo de los objetivos de la liga, en el formato que guarda `LigaModel`.
     @AppStorage("matchObjectives") private var matchObjectivesRaw = ""
+
+    // MARK: Calibración con las tandas del jugador
+
+    /// Los umbrales personales, serializados (`@AppStorage` no entiende de structs).
+    @AppStorage("detectorCalibration") private var calibrationJSON = ""
+
+    var calibration: DetectorCalibration? {
+        guard let data = calibrationJSON.data(using: .utf8), !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode(DetectorCalibration.self, from: data)
+    }
+
+    /// Recalcula los umbrales del jugador con sus tandas etiquetadas y los replica al
+    /// reloj. Devuelve nil si todavía no hay fichero de tandas.
+    ///
+    /// Es lo que le da sentido al modo de datos sin necesidad de ordenador: la etiqueta
+    /// la puso el jugador antes de dar el golpe, así que cada tanda es verdad-terreno
+    /// suya, y de ahí salen sus fronteras — no las de una técnica media.
+    func calibrarConTandas() -> ResultadoCalibracion? {
+        guard let url = trainingDataURL,
+              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+
+        let decoder = JSONDecoder()
+        let etiquetados: [(ShotType, ShotFeatures)] = contenido
+            .split(separator: "\n")
+            .compactMap { linea in
+                guard let data = linea.data(using: .utf8),
+                      let muestra = try? decoder.decode(TrainingSample.self, from: data)
+                else { return nil }
+                return (muestra.label, muestra.heuristicFeatures)
+            }
+        guard !etiquetados.isEmpty else { return nil }
+
+        let resultado = ThresholdCalibrator.calibrar(
+            etiquetados,
+            ahoraEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+        if let data = try? JSONEncoder().encode(resultado.calibracion),
+           let texto = String(data: data, encoding: .utf8) {
+            // Escribir aquí dispara la replicación al reloj (se observa UserDefaults).
+            calibrationJSON = texto
+        }
+        return resultado
+    }
+
+    /// Vuelve a los umbrales de fábrica.
+    func borrarCalibracion() {
+        calibrationJSON = ""
+    }
 
     /// Replica al reloj cada cambio de ajustes.
     ///

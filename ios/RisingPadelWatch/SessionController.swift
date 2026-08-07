@@ -112,7 +112,21 @@ final class SessionController: ObservableObject {
             Sensitivity(rawValue: sensitivityRaw) ?? .medium
         )
         config.forearmAxis = profile.watchWrist == .right ? Vector3(0, -1, 0) : Vector3(0, 1, 0)
+        // Los umbrales del jugador, sacados de sus tandas etiquetadas: la calibración
+        // se calcula en el móvil (que tiene el fichero) y viaja con los ajustes.
+        if let calibration = storedCalibration {
+            config = config.applying(calibration)
+        }
         return config
+    }
+
+    /// La calibración replicada desde el iPhone. Se guarda serializada porque
+    /// `@AppStorage` no entiende de structs.
+    @AppStorage("detectorCalibration") private var calibrationJSON = ""
+
+    var storedCalibration: DetectorCalibration? {
+        guard let data = calibrationJSON.data(using: .utf8), !data.isEmpty else { return nil }
+        return try? JSONDecoder().decode(DetectorCalibration.self, from: data)
     }
 
     init() {
@@ -151,6 +165,7 @@ final class SessionController: ObservableObject {
             playerAlias: playerAlias,
             playerLevel: playerLevelRaw > 0 ? playerLevelRaw : nil,
             matchObjectives: matchObjectives,
+            calibration: storedCalibration,
             updatedAtEpochMs: Int64(settingsUpdatedAtMs)
         )
         let merged = local.merged(with: incoming)
@@ -175,6 +190,11 @@ final class SessionController: ObservableObject {
         playerAlias = merged.playerAlias
         playerLevelRaw = merged.playerLevel ?? 0
         matchObjectivesRaw = merged.matchObjectives.joined(separator: "\n")
+        if let calibration = merged.calibration,
+           let data = try? JSONEncoder().encode(calibration),
+           let texto = String(data: data, encoding: .utf8) {
+            calibrationJSON = texto
+        }
         settingsUpdatedAtMs = Double(merged.updatedAtEpochMs)
     }
 

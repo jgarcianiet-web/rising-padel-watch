@@ -172,4 +172,15 @@ public struct DetectorConfig: Equatable, Sendable {
         copy.impactG = impactG * sensitivity.factor
         return copy
     }
+
+    /// La configuración con los umbrales personales del jugador encima. Lo que la
+    /// calibración no sostiene se queda de fábrica.
+    public func applying(_ calibracion: DetectorCalibration) -> DetectorConfig {
+        var copy = self
+        if let valor = calibracion.prepOverheadElevationDeg { copy.prepOverheadElevationDeg = valor }
+        if let valor = calibracion.smashPeakGyroRadS { copy.smashPeakGyroRadS = valor }
+        if let valor = calibracion.viboraAxialRadS { copy.viboraAxialRadS = valor }
+        if let valor = calibracion.volleyAxialMaxRadS { copy.volleyAxialMaxRadS = valor }
+        return copy
+    }
 }

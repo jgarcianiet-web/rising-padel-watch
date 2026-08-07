@@ -29,6 +29,10 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
     /// puede medir él solo ("15 bandejas": 11/15). Los edita el móvil, que es donde
     /// vive la liga; el reloj solo los lee.
     public var matchObjectives: [String]
+    /// Los umbrales personales sacados de las tandas etiquetadas del jugador. El reloj
+    /// los aplica al detector: la calibración se calcula en el móvil (que tiene el
+    /// fichero de tandas) pero quien mide es la muñeca.
+    public var calibration: DetectorCalibration?
     /// Cuándo se editaron estos ajustes en el dispositivo de origen.
     ///
     /// Es lo que hace que la replicación sea segura: `updateApplicationContext` **reentrega**
@@ -44,6 +48,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         playerAlias: String = DeviceSettings.defaultAlias,
         playerLevel: Int? = nil,
         matchObjectives: [String] = [],
+        calibration: DetectorCalibration? = nil,
         updatedAtEpochMs: Int64 = 0
     ) {
         self.profile = profile
@@ -53,6 +58,7 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         self.playerAlias = playerAlias
         self.playerLevel = playerLevel
         self.matchObjectives = matchObjectives
+        self.calibration = calibration
         self.updatedAtEpochMs = updatedAtEpochMs
     }
 
@@ -77,6 +83,9 @@ public struct DeviceSettings: Codable, Equatable, Sendable {
         matchObjectives = try container.decodeIfPresent(
             [String].self, forKey: .matchObjectives
         ) ?? []
+        calibration = try container.decodeIfPresent(
+            DetectorCalibration.self, forKey: .calibration
+        )
         updatedAtEpochMs = try container.decodeIfPresent(
             Int64.self, forKey: .updatedAtEpochMs
         ) ?? 0

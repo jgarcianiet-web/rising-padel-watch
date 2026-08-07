@@ -133,6 +133,18 @@ data class DetectorConfig(
         impactG = impactG * sensitivity.factor,
     )
 
+    /**
+     * La configuración con los umbrales personales del jugador encima. Lo que la
+     * calibración no sostiene se queda de fábrica.
+     */
+    fun aplicando(calibracion: DetectorCalibration): DetectorConfig = copy(
+        prepOverheadElevationDeg =
+            calibracion.prepOverheadElevationDeg ?: prepOverheadElevationDeg,
+        smashPeakGyroRadS = calibracion.smashPeakGyroRadS ?: smashPeakGyroRadS,
+        viboraAxialRadS = calibracion.viboraAxialRadS ?: viboraAxialRadS,
+        volleyAxialMaxRadS = calibracion.volleyAxialMaxRadS ?: volleyAxialMaxRadS,
+    )
+
     companion object {
         val DEFAULT = DetectorConfig()
     }

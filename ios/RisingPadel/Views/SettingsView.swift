@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("ultimaCopia") private var ultimaCopia: Double = 0
     @State private var copiando = false
     @State private var codigoRecuperacion: String?
+    @State private var resultadoCalibracion: ResultadoCalibracion?
     @Environment(\.dismiss) private var dismiss
 
     @State private var token = ""
@@ -228,6 +229,28 @@ struct SettingsView: View {
                 }
 
                 if let url = model.trainingDataURL {
+                    // Lo que convierte una tanda en algo útil hoy mismo, sin ordenador
+                    // y sin modelo entrenado: tus etiquetas mueven tus umbrales.
+                    Button {
+                        resultadoCalibracion = model.calibrarConTandas()
+                    } label: {
+                        Label("Calibrar el detector con mis tandas", systemImage: "slider.horizontal.3")
+                    }
+                    if let resultado = resultadoCalibracion {
+                        resumenCalibracion(resultado)
+                    } else if let calibracion = model.calibration, !calibracion.vacia {
+                        Text("Calibrado con \(calibracion.muestras) golpes tuyos.")
+                            .font(.caption)
+                            .foregroundStyle(T.verde)
+                    }
+                    if model.calibration != nil {
+                        Button("Volver a los umbrales de fábrica") {
+                            model.borrarCalibracion()
+                            resultadoCalibracion = nil
+                        }
+                        .font(.caption)
+                    }
+
                     // ShareLink en vez de subir a ningún sitio: el fichero solo sale del
                     // móvil si el usuario lo comparte a mano.
                     ShareLink(item: url) {
@@ -259,6 +282,62 @@ struct SettingsView: View {
                 sale del dispositivo. **No se sube a la liga**: solo sale de aquí si lo \
                 exportas tú.
                 """)
+        }
+    }
+
+    /// El parte de la calibración: qué tandas la sostienen, cuánto acierta el detector
+    /// sobre ellas antes y después, y qué familias faltan por grabar.
+    private func resumenCalibracion(_ resultado: ResultadoCalibracion) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            let antes = Int((resultado.aciertoAntes * 100).rounded())
+            let despues = Int((resultado.aciertoDespues * 100).rounded())
+            Text("Con tus \(resultado.calibracion.muestras) golpes etiquetados: "
+                 + "el detector acertaba el \(antes)% y ahora acierta el \(despues)%.")
+                .font(.caption)
+                .foregroundStyle(despues >= antes ? T.verde : T.rojo)
+
+            if resultado.calibracion.vacia {
+                Text("Ninguna familia tiene todavía \(ThresholdCalibrator.minPorFamilia) "
+                     + "golpes suyos, así que se quedan los umbrales de fábrica. "
+                     + "Graba tandas de cada tipo y vuelve a pulsar.")
+                    .font(.caption2)
+                    .foregroundStyle(T.tintaSuave)
+            } else {
+                if let vibora = resultado.calibracion.viboraAxialRadS {
+                    linea("Efecto mínimo de tu víbora", String(format: "%.1f", vibora))
+                }
+                if let smash = resultado.calibracion.smashPeakGyroRadS {
+                    linea("Violencia mínima de tu remate", String(format: "%.1f", smash))
+                }
+                if let prep = resultado.calibracion.prepOverheadElevationDeg {
+                    linea("Altura a la que armas los golpes altos", String(format: "%.0f°", prep))
+                }
+                if let volea = resultado.calibracion.volleyAxialMaxRadS {
+                    linea("Efecto máximo de tu volea", String(format: "%.1f", volea))
+                }
+            }
+
+            // Qué falta: es la instrucción concreta para la próxima sesión de pista.
+            let faltan = [ShotType.forehand, .backhand, .forehandVolley, .backhandVolley,
+                          .bandeja, .vibora, .smash]
+                .filter { (resultado.porTipo[$0] ?? 0) < ThresholdCalibrator.minPorFamilia }
+            if !faltan.isEmpty {
+                Text("Te faltan tandas de: " + faltan.map(\.label).joined(separator: ", "))
+                    .font(.caption2)
+                    .foregroundStyle(T.tintaSuave)
+            }
+        }
+    }
+
+    private func linea(_ titulo: String, _ valor: String) -> some View {
+        HStack {
+            Text(titulo)
+                .font(.caption2)
+                .foregroundStyle(T.tintaSuave)
+            Spacer()
+            Text(valor)
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(T.tinta)
         }
     }
 
