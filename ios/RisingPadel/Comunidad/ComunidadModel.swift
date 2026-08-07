@@ -205,6 +205,32 @@ final class ComunidadModel: ObservableObject {
         return respuesta?["codigo"]
     }
 
+    // MARK: Nivel anclado a la comunidad
+
+    /// Publica el par (nivel que declaras, nivel que midió tu reloj). Es lo que permite
+    /// traducir mediciones a nivel de pista: sin jugadores de nivel conocido, la escala
+    /// 1-7 sería una estimación teórica.
+    func publicarNivel(declarado: Int, medido: Float) async {
+        guard tieneCuenta, declarado >= 1, declarado <= 7 else { return }
+        let _: [String: String]? = await llamarCrudo(
+            "POST", "v1/comunidad/nivel",
+            json: ["declarado": declarado, "medido": medido]
+        )
+    }
+
+    /// La tabla de anclaje y las mediciones de la comunidad (números sueltos, sin alias:
+    /// son para calcular tu percentil en el móvil, no un ranking de nadie).
+    func anclajeDeNivel() async -> (LevelAnchorTable, [Float])? {
+        struct Respuesta: Decodable {
+            let anclas: [AnchorPoint]
+            let mediciones: [Float]
+        }
+        guard let respuesta: Respuesta = await llamar("GET", "v1/comunidad/nivel") else {
+            return nil
+        }
+        return (LevelAnchorTable(puntos: respuesta.anclas), respuesta.mediciones)
+    }
+
     // MARK: Copia de seguridad
 
     /// Sube la copia (JSON en crudo). Un solo hueco por usuario: machaca la anterior.

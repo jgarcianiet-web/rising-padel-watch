@@ -183,6 +183,60 @@ export async function comunidad(request, env, path) {
     return json(200, { codigo: fila.code });
   }
 
+  // ─── El ancla del nivel: la comunidad como patrón de medida ───
+  //
+  // El reloj mide en su propia escala (velocidad de pala, amplitud, regularidad) y el
+  // jugador quiere saber a qué nivel de pista equivale. Unir las dos escalas solo se
+  // puede hacer con jugadores de nivel conocido, así que se acumulan pares (nivel que
+  // declara el usuario, nivel que midió su reloj) y de ahí sale la tabla. No se inventa
+  // nada: con pocos datos la app no enseña equivalencia.
+  if (ruta === "/nivel" && metodo === "POST") {
+    const { declarado, medido } = await request.json().catch(() => ({}));
+    const d = Number(declarado);
+    const m = Number(medido);
+    if (!(d >= 1 && d <= 7) || !(m >= 1 && m <= 7)) {
+      return error(400, "fuera_de_rango", "El nivel va de 1 a 7");
+    }
+    await env.DB.prepare(
+      `INSERT INTO levels (user, declared, measured, updated_at) VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(user) DO UPDATE SET declared = ?2, measured = ?3, updated_at = ?4`
+    ).bind(yo.id, d, m, ahora()).run();
+    return new Response(null, { status: 204 });
+  }
+
+  if (ruta === "/nivel" && metodo === "GET") {
+    const { results } = await env.DB.prepare(
+      "SELECT declared, measured FROM levels"
+    ).all();
+    const filas = results ?? [];
+
+    // Las anclas: por cada nivel declarado (redondeado a medio punto), la mediana de
+    // lo que midieron los relojes de esos jugadores.
+    const porNivel = new Map();
+    for (const fila of filas) {
+      const clave = Math.round(fila.declared * 2) / 2;
+      if (!porNivel.has(clave)) porNivel.set(clave, []);
+      porNivel.get(clave).push(fila.measured);
+    }
+    const anclas = [...porNivel.entries()]
+      .map(([nivelDeclarado, medidos]) => {
+        const ordenados = medidos.slice().sort((a, b) => a - b);
+        return {
+          nivelDeclarado,
+          medidoMediana: ordenados[Math.floor(ordenados.length / 2)],
+          jugadores: ordenados.length,
+        };
+      })
+      .sort((a, b) => a.nivelDeclarado - b.nivelDeclarado);
+
+    // Las mediciones sueltas, sin alias: son números para calcular el percentil en el
+    // móvil, no un ranking de nadie.
+    return json(200, {
+      anclas,
+      mediciones: filas.map((f) => f.measured),
+    });
+  }
+
   // La copia de seguridad del usuario: un único objeto en R2 que se machaca en cada
   // subida. Es lo que hace que reinstalar la app no borre nada: el token sobrevive
   // en el Llavero y con él vuelve el historial entero.

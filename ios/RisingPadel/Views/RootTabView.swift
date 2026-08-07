@@ -102,7 +102,10 @@ struct RootTabView: View {
 struct LastSessionView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var liga: LigaModel
+    @EnvironmentObject private var comunidad: ComunidadModel
     @State private var showingSettings = false
+    /// Lo que la comunidad permite decir sobre tu nivel: equivalencia y percentil.
+    @State private var lecturaNivel: LecturaDeNivel?
 
     var body: some View {
         NavigationStack {
@@ -146,7 +149,10 @@ struct LastSessionView: View {
                 }
             }
             .sheet(isPresented: $showingSettings) {
-                SettingsView().environmentObject(model)
+                SettingsView()
+                    .environmentObject(model)
+                    .environmentObject(liga)
+                    .environmentObject(comunidad)
             }
         }
     }
@@ -166,12 +172,64 @@ struct LastSessionView: View {
                     resumenUltima(last)
                 }
                 .buttonStyle(.plain)
+                nivelCard
                 recordsCard
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
         .navigationTitle("Inicio")
+        .task { await cargarLectura() }
+    }
+
+    /// Tu nivel puesto en contexto. Son dos cosas distintas y se dicen por separado:
+    /// el **percentil** compara tu medición con la de los demás y es cierto desde el
+    /// primer día; la **equivalencia** traduce esa medición a nivel de pista y solo
+    /// aparece cuando hay suficientes jugadores de nivel conocido midiendo. Antes sin
+    /// equivalencia que con una inventada.
+    @ViewBuilder
+    private var nivelCard: some View {
+        if let lectura = lecturaNivel, lectura.equivalente != nil || lectura.percentil != nil {
+            PadelCard(title: "Tu nivel, en contexto", icon: "person.2.wave.2") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let equivalente = lectura.equivalente {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(String(format: "%.1f", equivalente))
+                                .font(.system(size: 30, weight: .heavy, design: .rounded))
+                                .foregroundStyle(T.lima)
+                            Text("de nivel de juego")
+                                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                        }
+                        Text("Equivalencia calculada con jugadores de la comunidad que "
+                             + "declaran su nivel. Mejora según juega más gente.")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if let percentil = lectura.percentil {
+                        PadelBar(
+                            label: "Por encima del \(percentil)% de la comunidad",
+                            value: "\(percentil)%",
+                            fraction: Float(percentil) / 100,
+                            color: T.pista
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    /// Publica tu par (nivel declarado, nivel medido) y trae el anclaje de vuelta.
+    private func cargarLectura() async {
+        guard comunidad.tieneCuenta, let medido = model.playerAverageLevel else { return }
+        if model.playerLevelRaw > 0 {
+            await comunidad.publicarNivel(declarado: model.playerLevelRaw, medido: medido)
+        }
+        guard let (tabla, mediciones) = await comunidad.anclajeDeNivel() else { return }
+        lecturaNivel = LecturaDeNivel.calcular(
+            medido: medido, tabla: tabla, medicionesComunidad: mediciones
+        )
     }
 
     /// Tus plusmarcas, siempre a la vista: pura motivación con cero coste de captura.

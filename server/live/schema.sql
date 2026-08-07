@@ -121,3 +121,12 @@ CREATE TABLE IF NOT EXISTS recovery_codes (
   user_id INTEGER PRIMARY KEY REFERENCES users(id),
   code TEXT NOT NULL
 );
+
+-- El ancla del nivel: qué mide el reloj a jugadores que declaran un nivel conocido.
+-- Una fila por usuario, siempre la última medición.
+CREATE TABLE IF NOT EXISTS levels (
+  user INTEGER PRIMARY KEY REFERENCES users(id),
+  declared REAL NOT NULL,
+  measured REAL NOT NULL,
+  updated_at TEXT NOT NULL
+);
