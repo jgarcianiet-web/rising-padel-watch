@@ -223,82 +223,283 @@ private func offsetLabel(_ offsetMs: Int64) -> String {
 
 // MARK: Golpe a golpe
 
-/// El partido entero como una línea de tiempo: cada golpeo es una barra en el minuto en
-/// que ocurrió, con la altura de su velocidad de pala y el color de su tipo.
+/// Colores fijos por tipo de golpe: los mismos en toda la app y sesión tras sesión.
 ///
-/// Antes era una nube de círculos de tamaño variable y no se entendía nada: había que
-/// descifrar tres codificaciones a la vez (posición, color y área) para leer un golpe.
-/// Una barra apoyada en el suelo se lee sola — se ven las ráfagas, los huecos y los
-/// picos sin pensar, como el sismograma del partido.
-struct ShotScatterChart: View {
+/// Van atados al tipo y no al orden en que aparecen: si un día no juegas ninguna volea,
+/// el resto de golpes **no** cambian de color. Un color que se mueve deja de identificar.
+enum ColorDeGolpe {
+    static func color(_ type: ShotType) -> Color {
+        switch type {
+        case .forehand: return T.pista
+        case .backhand: return Color(red: 0.49, green: 0.30, blue: 0.75)
+        case .forehandVolley, .backhandVolley: return T.verde
+        case .bandeja: return .orange
+        case .vibora: return Color(red: 0.70, green: 0.27, blue: 0.44)
+        case .smash: return T.rojo
+        case .serve: return T.tintaSuave
+        case .unknown: return T.borde
+        }
+    }
+}
+
+/// El desglose de la sesión golpe a golpe: una fila por tipo, y al pulsar una se abre
+/// con todo lo que sabemos de ese golpe.
+///
+/// Antes esto era la sesión entera en una sola gráfica —un golpeo por barra, cientos de
+/// barras de dos píxeles— y no había forma de sacar nada en claro: se veía el ruido del
+/// partido, no cómo había jugado uno. La pregunta que la gente se hace no es "¿qué pasó
+/// en el minuto 37?" sino "¿cómo fue hoy mi derecha?", y esa se responde por tipo de
+/// golpe, no por instante.
+///
+/// Así que la fila es la unidad y el detalle está a un toque: cuántos, a qué velocidad
+/// media y máxima, con qué calidad, con qué regularidad y en qué momentos del partido.
+/// El relato temporal no se pierde — vive dentro del golpe que lo interesa.
+struct ShotBreakdownChart: View {
     let session: PadelSession
 
-    /// Los colores fijos por tipo: los mismos en la leyenda y sesión tras sesión.
-    private static let colores: KeyValuePairs<String, Color> = [
-        "Derecha": T.pista,
-        "Revés": Color(red: 0.49, green: 0.30, blue: 0.75),
-        "Volea": T.verde,
-        "Bandeja": Color.orange,
-        "Víbora": Color(red: 0.70, green: 0.27, blue: 0.44),
-        "Smash": T.rojo,
-        "Saque": T.tintaSuave,
-        "Otro": T.borde,
-    ]
+    @State private var abierto: ShotType?
 
-    private func etiqueta(_ type: ShotType) -> String {
+    private var desglose: [ShotBreakdown] {
+        SessionAnalytics().shotBreakdown(session.shots)
+    }
+
+    static func etiqueta(_ type: ShotType) -> String {
         switch type {
         case .forehand: return "Derecha"
         case .backhand: return "Revés"
-        case .forehandVolley, .backhandVolley: return "Volea"
+        case .forehandVolley: return "Volea de derecha"
+        case .backhandVolley: return "Volea de revés"
         case .bandeja: return "Bandeja"
         case .vibora: return "Víbora"
         case .smash: return "Smash"
         case .serve: return "Saque"
-        case .unknown: return "Otro"
+        case .unknown: return "Sin clasificar"
         }
-    }
-
-    /// La media de la sesión, para que cada barra se lea contra algo.
-    private var mediaKmh: Float {
-        guard !session.shots.isEmpty else { return 0 }
-        return session.shots.map(\.racketSpeedKmh).reduce(0, +) / Float(session.shots.count)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Chart {
-                ForEach(session.shots, id: \.offsetMs) { shot in
-                    BarMark(
-                        x: .value("Minuto", Double(shot.offsetMs) / 60_000),
-                        y: .value("km/h", shot.racketSpeedKmh),
-                        width: 2
-                    )
-                    .foregroundStyle(by: .value("Tipo", etiqueta(shot.type)))
-                }
-                // La referencia: de un vistazo se ve qué golpes fueron por encima de
-                // tu media del día y cuáles se quedaron cortos.
-                RuleMark(y: .value("Media", mediaKmh))
-                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                    .foregroundStyle(T.tintaSuave)
-                    .annotation(position: .top, alignment: .leading) {
-                        Text(String(format: "media %.0f km/h", mediaKmh))
-                            .font(.system(size: 9, weight: .semibold, design: .rounded))
-                            .foregroundStyle(T.tintaSuave)
-                    }
-            }
-            .chartForegroundStyleScale(Self.colores)
-            .chartXAxisLabel("minuto")
-            .chartYAxisLabel("km/h de pala")
-            .chartLegend(position: .bottom, spacing: 6)
-            .frame(height: 200)
+        let filas = desglose
+        let maximo = filas.first?.count ?? 1
 
-            Text("Cada barra es un golpe, en el minuto en que lo diste. La altura es la "
-                 + "velocidad de pala y el color, el tipo de golpe.")
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(filas) { dato in
+                fila(dato, maximo: maximo)
+                if dato.id != filas.last?.id {
+                    Divider().overlay(T.borde).padding(.vertical, 2)
+                }
+            }
+
+            Text(abierto == nil
+                 ? "Pulsa un golpe para ver su velocidad, su calidad y en qué momentos lo diste."
+                 : "La calidad es la nota de 1 a 7 de ese golpe; la regularidad, cuánto se "
+                   + "parecen entre sí los que diste.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(T.tintaSuave)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
         }
-        .padding(.vertical, 4)
+    }
+
+    // MARK: La fila
+
+    @ViewBuilder
+    private func fila(_ dato: ShotBreakdown, maximo: Int) -> some View {
+        let seleccionado = abierto == dato.type
+        let color = ColorDeGolpe.color(dato.type)
+
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                // Volver a pulsar cierra: la fila abierta es un interruptor, no un modo
+                // del que haya que salir por otro sitio.
+                withAnimation(.snappy(duration: 0.22)) {
+                    abierto = seleccionado ? nil : dato.type
+                }
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Circle().fill(color).frame(width: 9, height: 9)
+                        Text(Self.etiqueta(dato.type))
+                            .font(.system(size: 14, weight: .medium, design: .rounded))
+                            .foregroundStyle(T.tinta)
+                        Spacer(minLength: 6)
+                        Text("\(dato.count)")
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(T.tinta)
+                        Text(String(format: "%.0f km/h", dato.meanKmh))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(T.tintaSuave)
+                        Image(systemName: seleccionado ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(T.borde)
+                            Capsule()
+                                .fill(color)
+                                .frame(
+                                    width: geo.size.width
+                                        * CGFloat(min(max(Double(dato.count) / Double(max(maximo, 1)), 0.02), 1))
+                                )
+                        }
+                    }
+                    .frame(height: 7)
+                }
+                // Toda la fila es zona de toque, no solo el texto: en el móvil se pulsa
+                // con el pulgar, no con un puntero.
+                .padding(.vertical, 8)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(
+                "\(Self.etiqueta(dato.type)), \(dato.count) golpes, "
+                + String(format: "%.0f kilómetros por hora de media", dato.meanKmh)
+            )
+
+            if seleccionado {
+                detalle(dato, color: color)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    // MARK: El detalle del golpe
+
+    @ViewBuilder
+    private func detalle(_ dato: ShotBreakdown, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                tarjetaDato(titulo: "Golpes", valor: "\(dato.count)",
+                      pie: String(format: "%.0f%% del total", dato.share * 100))
+                tarjetaDato(titulo: "Media", valor: String(format: "%.0f", dato.meanKmh), pie: "km/h")
+                tarjetaDato(titulo: "Máxima", valor: String(format: "%.0f", dato.maxKmh), pie: "km/h")
+            }
+
+            HStack(spacing: 8) {
+                medidor(
+                    titulo: "Calidad",
+                    // La nota vive en 1-7, así que la barra tiene que empezar en 1: un
+                    // 1 no es "cero calidad", es el primer nivel de la escala.
+                    fraccion: dato.grade.map { ($0 - 1) / 6 },
+                    texto: dato.grade.map { String(format: "%.1f", $0) } ?? "—",
+                    pie: dato.grade == nil ? "sin golpes fiables" : "de 7",
+                    color: color
+                )
+                medidor(
+                    titulo: "Regularidad",
+                    fraccion: dato.consistency,
+                    texto: dato.consistency.map { String(format: "%.0f%%", $0 * 100) } ?? "—",
+                    pie: dato.consistency == nil ? "hace falta más de uno" : lecturaRegularidad(dato.consistency ?? 0),
+                    color: color
+                )
+            }
+
+            momentos(dato, color: color)
+        }
+        .padding(.top, 2)
+        .padding(.bottom, 10)
+    }
+
+    private func lecturaRegularidad(_ valor: Float) -> String {
+        switch valor {
+        case ..<0.4: return "muy dispares"
+        case ..<0.7: return "irregulares"
+        case ..<0.9: return "bastante regulares"
+        default: return "calcados"
+        }
+    }
+
+    /// Un número con su título y su unidad.
+    private func tarjetaDato(titulo: String, valor: String, pie: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(titulo)
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+            Text(valor)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(T.tinta)
+            Text(pie)
+                .font(.system(size: 10, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(T.borde.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Una barra de 0 a 1 con su lectura en palabras: sirve para la calidad y para la
+    /// regularidad, que son las dos cosas que no se leen bien como número suelto.
+    private func medidor(
+        titulo: String, fraccion: Float?, texto: String, pie: String, color: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 5) {
+                Text(titulo)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                Spacer(minLength: 2)
+                Text(texto)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(T.tinta)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(T.borde)
+                    if let fraccion {
+                        Capsule()
+                            .fill(color)
+                            .frame(width: geo.size.width * CGFloat(min(max(fraccion, 0.02), 1)))
+                    }
+                }
+            }
+            .frame(height: 6)
+            Text(pie)
+                .font(.system(size: 10, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(T.borde.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    /// Cuándo se dieron esos golpes: una marca por golpeo sobre la duración del partido.
+    /// Es lo que enseña si fue un golpe de todo el partido o de una racha de diez minutos.
+    @ViewBuilder
+    private func momentos(_ dato: ShotBreakdown, color: Color) -> some View {
+        let duracion = max(Double(session.durationSeconds) * 1000, 1)
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Cuándo los diste")
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(T.borde.opacity(0.5))
+                    ForEach(Array(dato.offsetsMs.enumerated()), id: \.offset) { _, offset in
+                        Capsule()
+                            .fill(color)
+                            .frame(width: 2.5, height: 18)
+                            .offset(
+                                x: (geo.size.width - 2.5)
+                                    * CGFloat(min(max(Double(offset) / duracion, 0), 1))
+                            )
+                    }
+                }
+            }
+            .frame(height: 18)
+            HStack {
+                Text("inicio")
+                Spacer()
+                Text(offsetLabel(Int64(duracion)))
+            }
+            .font(.system(size: 9, design: .rounded))
+            .foregroundStyle(T.tintaSuave)
+        }
     }
 }
 

@@ -27,6 +27,46 @@ public struct LevelPoint: Equatable, Sendable {
     }
 }
 
+/// Todo lo que se puede decir de **un tipo de golpe** en una sesión.
+///
+/// Es la unidad que lee el jugador: nadie mira un golpeo suelto, mira "cómo fue mi
+/// derecha hoy". Reúne las tres preguntas —cuántos, a qué velocidad y con qué
+/// calidad— en un solo objeto para que la app no tenga que recalcular nada ni pueda
+/// hacerlo distinto en iPhone y en Android.
+public struct ShotBreakdown: Equatable, Sendable, Identifiable {
+    public let type: ShotType
+    public let count: Int
+    public let meanKmh: Float
+    public let maxKmh: Float
+    /// Fracción del total de golpeos de la sesión, 0 a 1.
+    public let share: Float
+    /// Nota del golpe en la escala 1-7, o nil si ninguno puntuó (poca confianza del
+    /// detector o tipo sin banda). Nil es "no lo sé", que no es lo mismo que un 1.
+    public let grade: Float?
+    /// Regularidad de ese golpe: 0 = cada uno de su padre y de su madre, 1 = calcados.
+    /// Nil con menos de dos golpeos puntuados — con uno solo no hay regularidad de la
+    /// que hablar.
+    public let consistency: Float?
+    /// Milisegundo de la sesión de cada golpeo, para pintar cuándo se dieron.
+    public let offsetsMs: [Int64]
+
+    public var id: ShotType { type }
+
+    public init(
+        type: ShotType, count: Int, meanKmh: Float, maxKmh: Float, share: Float,
+        grade: Float?, consistency: Float?, offsetsMs: [Int64]
+    ) {
+        self.type = type
+        self.count = count
+        self.meanKmh = meanKmh
+        self.maxKmh = maxKmh
+        self.share = share
+        self.grade = grade
+        self.consistency = consistency
+        self.offsetsMs = offsetsMs
+    }
+}
+
 /// Series listas para pintar a partir de los golpeos de una sesión.
 ///
 /// Vive en el core y no en las apps por la misma razón que el nivel: las dos plataformas
@@ -117,4 +157,50 @@ public struct SessionAnalytics: Sendable {
         guard !grades.isEmpty else { return nil }
         return grades.reduce(0, +) / Float(grades.count)
     }
+
+    /// Un resumen por tipo de golpe, del más usado al menos usado.
+    ///
+    /// Ordenado por cantidad a propósito: lo primero que quiere saber cualquiera es en
+    /// qué golpe se le fue el partido, y ese es casi siempre el que más repitió. Los
+    /// tipos sin ningún golpeo no aparecen — una fila a cero no es información, es ruido.
+    public func shotBreakdown(_ shots: [Shot]) -> [ShotBreakdown] {
+        guard !shots.isEmpty else { return [] }
+        let total = Float(shots.count)
+        let porTipo = Dictionary(grouping: shots, by: { $0.type })
+        let orden = ShotType.allCases
+
+        return porTipo.map { type, delTipo -> ShotBreakdown in
+            let grades = delTipo.compactMap { estimator.grade($0) }
+            return ShotBreakdown(
+                type: type,
+                count: delTipo.count,
+                meanKmh: delTipo.reduce(0) { $0 + $1.racketSpeedKmh } / Float(delTipo.count),
+                maxKmh: delTipo.map(\.racketSpeedKmh).max() ?? 0,
+                share: Float(delTipo.count) / total,
+                grade: grades.isEmpty ? nil : grades.reduce(0, +) / Float(grades.count),
+                consistency: grades.count < 2 ? nil : Self.regularidad(grades),
+                offsetsMs: delTipo.map(\.offsetMs).sorted()
+            )
+        }
+        // A igualdad de golpeos manda el orden del enum, para que dos sesiones iguales
+        // no salgan en orden distinto según cómo cayeron en el diccionario.
+        .sorted {
+            if $0.count != $1.count { return $0.count > $1.count }
+            let a = orden.firstIndex(of: $0.type) ?? 0
+            let b = orden.firstIndex(of: $1.type) ?? 0
+            return a < b
+        }
+    }
+
+    /// La misma regularidad que usa el nivel, pero de un solo golpe: cuánto se parecen
+    /// entre sí sus notas. Se comparte la escala (1,5 niveles de desviación ya es mucho)
+    /// para que "regular" signifique lo mismo en la ficha del golpe y en el nivel global.
+    private static func regularidad(_ grades: [Float]) -> Float {
+        let mean = grades.reduce(0, +) / Float(grades.count)
+        let variance = grades.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Float(grades.count)
+        return min(max(1 - sqrt(variance) / maxMeaningfulDeviation, 0), 1)
+    }
+
+    /// Misma escala que la regularidad del nivel: sin esto, dos "regular" distintos.
+    public static let maxMeaningfulDeviation: Float = 1.5
 }

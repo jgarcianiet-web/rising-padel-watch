@@ -165,4 +165,93 @@ class SessionAnalyticsTest {
 
         assertEquals(7f, analytics.typeGrade(shots, ShotType.FOREHAND)!!, 0.01f)
     }
+
+    // --- desglose por tipo de golpe ---
+
+    @Test
+    fun `el desglose sale ordenado por cantidad, del golpe mas usado al menos usado`() {
+        val shots = List(5) { shot(it * min, ShotType.FOREHAND) } +
+            List(9) { shot(it * min, ShotType.BACKHAND) } +
+            List(2) { shot(it * min, ShotType.SMASH) }
+
+        val desglose = analytics.shotBreakdown(shots)
+
+        assertEquals(listOf(ShotType.BACKHAND, ShotType.FOREHAND, ShotType.SMASH), desglose.map { it.type })
+        assertEquals(9, desglose[0].count)
+        assertEquals(16, desglose.sumOf { it.count })
+    }
+
+    @Test
+    fun `los tipos que no se jugaron no aparecen`() {
+        val desglose = analytics.shotBreakdown(List(3) { shot(it * min, ShotType.FOREHAND_VOLLEY) })
+        assertEquals(1, desglose.size)
+        assertEquals(ShotType.FOREHAND_VOLLEY, desglose[0].type)
+    }
+
+    @Test
+    fun `cada fila trae velocidad media, maxima y su parte del total`() {
+        val shots = listOf(
+            shot(0, ShotType.FOREHAND, speedKmh = 40f),
+            shot(min, ShotType.FOREHAND, speedKmh = 60f),
+            shot(2 * min, ShotType.SMASH, speedKmh = 80f),
+        )
+
+        val derecha = analytics.shotBreakdown(shots).first { it.type == ShotType.FOREHAND }
+
+        assertEquals(50f, derecha.meanKmh, 0.1f)
+        assertEquals(60f, derecha.maxKmh, 0.1f)
+        assertEquals(2f / 3f, derecha.share, 0.01f)
+    }
+
+    @Test
+    fun `golpes calcados son mas regulares que golpes dispares`() {
+        val regulares = List(6) { shot(it * min, ShotType.FOREHAND, speedKmh = 50f) }
+        val dispares = listOf(30f, 75f, 35f, 80f, 40f, 70f).mapIndexed { i, v ->
+            shot(i * min, ShotType.BACKHAND, speedKmh = v)
+        }
+
+        val desglose = analytics.shotBreakdown(regulares + dispares)
+        val calcada = desglose.first { it.type == ShotType.FOREHAND }.consistency
+        val irregular = desglose.first { it.type == ShotType.BACKHAND }.consistency
+
+        assertNotNull(calcada)
+        assertNotNull(irregular)
+        assertEquals(1f, calcada, 0.01f)
+        assertTrue(irregular < calcada, "la derecha calcada debe salir más regular que el revés disparejo")
+    }
+
+    @Test
+    fun `con un solo golpeo no se inventa regularidad`() {
+        val desglose = analytics.shotBreakdown(listOf(shot(0, ShotType.SMASH)))
+        assertNull(desglose[0].consistency, "un golpeo suelto no tiene regularidad")
+        assertNotNull(desglose[0].grade, "pero sí tiene nota")
+    }
+
+    @Test
+    fun `un golpe que el detector no supo puntuar no inventa nota`() {
+        // Confianza por debajo del mínimo: el estimador no lo puntúa.
+        val desglose = analytics.shotBreakdown(
+            List(4) { shot(it * min, ShotType.FOREHAND, confidence = 0.1f) }
+        )
+        assertNull(desglose[0].grade, "sin golpeos puntuados la nota es desconocida, no un 1")
+        assertEquals(4, desglose[0].count, "pero los golpeos siguen contando")
+    }
+
+    @Test
+    fun `los minutos de cada golpeo vienen en orden para poder pintarlos`() {
+        val shots = listOf(
+            shot(5 * min, ShotType.FOREHAND),
+            shot(min, ShotType.FOREHAND),
+            shot(3 * min, ShotType.FOREHAND),
+        )
+        assertEquals(
+            listOf(min, 3 * min, 5 * min),
+            analytics.shotBreakdown(shots)[0].offsetsMs,
+        )
+    }
+
+    @Test
+    fun `una sesion sin golpeos no tiene desglose`() {
+        assertTrue(analytics.shotBreakdown(emptyList()).isEmpty())
+    }
 }

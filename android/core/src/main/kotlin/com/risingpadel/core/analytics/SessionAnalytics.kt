@@ -20,6 +20,36 @@ data class LevelPoint(
 )
 
 /**
+ * Todo lo que se puede decir de **un tipo de golpe** en una sesión.
+ *
+ * Es la unidad que lee el jugador: nadie mira un golpeo suelto, mira "cómo fue mi
+ * derecha hoy". Reúne las tres preguntas —cuántos, a qué velocidad y con qué
+ * calidad— en un solo objeto para que la app no tenga que recalcular nada ni pueda
+ * hacerlo distinto en iPhone y en Android.
+ */
+data class ShotBreakdown(
+    val type: ShotType,
+    val count: Int,
+    val meanKmh: Float,
+    val maxKmh: Float,
+    /** Fracción del total de golpeos de la sesión, 0 a 1. */
+    val share: Float,
+    /**
+     * Nota del golpe en la escala 1-7, o null si ninguno puntuó (poca confianza del
+     * detector o tipo sin banda). Null es "no lo sé", que no es lo mismo que un 1.
+     */
+    val grade: Float?,
+    /**
+     * Regularidad de ese golpe: 0 = cada uno de su padre y de su madre, 1 = calcados.
+     * Null con menos de dos golpeos puntuados — con uno solo no hay regularidad de la
+     * que hablar.
+     */
+    val consistency: Float?,
+    /** Minuto de la sesión de cada golpeo, para pintar cuándo se dieron. */
+    val offsetsMs: List<Long>,
+)
+
+/**
  * Series listas para pintar a partir de los golpeos de una sesión.
  *
  * Vive en el core y no en las apps por la misma razón que el nivel: las dos plataformas
@@ -100,7 +130,51 @@ class SessionAnalytics(
         return grades.average().toFloat()
     }
 
+    /**
+     * Un resumen por tipo de golpe, del más usado al menos usado.
+     *
+     * Ordenado por cantidad a propósito: lo primero que quiere saber cualquiera es en
+     * qué golpe se le fue el partido, y ese es casi siempre el que más repitió. Los
+     * tipos sin ningún golpeo no aparecen — una fila a cero no es información, es ruido.
+     */
+    fun shotBreakdown(shots: List<Shot>): List<ShotBreakdown> {
+        if (shots.isEmpty()) return emptyList()
+        val total = shots.size.toFloat()
+        return shots.groupBy { it.type }
+            .map { (type, delTipo) ->
+                val grades = delTipo.mapNotNull { estimator.grade(it) }
+                ShotBreakdown(
+                    type = type,
+                    count = delTipo.size,
+                    meanKmh = delTipo.map { it.racketSpeedKmh }.average().toFloat(),
+                    maxKmh = delTipo.maxOf { it.racketSpeedKmh },
+                    share = delTipo.size / total,
+                    grade = if (grades.isEmpty()) null else grades.average().toFloat(),
+                    consistency = if (grades.size < 2) null else regularidad(grades),
+                    offsetsMs = delTipo.map { it.offsetMs }.sorted(),
+                )
+            }
+            // A igualdad de golpeos manda el orden del enum, para que dos sesiones
+            // iguales no salgan en orden distinto según cómo cayeron en el mapa.
+            .sortedWith(compareByDescending<ShotBreakdown> { it.count }.thenBy { it.type.ordinal })
+    }
+
+    /**
+     * La misma regularidad que usa el nivel, pero de un solo golpe: cuánto se parecen
+     * entre sí sus notas. Se comparte la escala (1,5 niveles de desviación ya es mucho)
+     * para que "regular" signifique lo mismo en la ficha del golpe y en el nivel global.
+     */
+    private fun regularidad(grades: List<Float>): Float {
+        val mean = grades.average()
+        val variance = grades.sumOf { (it - mean) * (it - mean) } / grades.size
+        val sd = kotlin.math.sqrt(variance).toFloat()
+        return (1f - sd / MAX_MEANINGFUL_DEVIATION).coerceIn(0f, 1f)
+    }
+
     companion object {
+        /** Misma escala que la regularidad del nivel: sin esto, dos "regular" distintos. */
+        const val MAX_MEANINGFUL_DEVIATION = 1.5f
+
         const val DEFAULT_STEP_MS = 5 * 60_000L
         const val DEFAULT_WINDOW_MS = 15 * 60_000L
 

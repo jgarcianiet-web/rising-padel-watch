@@ -32,10 +32,11 @@ struct SessionDetailView: View {
                             playerAverage: model.playerAverageLevel
                         )
                     }
-                    // El partido golpe a golpe: la línea de tiempo con la velocidad y
-                    // el tipo de cada uno. La gráfica que enseña el relato de la sesión.
-                    PadelCard(title: "Golpe a golpe", icon: "chart.bar.xaxis") {
-                        ShotScatterChart(session: session)
+                    // Golpe a golpe: una fila por tipo y, al pulsarla, todo lo de ese
+                    // golpe. Sustituye a la vez a la línea de tiempo de barritas y a la
+                    // vieja tarjeta "Golpeos por tipo", que decía la mitad de lo mismo.
+                    PadelCard(title: "Golpe a golpe", icon: "hand.tap.fill") {
+                        ShotBreakdownChart(session: session)
                     }
                     if FatigueChart.disponible(session) {
                         PadelCard(title: "Fatiga: pulso contra ritmo", icon: "heart.text.square") {
@@ -43,7 +44,6 @@ struct SessionDetailView: View {
                         }
                     }
                 }
-                shotBreakdownCard
                 // La verdad-terreno: el jugador corrige los recuentos y sus números
                 // mandan en la liga y en los objetivos. Se lee del modelo y no del
                 // valor con el que se abrió la vista, para reflejar la corrección al
@@ -270,29 +270,6 @@ struct SessionDetailView: View {
                         """)
                         .font(.system(size: 11))
                         .foregroundStyle(T.tintaSuave)
-                }
-            }
-        }
-    }
-
-    // MARK: Golpeos por tipo
-
-    private var shotBreakdownCard: some View {
-        let byType = session.shotsByType.sorted { $0.value > $1.value }
-        let maxCount = byType.first?.value ?? 1
-
-        return Group {
-            if !byType.isEmpty {
-                PadelCard(title: "Golpeos por tipo", icon: "list.bullet") {
-                    VStack(spacing: 9) {
-                        ForEach(byType, id: \.key) { type, count in
-                            PadelBar(
-                                label: type.label,
-                                value: "\(count)",
-                                fraction: Float(count) / Float(maxCount)
-                            )
-                        }
-                    }
                 }
             }
         }

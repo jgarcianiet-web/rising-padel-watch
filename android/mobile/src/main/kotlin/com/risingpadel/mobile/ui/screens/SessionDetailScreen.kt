@@ -1,6 +1,8 @@
 package com.risingpadel.mobile.ui.screens
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,9 +40,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.risingpadel.core.analytics.SessionAnalytics
+import com.risingpadel.core.analytics.ShotBreakdown
 import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.model.HeartRateZones
 import com.risingpadel.core.model.PadelSession
+import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.score.MatchScore
 import com.risingpadel.core.score.Side
 import com.risingpadel.core.model.SyncState
@@ -368,21 +373,145 @@ private fun Stat(label: String, value: String) {
     }
 }
 
+/**
+ * El desglose golpe a golpe: una fila por tipo y, al pulsarla, todo lo de ese golpe.
+ *
+ * La pregunta que se hace cualquiera al salir de la pista no es "¿qué pasó en el minuto
+ * 37?" sino "¿cómo fue hoy mi derecha?", y esa se responde por tipo de golpe. Antes esto
+ * era solo el recuento; ahora el recuento es la puerta y detrás está la velocidad, la
+ * calidad y los momentos. Espejo de la ficha del iPhone, con los mismos números del core.
+ */
 @Composable
 private fun ShotBreakdown(session: PadelSession) {
-    val byType = session.shotsByType.entries.sortedByDescending { it.value }
-    if (byType.isEmpty()) return
-    val max = byType.first().value
+    val filas = remember(session.sessionId) { SessionAnalytics().shotBreakdown(session.shots) }
+    if (filas.isEmpty()) return
+    val max = filas.first().count
+    var abierto by remember(session.sessionId) { mutableStateOf<ShotType?>(null) }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Golpeos por tipo", style = MaterialTheme.typography.titleMedium)
-            byType.forEach { (type, count) ->
-                BarRow(
-                    label = type.label(),
-                    value = "$count",
-                    fraction = count.toFloat() / max,
-                    color = MaterialTheme.colorScheme.primary,
+            Text("Golpe a golpe", style = MaterialTheme.typography.titleMedium)
+            filas.forEach { fila ->
+                val seleccionado = abierto == fila.type
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        // Volver a pulsar cierra: la fila abierta es un interruptor.
+                        .clickable { abierto = if (seleccionado) null else fila.type },
+                ) {
+                    BarRow(
+                        label = fila.type.label(),
+                        value = "${fila.count}  ·  %.0f km/h".format(fila.meanKmh),
+                        fraction = fila.count.toFloat() / max,
+                        color = colorDeGolpe(fila.type),
+                    )
+                    if (seleccionado) DetalleDeGolpe(fila, session)
+                }
+            }
+            Text(
+                if (abierto == null) {
+                    "Pulsa un golpe para ver su velocidad, su calidad y cuándo lo diste."
+                } else {
+                    "La calidad es la nota de 1 a 7 de ese golpe; la regularidad, cuánto " +
+                        "se parecen entre sí los que diste."
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Colores fijos por tipo de golpe, atados al tipo y no al orden: si un día no juegas
+ * ninguna volea, el resto de golpes no cambian de color. Un color que se mueve deja de
+ * identificar. Los mismos que en el iPhone.
+ */
+@Composable
+private fun colorDeGolpe(type: ShotType): androidx.compose.ui.graphics.Color = when (type) {
+    ShotType.FOREHAND -> androidx.compose.ui.graphics.Color(0xFF1E56A8)
+    ShotType.BACKHAND -> androidx.compose.ui.graphics.Color(0xFF7D4DBF)
+    ShotType.FOREHAND_VOLLEY, ShotType.BACKHAND_VOLLEY ->
+        androidx.compose.ui.graphics.Color(0xFF1F8A5B)
+    ShotType.BANDEJA -> androidx.compose.ui.graphics.Color(0xFFE08A1E)
+    ShotType.VIBORA -> androidx.compose.ui.graphics.Color(0xFFB34570)
+    ShotType.SMASH -> androidx.compose.ui.graphics.Color(0xFFD0455B)
+    ShotType.SERVE -> MaterialTheme.colorScheme.onSurfaceVariant
+    ShotType.UNKNOWN -> MaterialTheme.colorScheme.outline
+}
+
+@Composable
+private fun DetalleDeGolpe(fila: ShotBreakdown, session: PadelSession) {
+    val color = colorDeGolpe(fila.type)
+    Column(modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Stat("del total", "%.0f%%".format(fila.share * 100))
+            Stat("media", "%.0f km/h".format(fila.meanKmh))
+            Stat("máxima", "%.0f km/h".format(fila.maxKmh))
+        }
+        BarRow(
+            label = "Calidad",
+            value = fila.grade?.let { "%.1f de 7".format(it) } ?: "sin golpes fiables",
+            // La nota vive en 1-7, así que la barra empieza en 1: un 1 no es "cero
+            // calidad", es el primer nivel de la escala.
+            fraction = fila.grade?.let { (it - 1f) / 6f } ?: 0f,
+            color = color,
+        )
+        BarRow(
+            label = "Regularidad",
+            value = fila.consistency?.let { "%.0f%% · ${lecturaRegularidad(it)}".format(it * 100) }
+                ?: "hace falta más de uno",
+            fraction = fila.consistency ?: 0f,
+            color = color,
+        )
+        MomentosDeGolpe(fila, session, color)
+    }
+}
+
+private fun lecturaRegularidad(valor: Float): String = when {
+    valor < 0.4f -> "muy dispares"
+    valor < 0.7f -> "irregulares"
+    valor < 0.9f -> "bastante regulares"
+    else -> "calcados"
+}
+
+/**
+ * Cuándo se dieron esos golpes: una marca por golpeo sobre la duración del partido. Es
+ * lo que enseña si fue un golpe de todo el partido o de una racha de diez minutos.
+ */
+@Composable
+private fun MomentosDeGolpe(
+    fila: ShotBreakdown,
+    session: PadelSession,
+    color: androidx.compose.ui.graphics.Color,
+) {
+    val duracionMs = (session.durationSeconds * 1000).coerceAtLeast(1L)
+    Column(modifier = Modifier.padding(top = 10.dp)) {
+        Text(
+            "Cuándo los diste",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Canvas(
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .fillMaxWidth()
+                .height(20.dp),
+        ) {
+            drawRect(
+                color = color.copy(alpha = 0.12f),
+                size = androidx.compose.ui.geometry.Size(size.width, size.height),
+            )
+            fila.offsetsMs.forEach { offset ->
+                val x = size.width * (offset.toFloat() / duracionMs).coerceIn(0f, 1f)
+                drawRect(
+                    color = color,
+                    topLeft = androidx.compose.ui.geometry.Offset(x, 0f),
+                    size = androidx.compose.ui.geometry.Size(2.5f.dp.toPx(), size.height),
                 )
             }
         }
