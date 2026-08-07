@@ -374,11 +374,12 @@ struct SessionDetailView: View {
                                 .foregroundStyle(T.tintaSuave)
                         }
                         // El signo del axial valida el convenio (positivo = lado de
-                        // derecha) y la elevación de pico es la que decide si el golpeo
-                        // es alto: es la que hay que mirar en una tanda de bandejas.
+                        // derecha). "prep" es la elevación de la preparación, el
+                        // testigo fiable de golpe alto: en pleno swing la gravedad
+                        // se corrompe y "alto" puede salir cualquier cosa.
                         Text(String(
-                            format: "elev %+.0f° · alto %+.0f° · axial %+.1f · barrido %.0f° · pico %.1f",
-                            shot.features.elevationDeg,
+                            format: "prep %@ · alto %+.0f° · axial %+.1f · barrido %.0f° · pico %.1f",
+                            shot.features.prepElevationDeg.map { String(format: "%+.0f°", $0) } ?? "—",
                             shot.features.peakElevationDeg,
                             shot.features.axialRotationRadS,
                             shot.features.sweptAngleDeg,
@@ -390,9 +391,10 @@ struct SessionDetailView: View {
                 }
                 Text("""
                     Da 10 golpes de un solo tipo y comprueba que el tipo, el signo del \
-                    axial y la elevación cuadran. "alto" es la elevación máxima del \
-                    swing: por encima de \(Int(DetectorConfig.default.overheadElevationDeg))° \
-                    el golpeo se trata como golpe alto.
+                    axial y la preparación cuadran. "prep" es cómo estaba armado el \
+                    brazo antes del swing: por encima de \
+                    \(Int(DetectorConfig.default.prepOverheadElevationDeg))° el golpeo \
+                    se trata como golpe alto.
                     """)
                     .font(.system(size: 11))
                     .foregroundStyle(T.tintaSuave)

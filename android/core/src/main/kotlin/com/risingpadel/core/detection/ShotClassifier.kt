@@ -61,9 +61,19 @@ class ShotClassifier(
         // La pregunta que separa un golpe alto de uno de fondo es "¿pasó la mano por
         // encima del hombro?", y esa la responde el recorrido del swing, no la postura
         // en el instante del impacto. Ver el comentario de `peakElevationDeg`.
-        val overhead = features.peakElevationDeg > config.overheadElevationDeg
+        // Dos testigos de golpe alto: hasta dónde subió el brazo durante el swing, y
+        // cómo estaba armado en la preparación. El segundo manda cuando existe: se
+        // mide con el brazo calmado, donde la gravedad es fiable — en pista (ago
+        // 2026) los remates reales salían con el pico corrupto (+3°, −41°) y solo la
+        // preparación los delataba.
+        val cima = maxOf(
+            features.peakElevationDeg,
+            features.prepElevationDeg ?: -90f,
+        )
+        val overhead = features.peakElevationDeg > config.overheadElevationDeg ||
+            (features.prepElevationDeg ?: -90f) > config.prepOverheadElevationDeg
         val elevationMargin = margin(
-            value = features.peakElevationDeg,
+            value = cima,
             threshold = config.overheadElevationDeg,
             scale = 15f,
         )
@@ -74,6 +84,19 @@ class ShotClassifier(
 
         val axial = features.axialRotationRadS
         val axialAbs = abs(axial)
+
+        // El saque del pádel: preparación baja (se arma a la cintura, por eso no está
+        // en la rama alta) con un barrido enorme y velocidad de sobra.
+        if (features.sweptAngleDeg > config.serveSweptDeg &&
+            features.peakGyroRadS > config.servePeakGyroRadS
+        ) {
+            val sweptMargin =
+                margin(features.sweptAngleDeg, config.serveSweptDeg, config.serveSweptDeg * 0.5f)
+            val peakMargin =
+                margin(features.peakGyroRadS, config.servePeakGyroRadS, config.servePeakGyroRadS * 0.5f)
+            return finalize(ShotType.SERVE, 0.5f * sweptMargin + 0.5f * peakMargin)
+        }
+
         // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
         // swing medio con la pala quieta — voleas reales con acompañamiento barrían
         // 147-170° pero con axial 0.3-3.8, mientras un golpe de fondo lleva efecto de
@@ -120,25 +143,12 @@ class ShotClassifier(
      * lo define antes de que la rotación axial pueda confundirlo con una víbora.
      */
     private fun classifyOverhead(features: ShotFeatures, elevationMargin: Float): Classification {
-        // La escala del margen es media frontera y no la frontera entera: una bandeja
-        // de 140° está lejos del saque en términos prácticos aunque en valor absoluto
-        // se quede a menos de la mitad del umbral.
-        val sweptMargin =
-            margin(features.sweptAngleDeg, config.serveSweptDeg, config.serveSweptDeg * 0.5f)
-
-        val isServe = features.sweptAngleDeg > config.serveSweptDeg &&
-            features.peakGyroRadS > config.servePeakGyroRadS
-        if (isServe) {
-            // En el saque la rotación axial no participa en la decisión, así que no debe
-            // penalizar la confianza: se reparte entre los dos rasgos que sí deciden.
-            return finalize(ShotType.SERVE, 0.5f * sweptMargin + 0.5f * elevationMargin)
-        }
-
+        // Aquí ya no vive el saque: el saque del pádel es BAJO (se arma a la cintura),
+        // así que se decide en la rama de fondo. Herencia del tenis corregida en
+        // pista (ago 2026): un remate real barrió 291° y caía como "saque".
         val axialAbs = abs(features.axialRotationRadS)
         val peakMargin =
             margin(features.peakGyroRadS, config.smashPeakGyroRadS, config.smashPeakGyroRadS * 0.35f)
-        // Media frontera, como el saque: una víbora real promedia 10-14 rad/s de axial
-        // y con la frontera entera de escala nunca pasaría del confianza mínima.
         val axialMargin = margin(axialAbs, config.viboraAxialRadS, config.viboraAxialRadS * 0.5f)
 
         val type = when {
@@ -146,10 +156,10 @@ class ShotClassifier(
             axialAbs > config.viboraAxialRadS -> ShotType.VIBORA
             else -> ShotType.BANDEJA
         }
-        // El rasgo que decidió cada tipo es el que más pesa en su confianza; la
-        // distancia al saque y la elevación completan el reparto.
+        // Dos rasgos y ya: el que decidió el tipo, y la certeza de que fue golpe alto.
+        // El barrido no aporta aquí (los tres golpes altos barren parecido).
         val decisionMargin = if (type == ShotType.SMASH) peakMargin else axialMargin
-        return finalize(type, 0.4f * decisionMargin + 0.3f * sweptMargin + 0.3f * elevationMargin)
+        return finalize(type, 0.5f * decisionMargin + 0.5f * elevationMargin)
     }
 
     /**

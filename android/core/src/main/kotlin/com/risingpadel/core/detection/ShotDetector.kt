@@ -29,7 +29,8 @@ class ShotDetector(
     /** Ventana de muestras recientes, solo para promediar la rotación axial pre-impacto. */
     private val window = ArrayDeque<MotionSample>()
     private val windowCapacity =
-        (config.axialWindowMs / config.sampleIntervalMs).toInt().coerceAtLeast(4) + 4
+        (maxOf(config.axialWindowMs, config.prepWindowMs + 200) / config.sampleIntervalMs)
+            .toInt().coerceAtLeast(4) + 4
 
     private var referenceMs: Long? = null
     private var prevPrev: MotionSample? = null
@@ -50,6 +51,8 @@ class ShotDetector(
      * gravedad del sistema se va decenas de grados en mitad de un golpe.
      */
     private val swingElevations = ArrayList<Float>()
+    /** Elevación de preparación del swing en curso (null si no hubo muestras calmadas). */
+    private var prepElevationDeg: Float? = null
     private var refractoryUntilMs = Long.MIN_VALUE
 
     /** Reinicia el detector y fija el origen de tiempos de la sesión. */
@@ -190,6 +193,16 @@ class ShotDetector(
         if (onsetCount >= config.onsetSamples) {
             state = State.SWINGING
             swingStartMs = candidateStartMs
+            // La preparación: mediana de la elevación en la ventana previa al arranque,
+            // cuando el brazo aún estaba calmado y la gravedad era de fiar. Es el
+            // testigo honesto de si el golpe se armó en alto — durante el swing
+            // violento el filtro de gravedad se corrompe (validado en pista, ago 2026:
+            // remates reales con pico de elevación medido a +3° o −41°).
+            val calmadas = window
+                .filter { it.timestampMs in (candidateStartMs - config.prepWindowMs) until candidateStartMs }
+                .map { classifier.elevationDeg(it.gravity) * elevationSign }
+                .sorted()
+            prepElevationDeg = if (calmadas.size >= 3) calmadas[calmadas.size / 2] else null
             swingElevations.clear()
             swingElevations += classifier.elevationDeg(s.gravity) * elevationSign
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
@@ -214,6 +227,7 @@ class ShotDetector(
             axialRotationRadS = classifier.axialRotation(meanGyroBefore(impact.timestampMs)),
             swingDurationMs = durationMs,
             peakElevationDeg = percentile(elevations, 0.8f),
+            prepElevationDeg = prepElevationDeg,
         )
         val classification = classifier.classify(features)
         val shot = Shot(

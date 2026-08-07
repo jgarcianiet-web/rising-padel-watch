@@ -38,11 +38,14 @@ public final class ShotDetector {
     /// percentil) necesitan verla completa, y un solo valor instantáneo no vale: la
     /// estimación de gravedad del sistema se va decenas de grados en mitad de un golpe.
     private var swingElevations: [Float] = []
+    /// Elevación de preparación del swing en curso (nil si no hubo muestras calmadas).
+    private var prepElevationDeg: Float?
 
     public init(config: DetectorConfig = .default, profile: PlayerProfile = PlayerProfile()) {
         self.config = config
         self.classifier = ShotClassifier(config: config, profile: profile)
-        self.windowCapacity = max(Int(config.axialWindowMs / config.sampleIntervalMs), 4) + 4
+        self.windowCapacity =
+            max(Int(max(config.axialWindowMs, config.prepWindowMs + 200) / config.sampleIntervalMs), 4) + 4
         self.window.reserveCapacity(windowCapacity)
     }
 
@@ -185,6 +188,17 @@ public final class ShotDetector {
         if onsetCount >= config.onsetSamples {
             state = .swinging
             swingStartMs = candidateStartMs
+            // La preparación: mediana de la elevación en la ventana previa al arranque,
+            // cuando el brazo aún estaba calmado y la gravedad era de fiar. Es el
+            // testigo honesto de si el golpe se armó en alto — durante el swing
+            // violento el filtro de gravedad se corrompe (validado en pista, ago 2026:
+            // remates reales con pico de elevación medido a +3° o −41°).
+            let calmadas = window
+                .filter { $0.timestampMs >= candidateStartMs - config.prepWindowMs
+                    && $0.timestampMs < candidateStartMs }
+                .map { classifier.elevationDeg(gravity: $0.gravity) * elevationSign }
+                .sorted()
+            prepElevationDeg = calmadas.count >= 3 ? calmadas[calmadas.count / 2] : nil
             swingElevations.removeAll(keepingCapacity: true)
             swingElevations.append(classifier.elevationDeg(gravity: sample.gravity) * elevationSign)
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
@@ -208,7 +222,8 @@ public final class ShotDetector {
             elevationDeg: Self.percentile(elevations, 0.5),
             axialRotationRadS: classifier.axialRotation(meanGyro: meanGyroBefore(impact.timestampMs)),
             swingDurationMs: durationMs,
-            peakElevationDeg: Self.percentile(elevations, 0.8)
+            peakElevationDeg: Self.percentile(elevations, 0.8),
+            prepElevationDeg: prepElevationDeg
         )
         let classification = classifier.classify(features)
         let shot = Shot(

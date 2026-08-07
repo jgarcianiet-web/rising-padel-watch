@@ -52,6 +52,15 @@ data class ShotFeatures(
      * convertir una derecha en una bandeja.
      */
     val peakElevationDeg: Float = elevationDeg,
+    /**
+     * Elevación del antebrazo en la **preparación** (mediana de los ~400 ms previos
+     * al arranque del swing), medida con el brazo aún calmado — donde la estimación
+     * de gravedad sí es fiable. Validado en pista (ago 2026): durante un remate real
+     * el filtro de gravedad se corrompe y `peakElevationDeg` salía a +3° o −41°; la
+     * postura de preparación es el testigo honesto de si el golpe se armó en alto.
+     * Null en sesiones grabadas antes de que existiera el rasgo.
+     */
+    val prepElevationDeg: Float? = null,
 )
 
 /**

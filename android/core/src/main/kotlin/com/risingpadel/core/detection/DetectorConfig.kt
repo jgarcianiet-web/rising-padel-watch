@@ -73,23 +73,33 @@ data class DetectorConfig(
     /** Pico de |gyro| adicional que exige el saque. */
     val servePeakGyroRadS: Float = 18f,
     /**
-     * Pico de |gyro| a partir del cual un golpeo alto es un smash. Una bandeja ronda
-     * 12-20 rad/s y una víbora 16-25; el remate vive por encima de 25.
+     * Pico de |gyro| a partir del cual un golpeo alto es un smash.
+     *
+     * 16 y no 24: recalibrado con remates reales de pista (ago 2026), que picaron
+     * 10.6-21.4 rad/s — con el umbral en 24 casi ningún remate de nivel amateur
+     * llegaba. Las víboras reales de la misma tanda picaron 9.2-14.3.
      */
-    val smashPeakGyroRadS: Float = 24f,
+    val smashPeakGyroRadS: Float = 16f,
     /**
      * Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
      * alto que no es smash se considera víbora: el efecto lateral es su seña de
      * identidad, la bandeja se pega mucho más plana.
      *
-     * 9 y no 5: validado en pista (ago 2026), la pronación natural de una derecha
-     * plana ya promedia 6-11 rad/s de axial. Con el umbral de elevación en 60° esas
-     * derechas ya no llegan a esta rama; aquí solo compiten golpes altos de verdad, y
-     * la bandeja plana promedia 2-5 mientras la víbora vive por encima de 10.
+     * 4 y no 9: recalibrado con víboras reales de pista (ago 2026), que promediaron
+     * |4.1-5.4| de axial — con el umbral en 9 ninguna llegaba. Las derechas de fondo
+     * (axial 7.9-10.5) no compiten aquí: no pasan el filtro de golpe alto. El riesgo
+     * son las bandejas con algo de efecto; falta su tanda de pista para afinar.
      */
-    val viboraAxialRadS: Float = 9f,
+    val viboraAxialRadS: Float = 4f,
     /** Ventana previa al impacto sobre la que se promedia la rotación axial. */
     val axialWindowMs: Long = 200,
+    /**
+     * Ventana previa al **arranque del swing** sobre la que se mide la elevación de
+     * preparación, con el brazo aún calmado (la gravedad ahí sí es fiable).
+     */
+    val prepWindowMs: Long = 400,
+    /** Elevación de preparación a partir de la cual el golpe se armó en alto. */
+    val prepOverheadElevationDeg: Float = 45f,
     /** Escala para normalizar la rotación axial al calcular la confianza. */
     val axialConfidenceScaleRadS: Float = 4.0f,
     /** Por debajo de esta confianza el tipo se reporta como UNKNOWN (el golpeo sigue contando). */

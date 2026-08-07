@@ -53,9 +53,16 @@ public struct ShotClassifier: Sendable {
         // La pregunta que separa un golpe alto de uno de fondo es "¿pasó la mano por
         // encima del hombro?", y esa la responde el recorrido del swing, no la postura
         // en el instante del impacto. Ver el comentario de `peakElevationDeg`.
+        // Dos testigos de golpe alto: hasta dónde subió el brazo durante el swing, y
+        // cómo estaba armado en la preparación. El segundo manda cuando existe: se
+        // mide con el brazo calmado, donde la gravedad es fiable — en pista (ago
+        // 2026) los remates reales salían con el pico corrupto (+3°, −41°) y solo la
+        // preparación los delataba.
+        let cima = max(features.peakElevationDeg, features.prepElevationDeg ?? -90)
         let isOverhead = features.peakElevationDeg > config.overheadElevationDeg
+            || (features.prepElevationDeg ?? -90) > config.prepOverheadElevationDeg
         let elevationMargin = margin(
-            value: features.peakElevationDeg,
+            value: cima,
             threshold: config.overheadElevationDeg,
             scale: 15
         )
@@ -66,6 +73,24 @@ public struct ShotClassifier: Sendable {
 
         let axial = features.axialRotationRadS
         let axialAbs = abs(axial)
+
+        // El saque del pádel: preparación baja (se arma a la cintura, por eso no está
+        // en la rama alta) con un barrido enorme y velocidad de sobra.
+        if features.sweptAngleDeg > config.serveSweptDeg,
+           features.peakGyroRadS > config.servePeakGyroRadS {
+            let sweptMargin = margin(
+                value: features.sweptAngleDeg,
+                threshold: config.serveSweptDeg,
+                scale: config.serveSweptDeg * 0.5
+            )
+            let peakMargin = margin(
+                value: features.peakGyroRadS,
+                threshold: config.servePeakGyroRadS,
+                scale: config.servePeakGyroRadS * 0.5
+            )
+            return finalize(.serve, 0.5 * sweptMargin + 0.5 * peakMargin)
+        }
+
         // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
         // swing medio con la pala quieta — voleas reales con acompañamiento barrían
         // 147-170° pero con axial 0.3-3.8, mientras un golpe de fondo lleva efecto de
@@ -119,31 +144,15 @@ public struct ShotClassifier: Sendable {
     private func classifyOverhead(
         _ features: ShotFeatures, elevationMargin: Float
     ) -> Classification {
-        // La escala del margen es media frontera y no la frontera entera: una bandeja de
-        // 140° está lejos del saque en términos prácticos aunque en valor absoluto se
-        // quede a menos de la mitad del umbral.
-        let sweptMargin = margin(
-            value: features.sweptAngleDeg,
-            threshold: config.serveSweptDeg,
-            scale: config.serveSweptDeg * 0.5
-        )
-
-        let isServe = features.sweptAngleDeg > config.serveSweptDeg
-            && features.peakGyroRadS > config.servePeakGyroRadS
-        if isServe {
-            // En el saque la rotación axial no participa en la decisión, así que no debe
-            // penalizar la confianza: se reparte entre los dos rasgos que sí deciden.
-            return finalize(.serve, 0.5 * sweptMargin + 0.5 * elevationMargin)
-        }
-
+        // Aquí ya no vive el saque: el saque del pádel es BAJO (se arma a la cintura),
+        // así que se decide en la rama de fondo. Herencia del tenis corregida en
+        // pista (ago 2026): un remate real barrió 291° y caía como "saque".
         let axialAbs = abs(features.axialRotationRadS)
         let peakMargin = margin(
             value: features.peakGyroRadS,
             threshold: config.smashPeakGyroRadS,
             scale: config.smashPeakGyroRadS * 0.35
         )
-        // Media frontera, como el saque: una víbora real promedia 10-14 rad/s de axial
-        // y con la frontera entera de escala nunca pasaría de la confianza mínima.
         let axialMargin = margin(
             value: axialAbs, threshold: config.viboraAxialRadS, scale: config.viboraAxialRadS * 0.5
         )
@@ -156,10 +165,10 @@ public struct ShotClassifier: Sendable {
         } else {
             type = .bandeja
         }
-        // El rasgo que decidió cada tipo es el que más pesa en su confianza; la distancia
-        // al saque y la elevación completan el reparto.
+        // Dos rasgos y ya: el que decidió el tipo, y la certeza de que fue golpe alto.
+        // El barrido no aporta aquí (los tres golpes altos barren parecido).
         let decisionMargin = type == .smash ? peakMargin : axialMargin
-        return finalize(type, 0.4 * decisionMargin + 0.3 * sweptMargin + 0.3 * elevationMargin)
+        return finalize(type, 0.5 * decisionMargin + 0.5 * elevationMargin)
     }
 
     /// Un golpeo poco fiable se reporta como `.unknown`, pero conserva su confianza:

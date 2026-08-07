@@ -81,6 +81,11 @@ public struct DetectorConfig: Equatable, Sendable {
     public var viboraAxialRadS: Float
     /// Ventana previa al impacto sobre la que se promedia la rotación axial.
     public var axialWindowMs: Int64
+    /// Ventana previa al **arranque del swing** sobre la que se mide la elevación de
+    /// preparación, con el brazo aún calmado (la gravedad ahí sí es fiable).
+    public var prepWindowMs: Int64
+    /// Elevación de preparación a partir de la cual el golpe se armó en alto.
+    public var prepOverheadElevationDeg: Float
     /// Escala para normalizar la rotación axial al calcular la confianza.
     public var axialConfidenceScaleRadS: Float
     /// Por debajo de esta confianza el tipo se reporta como `.unknown` (el golpeo sigue contando).
@@ -116,9 +121,11 @@ public struct DetectorConfig: Equatable, Sendable {
         volleyMaxSweptDeg: Float = 190,
         serveSweptDeg: Float = 220,
         servePeakGyroRadS: Float = 18,
-        smashPeakGyroRadS: Float = 24,
-        viboraAxialRadS: Float = 9,
+        smashPeakGyroRadS: Float = 16,
+        viboraAxialRadS: Float = 4,
         axialWindowMs: Int64 = 200,
+        prepWindowMs: Int64 = 400,
+        prepOverheadElevationDeg: Float = 45,
         axialConfidenceScaleRadS: Float = 4.0,
         minConfidence: Float = 0.45,
         forearmAxis: Vector3 = Vector3(0, 1, 0),
@@ -142,6 +149,8 @@ public struct DetectorConfig: Equatable, Sendable {
         self.smashPeakGyroRadS = smashPeakGyroRadS
         self.viboraAxialRadS = viboraAxialRadS
         self.axialWindowMs = axialWindowMs
+        self.prepWindowMs = prepWindowMs
+        self.prepOverheadElevationDeg = prepOverheadElevationDeg
         self.axialConfidenceScaleRadS = axialConfidenceScaleRadS
         self.minConfidence = minConfidence
         self.forearmAxis = forearmAxis
