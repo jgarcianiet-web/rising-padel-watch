@@ -56,6 +56,13 @@ public struct DetectorConfig: Equatable, Sendable {
     public var overheadElevationDeg: Float
     /// Por debajo de este ángulo barrido el golpeo es una volea.
     public var volleySweptDeg: Float
+    /// La segunda firma de la volea, validada en pista (ago 2026): swing medio con la
+    /// pala quieta. Voleas de revés reales barrían 147-170° (por encima de
+    /// volleySweptDeg) pero con axial 0.3-3.8, mientras las derechas de fondo reales
+    /// promediaban 7.9-10.5: el efecto separa lo que el barrido solapa.
+    public var volleyAxialMaxRadS: Float
+    /// Techo de barrido para esa segunda firma: más allá ya es un swing completo.
+    public var volleyMaxSweptDeg: Float
     /// Ángulo barrido a partir del cual un golpeo alto es un saque y no una bandeja.
     public var serveSweptDeg: Float
     /// Pico de |gyro| adicional que exige el saque.
@@ -105,6 +112,8 @@ public struct DetectorConfig: Equatable, Sendable {
         minSwingMs: Int64 = 80,
         overheadElevationDeg: Float = 50,
         volleySweptDeg: Float = 70,
+        volleyAxialMaxRadS: Float = 4.5,
+        volleyMaxSweptDeg: Float = 190,
         serveSweptDeg: Float = 220,
         servePeakGyroRadS: Float = 18,
         smashPeakGyroRadS: Float = 24,
@@ -126,6 +135,8 @@ public struct DetectorConfig: Equatable, Sendable {
         self.minSwingMs = minSwingMs
         self.overheadElevationDeg = overheadElevationDeg
         self.volleySweptDeg = volleySweptDeg
+        self.volleyAxialMaxRadS = volleyAxialMaxRadS
+        self.volleyMaxSweptDeg = volleyMaxSweptDeg
         self.serveSweptDeg = serveSweptDeg
         self.servePeakGyroRadS = servePeakGyroRadS
         self.smashPeakGyroRadS = smashPeakGyroRadS

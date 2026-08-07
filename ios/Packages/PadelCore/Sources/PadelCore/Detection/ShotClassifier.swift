@@ -65,14 +65,37 @@ public struct ShotClassifier: Sendable {
         }
 
         let axial = features.axialRotationRadS
+        let axialAbs = abs(axial)
+        // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
+        // swing medio con la pala quieta — voleas reales con acompañamiento barrían
+        // 147-170° pero con axial 0.3-3.8, mientras un golpe de fondo lleva efecto de
+        // sobra (7.9-10.5 en derechas reales).
         let isVolley = features.sweptAngleDeg < config.volleySweptDeg
-        let sweptMargin = margin(
-            value: features.sweptAngleDeg,
-            threshold: config.volleySweptDeg,
-            scale: config.volleySweptDeg
-        )
-        let axialMargin = min(max(abs(axial) / config.axialConfidenceScaleRadS, 0), 1)
-        let confidence = 0.35 * sweptMargin + 0.35 * axialMargin + 0.30 * elevationMargin
+            || (features.sweptAngleDeg < config.volleyMaxSweptDeg
+                && axialAbs < config.volleyAxialMaxRadS)
+
+        let confidence: Float
+        if isVolley {
+            // A una volea no se le puede pedir efecto: la vieja fórmula castigaba el
+            // axial bajo — que es justo lo que define una volea — y ejecutaba golpes
+            // bien clasificados. Aquí la confianza premia lo compacta (lejos del techo
+            // de barrido) y lo quieta (poco axial) que es.
+            let compactMargin = margin(
+                value: features.sweptAngleDeg,
+                threshold: config.volleyMaxSweptDeg,
+                scale: config.volleyMaxSweptDeg
+            )
+            let quietMargin = 1 - min(max(axialAbs / config.volleyAxialMaxRadS, 0), 1)
+            confidence = 0.4 * compactMargin + 0.3 * quietMargin + 0.3 * elevationMargin
+        } else {
+            let sweptMargin = margin(
+                value: features.sweptAngleDeg,
+                threshold: config.volleySweptDeg,
+                scale: config.volleySweptDeg
+            )
+            let axialMargin = min(max(axialAbs / config.axialConfidenceScaleRadS, 0), 1)
+            confidence = 0.35 * sweptMargin + 0.35 * axialMargin + 0.30 * elevationMargin
+        }
 
         let type: ShotType
         switch (isVolley, axial > 0) {

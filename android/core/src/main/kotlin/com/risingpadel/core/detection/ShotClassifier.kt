@@ -73,10 +73,31 @@ class ShotClassifier(
         }
 
         val axial = features.axialRotationRadS
-        val volley = features.sweptAngleDeg < config.volleySweptDeg
-        val sweptMargin = margin(features.sweptAngleDeg, config.volleySweptDeg, config.volleySweptDeg)
-        val axialMargin = (abs(axial) / config.axialConfidenceScaleRadS).coerceIn(0f, 1f)
-        val confidence = 0.35f * sweptMargin + 0.35f * axialMargin + 0.30f * elevationMargin
+        val axialAbs = abs(axial)
+        // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
+        // swing medio con la pala quieta — voleas reales con acompañamiento barrían
+        // 147-170° pero con axial 0.3-3.8, mientras un golpe de fondo lleva efecto de
+        // sobra (7.9-10.5 en derechas reales).
+        val volley = features.sweptAngleDeg < config.volleySweptDeg ||
+            (features.sweptAngleDeg < config.volleyMaxSweptDeg &&
+                axialAbs < config.volleyAxialMaxRadS)
+
+        val confidence: Float
+        if (volley) {
+            // A una volea no se le puede pedir efecto: la vieja fórmula castigaba el
+            // axial bajo — que es justo lo que define una volea — y ejecutaba golpes
+            // bien clasificados. Aquí la confianza premia lo compacta (lejos del techo
+            // de barrido) y lo quieta (poco axial) que es.
+            val compactMargin = margin(
+                features.sweptAngleDeg, config.volleyMaxSweptDeg, config.volleyMaxSweptDeg
+            )
+            val quietMargin = 1f - (axialAbs / config.volleyAxialMaxRadS).coerceIn(0f, 1f)
+            confidence = 0.4f * compactMargin + 0.3f * quietMargin + 0.3f * elevationMargin
+        } else {
+            val sweptMargin = margin(features.sweptAngleDeg, config.volleySweptDeg, config.volleySweptDeg)
+            val axialMargin = (axialAbs / config.axialConfidenceScaleRadS).coerceIn(0f, 1f)
+            confidence = 0.35f * sweptMargin + 0.35f * axialMargin + 0.30f * elevationMargin
+        }
 
         val type = when {
             volley && axial > 0f -> ShotType.FOREHAND_VOLLEY

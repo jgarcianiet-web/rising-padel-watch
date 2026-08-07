@@ -59,6 +59,15 @@ data class DetectorConfig(
     val overheadElevationDeg: Float = 50f,
     /** Por debajo de este ángulo barrido el golpeo es una volea. */
     val volleySweptDeg: Float = 70f,
+    /**
+     * La segunda firma de la volea, validada en pista (ago 2026): swing medio con la
+     * pala quieta. Una tanda de voleas de revés reales barría 147-170° (por encima de
+     * volleySweptDeg) pero con axial 0.3-3.8, mientras las derechas de fondo reales
+     * promediaban 7.9-10.5: el efecto separa lo que el barrido solapa.
+     */
+    val volleyAxialMaxRadS: Float = 4.5f,
+    /** Techo de barrido para esa segunda firma: más allá ya es un swing completo. */
+    val volleyMaxSweptDeg: Float = 190f,
     /** Ángulo barrido a partir del cual un golpeo alto es un saque y no una bandeja. */
     val serveSweptDeg: Float = 220f,
     /** Pico de |gyro| adicional que exige el saque. */
