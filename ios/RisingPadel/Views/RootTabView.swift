@@ -106,6 +106,7 @@ struct LastSessionView: View {
     @State private var showingSettings = false
     /// Lo que la comunidad permite decir sobre tu nivel: equivalencia y percentil.
     @State private var lecturaNivel: LecturaDeNivel?
+    @State private var precisionAbierta = false
 
     var body: some View {
         NavigationStack {
@@ -154,6 +155,9 @@ struct LastSessionView: View {
                     .environmentObject(liga)
                     .environmentObject(comunidad)
             }
+            .sheet(isPresented: $precisionAbierta) {
+                PrecisionView().environmentObject(model)
+            }
         }
     }
 
@@ -173,6 +177,7 @@ struct LastSessionView: View {
                 }
                 .buttonStyle(.plain)
                 nivelCard
+                precisionCard
                 recordsCard
             }
             .padding(.horizontal, 16)
@@ -180,6 +185,57 @@ struct LastSessionView: View {
         }
         .navigationTitle("Inicio")
         .task { await cargarLectura() }
+    }
+
+    /// Cuánto acierta el reloj, en una línea y a un toque del detalle.
+    ///
+    /// Va en la portada y no escondido en Ajustes porque de este número depende que el
+    /// resto de la pantalla signifique algo: un nivel calculado sobre golpes mal
+    /// clasificados es un nivel inventado, y el jugador tiene derecho a saberlo sin
+    /// buscarlo. Solo aparece cuando hay con qué medirlo.
+    @ViewBuilder
+    private var precisionCard: some View {
+        let informe = model.precision
+        if informe.hayDatos {
+            Button { precisionAbierta = true } label: {
+                PadelCard(title: "Precisión del reloj", icon: "checkmark.seal") {
+                    HStack(alignment: .center, spacing: 14) {
+                        VStack(alignment: .leading, spacing: -2) {
+                            Text(informe.aciertoGlobal.map { "\(Int($0 * 100))%" } ?? "—")
+                                .font(.padelDisplay(38))
+                                .monospacedDigit()
+                                .foregroundStyle(colorPrecision(informe.aciertoGlobal))
+                            Text(informe.golpesEnTandas > 0
+                                 ? "sobre \(informe.golpesEnTandas) golpes medidos"
+                                 : "sin tandas que medir")
+                                .font(.system(size: 11, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                        }
+                        Spacer(minLength: 4)
+                        if let peor = informe.peorGolpe, let acierto = peor.aciertoEnTandas,
+                           acierto < 0.8 {
+                            Text("Falla en \(ShotBreakdownChart.etiqueta(peor.type).lowercased())")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(T.rojo)
+                                .multilineTextAlignment(.trailing)
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func colorPrecision(_ acierto: Float?) -> Color {
+        guard let acierto else { return T.tintaSuave }
+        switch acierto {
+        case ..<0.7: return T.rojo
+        case ..<0.85: return .orange
+        default: return T.verde
+        }
     }
 
     /// Tu nivel puesto en contexto. Son dos cosas distintas y se dicen por separado:

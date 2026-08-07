@@ -79,6 +79,8 @@ final class AppModel: ObservableObject {
 
     func refresh() {
         sessions = store.all()
+        // Barato: la parte cara (releer y clasificar las tandas) está cacheada aparte.
+        recalcularPrecision()
     }
 
     // MARK: Marcador en vivo
@@ -217,12 +219,68 @@ final class AppModel: ObservableObject {
             // Escribir aquí dispara la replicación al reloj (se observa UserDefaults).
             calibrationJSON = texto
         }
+        recalcularTandas()
         return resultado
     }
 
     /// Vuelve a los umbrales de fábrica.
     func borrarCalibracion() {
         calibrationJSON = ""
+        recalcularTandas()
+    }
+
+    // MARK: Precisión del detector
+
+    /// El informe de acierto del reloj: la pregunta de la que depende todo lo demás.
+    ///
+    /// Se guarda calculado porque leerlo cuesta: hay que releer el fichero de tandas
+    /// entero y volver a clasificar cada golpe. En la portada, que lo pinta en cada
+    /// render, calcularlo al vuelo sería una pausa visible con cada scroll.
+    ///
+    /// A cambio hay que acordarse de recalcularlo cuando cambia algo de lo que depende:
+    /// sesiones nuevas, revisiones, tandas nuevas y calibración. Están todos marcados.
+    @Published private(set) var precision = InformeDePrecision(
+        golpes: [], sesionesRevisadas: 0, golpesEnTandas: 0,
+        aciertoGlobal: nil, sinClasificar: nil
+    )
+
+    /// Los pares de las tandas, ya clasificados. Se guardan aparte del informe porque
+    /// son la mitad cara: releer el fichero y volver a clasificar cada golpe. Cambian
+    /// solo cuando llegan tandas nuevas o cuando cambia la calibración; en cambio el
+    /// informe cambia también con cada sesión revisada, que es mucho más a menudo.
+    private var paresDeTandasCache: [(ShotType, ShotType)] = []
+
+    /// Rehace la parte cara y luego el informe. Solo cuando cambian las tandas o la
+    /// calibración.
+    func recalcularTandas() {
+        paresDeTandasCache = paresDeTandas()
+        recalcularPrecision()
+    }
+
+    func recalcularPrecision() {
+        precision = InformeDePrecision.de(sesiones: sessions, tandas: paresDeTandasCache)
+    }
+
+    /// Pares (lo que era, lo que dijo el reloj) sacados de las tandas etiquetadas.
+    ///
+    /// Se vuelve a pasar el clasificador **con la calibración puesta**, no se lee lo que
+    /// el reloj dijo el día de la grabación: lo que interesa saber es cómo de bien
+    /// acierta el detector que llevas hoy, no el que llevabas entonces.
+    private func paresDeTandas() -> [(ShotType, ShotType)] {
+        guard let url = trainingDataURL,
+              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+
+        var config = DetectorConfig.default
+        if let calibration { config = config.applying(calibration) }
+        let clasificador = ShotClassifier(config: config)
+        let decoder = JSONDecoder()
+
+        return contenido.split(separator: "\n").compactMap { linea in
+            guard let data = linea.data(using: .utf8),
+                  let muestra = try? decoder.decode(TrainingSample.self, from: data)
+            else { return nil }
+            return (muestra.label, clasificador.classify(muestra.heuristicFeatures).type)
+        }
     }
 
     // MARK: La escala de nivel, anclada a jugadores de nivel técnico conocido
@@ -413,10 +471,12 @@ final class AppModel: ObservableObject {
               let size = attributes[.size] as? Int64 else {
             trainingDataURL = nil
             trainingDataSizeKB = 0
+            recalcularTandas()
             return
         }
         trainingDataURL = url
         trainingDataSizeKB = Int(size / 1024)
+        recalcularTandas()
     }
 
     func deleteTrainingData() {
