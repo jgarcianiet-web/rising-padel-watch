@@ -9,7 +9,7 @@ class LevelAnchorTest {
 
     private fun tabla(vararg puntos: Triple<Float, Float, Int>) = LevelAnchorTable(
         puntos = puntos.map { (nivel, medido, jugadores) ->
-            AnchorPoint(nivelDeclarado = nivel, medidoMediana = medido, jugadores = jugadores)
+            AnclaDeNivel(nivelDeclarado = nivel, medidoMediana = medido, jugadores = jugadores)
         }
     )
 

@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
  * conocido.
  */
 @Serializable
-data class AnchorPoint(
+data class AnclaDeNivel(
     /** Nivel declarado por el jugador (escala 1-7 tipo Playtomic). */
     val nivelDeclarado: Float,
     /** Mediana de lo que midió el reloj a los jugadores de ese nivel. */
@@ -30,7 +30,7 @@ data class AnchorPoint(
  */
 @Serializable
 data class LevelAnchorTable(
-    val puntos: List<AnchorPoint> = emptyList(),
+    val puntos: List<AnclaDeNivel> = emptyList(),
     /** Cuándo se calculó, para poder refrescarla. */
     val creadoEpochMs: Long = 0,
 ) {

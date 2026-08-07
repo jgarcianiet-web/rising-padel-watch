@@ -2,7 +2,7 @@ import Foundation
 
 /// Un punto de anclaje: qué mide el reloj, de media, en jugadores que declaran un nivel
 /// conocido.
-public struct AnchorPoint: Codable, Equatable, Sendable {
+public struct AnclaDeNivel: Codable, Equatable, Sendable {
     /// Nivel declarado por el jugador (escala 1-7 tipo Playtomic).
     public let nivelDeclarado: Float
     /// Mediana de lo que midió el reloj a los jugadores de ese nivel.
@@ -29,11 +29,11 @@ public struct AnchorPoint: Codable, Equatable, Sendable {
 /// anclas o menos no se traduce nada — antes sin equivalencia que con una inventada.
 /// Espejo del core Kotlin, con tests allí.
 public struct LevelAnchorTable: Codable, Equatable, Sendable {
-    public let puntos: [AnchorPoint]
+    public let puntos: [AnclaDeNivel]
     /// Cuándo se calculó, para poder refrescarla.
     public let creadoEpochMs: Int64
 
-    public init(puntos: [AnchorPoint] = [], creadoEpochMs: Int64 = 0) {
+    public init(puntos: [AnclaDeNivel] = [], creadoEpochMs: Int64 = 0) {
         self.puntos = puntos
         self.creadoEpochMs = creadoEpochMs
     }

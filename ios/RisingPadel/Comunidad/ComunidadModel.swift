@@ -223,7 +223,7 @@ final class ComunidadModel: ObservableObject {
     /// son para calcular tu percentil en el móvil, no un ranking de nadie).
     func anclajeDeNivel() async -> (LevelAnchorTable, [Float])? {
         struct Respuesta: Decodable {
-            let anclas: [AnchorPoint]
+            let anclas: [AnclaDeNivel]
             let mediciones: [Float]
         }
         guard let respuesta: Respuesta = await llamar("GET", "v1/comunidad/nivel") else {
