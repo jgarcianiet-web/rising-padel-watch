@@ -223,9 +223,13 @@ private func offsetLabel(_ offsetMs: Int64) -> String {
 
 // MARK: Golpe a golpe
 
-/// El partido entero en un vistazo: cada golpeo es un punto — tiempo en X, velocidad
-/// de pala en Y, color por tipo y tamaño según la violencia del impacto. Se ve cuándo
-/// apretaste, cuándo desapareció un golpe y las ráfagas de remates.
+/// El partido entero como una línea de tiempo: cada golpeo es una barra en el minuto en
+/// que ocurrió, con la altura de su velocidad de pala y el color de su tipo.
+///
+/// Antes era una nube de círculos de tamaño variable y no se entendía nada: había que
+/// descifrar tres codificaciones a la vez (posición, color y área) para leer un golpe.
+/// Una barra apoyada en el suelo se lee sola — se ven las ráfagas, los huecos y los
+/// picos sin pensar, como el sismograma del partido.
 struct ShotScatterChart: View {
     let session: PadelSession
 
@@ -254,21 +258,46 @@ struct ShotScatterChart: View {
         }
     }
 
+    /// La media de la sesión, para que cada barra se lea contra algo.
+    private var mediaKmh: Float {
+        guard !session.shots.isEmpty else { return 0 }
+        return session.shots.map(\.racketSpeedKmh).reduce(0, +) / Float(session.shots.count)
+    }
+
     var body: some View {
-        Chart(session.shots, id: \.offsetMs) { shot in
-            PointMark(
-                x: .value("Minuto", Double(shot.offsetMs) / 60_000),
-                y: .value("km/h", shot.racketSpeedKmh)
-            )
-            .foregroundStyle(by: .value("Tipo", etiqueta(shot.type)))
-            // El área del punto crece con el impacto: un remate violento se ve gordo.
-            .symbolSize(by: .value("Impacto", shot.impactG))
+        VStack(alignment: .leading, spacing: 8) {
+            Chart {
+                ForEach(session.shots, id: \.offsetMs) { shot in
+                    BarMark(
+                        x: .value("Minuto", Double(shot.offsetMs) / 60_000),
+                        y: .value("km/h", shot.racketSpeedKmh),
+                        width: 2
+                    )
+                    .foregroundStyle(by: .value("Tipo", etiqueta(shot.type)))
+                }
+                // La referencia: de un vistazo se ve qué golpes fueron por encima de
+                // tu media del día y cuáles se quedaron cortos.
+                RuleMark(y: .value("Media", mediaKmh))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                    .foregroundStyle(T.tintaSuave)
+                    .annotation(position: .top, alignment: .leading) {
+                        Text(String(format: "media %.0f km/h", mediaKmh))
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+            }
+            .chartForegroundStyleScale(Self.colores)
+            .chartXAxisLabel("minuto")
+            .chartYAxisLabel("km/h de pala")
+            .chartLegend(position: .bottom, spacing: 6)
+            .frame(height: 200)
+
+            Text("Cada barra es un golpe, en el minuto en que lo diste. La altura es la "
+                 + "velocidad de pala y el color, el tipo de golpe.")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .chartForegroundStyleScale(Self.colores)
-        .chartXAxisLabel("minuto")
-        .chartYAxisLabel("km/h de pala")
-        .chartLegend(position: .bottom, spacing: 6)
-        .frame(height: 220)
         .padding(.vertical, 4)
     }
 }

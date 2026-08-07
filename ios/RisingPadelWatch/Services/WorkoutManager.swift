@@ -77,10 +77,16 @@ final class WorkoutManager: NSObject {
 
         if collectMetrics {
             let builder = session.associatedWorkoutBuilder()
-            builder.dataSource = HKLiveWorkoutDataSource(
+            let dataSource = HKLiveWorkoutDataSource(
                 healthStore: healthStore,
                 workoutConfiguration: configuration
             )
+            // Los pasos hay que pedirlos a mano: el recolector de un entrenamiento de
+            // tenis trae de serie pulso, energía y distancia, pero no `stepCount`, así
+            // que la casilla de pasos de la ficha salía siempre vacía. En pádel es un
+            // dato con sentido — se anda mucho en una pista pequeña.
+            dataSource.enableCollection(for: HKQuantityType(.stepCount), predicate: nil)
+            builder.dataSource = dataSource
             builder.delegate = self
             self.builder = builder
             session.startActivity(with: startDate)

@@ -32,9 +32,9 @@ struct SessionDetailView: View {
                             playerAverage: model.playerAverageLevel
                         )
                     }
-                    // El partido punto a punto: cada golpeo con su velocidad, su tipo
-                    // y su violencia. La gráfica que enseña el relato de la sesión.
-                    PadelCard(title: "Golpe a golpe", icon: "circle.grid.cross") {
+                    // El partido golpe a golpe: la línea de tiempo con la velocidad y
+                    // el tipo de cada uno. La gráfica que enseña el relato de la sesión.
+                    PadelCard(title: "Golpe a golpe", icon: "chart.bar.xaxis") {
                         ShotScatterChart(session: session)
                     }
                     if FatigueChart.disponible(session) {
