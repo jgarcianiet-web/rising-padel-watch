@@ -1,3 +1,4 @@
+import PadelCore
 import SwiftUI
 import UIKit
 
@@ -117,6 +118,12 @@ struct StatTile: View {
     let value: String
     var icon: String?
     var tint: Color = T.tinta
+    /// Comparación con la media del jugador. Nil = no hay historial suficiente o la
+    /// diferencia es despreciable; en los dos casos no se enseña nada, que es mejor que
+    /// enseñar un "+0" que parece un dato.
+    var contexto: Comparativa?
+    /// Decimales del contexto. Los golpeos no llevan; el ritmo, uno.
+    var decimales: Int = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -136,6 +143,14 @@ struct StatTile: View {
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+
+            if let contexto {
+                Text(contexto.texto(decimales: decimales))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(contexto.mejor ? T.verde : T.tintaSuave)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

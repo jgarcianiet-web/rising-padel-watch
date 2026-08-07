@@ -13,6 +13,12 @@ struct SessionDetailView: View {
     @State private var leagueId = ""
     @State private var masAbierto = false
 
+    /// Las medias del jugador **sin contar esta sesión**: comparar una sesión contra una
+    /// media que la incluye diluye la diferencia, y cuanto menos historial hay, más.
+    private var medias: MediasDelJugador {
+        MediasDelJugador.de(model.sessions, excluyendo: session.sessionId)
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: 12) {
@@ -92,6 +98,14 @@ struct SessionDetailView: View {
                         Text("golpeos")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundStyle(T.tintaSuave)
+                        if let contexto = Comparativa.de(
+                            Float(session.totalShots), medias.golpeos
+                        ) {
+                            Text(contexto.texto())
+                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                .foregroundStyle(contexto.mejor ? T.verde : T.tintaSuave)
+                                .padding(.top, 4)
+                        }
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 6) {
@@ -134,27 +148,41 @@ struct SessionDetailView: View {
 
                 Divider().overlay(T.borde)
 
+                // Cada cifra con su comparación: "45 km/h" no dice nada a quien no
+                // lleva años midiéndose; "45 km/h, +3 sobre tu media" sí. La media
+                // excluye esta sesión, que si no se compararía contra sí misma.
                 HStack(spacing: 8) {
                     StatTile(
                         label: "Duración",
                         value: formatDuration(session.durationSeconds),
-                        icon: "clock"
+                        icon: "clock",
+                        contexto: Comparativa.de(
+                            Float(session.durationSeconds) / 60, medias.minutos
+                        )
                     )
                     StatTile(
                         label: "Ritmo",
                         value: String(format: "%.1f/min", session.shotsPerMinute),
-                        icon: "metronome"
+                        icon: "metronome",
+                        contexto: Comparativa.de(session.shotsPerMinute, medias.ritmo),
+                        decimales: 1
                     )
                     StatTile(
                         label: "Media pala",
                         value: String(format: "%.0f km/h", session.intensity.meanRacketSpeedKmh),
-                        icon: "speedometer"
+                        icon: "speedometer",
+                        contexto: Comparativa.de(
+                            session.intensity.meanRacketSpeedKmh, medias.velocidadMedia
+                        )
                     )
                     StatTile(
                         label: "Máx pala",
                         value: String(format: "%.0f km/h", session.intensity.maxRacketSpeedKmh),
                         icon: "bolt.fill",
-                        tint: T.bola
+                        tint: T.bola,
+                        contexto: Comparativa.de(
+                            session.intensity.maxRacketSpeedKmh, medias.velocidadMaxima
+                        )
                     )
                 }
 

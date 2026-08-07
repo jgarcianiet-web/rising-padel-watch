@@ -430,6 +430,16 @@ struct LastSessionView: View {
                     Text("\(last.totalShots) golpeos · \(formatDuration(last.durationSeconds))")
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(T.tintaSuave)
+                    // Un recuento sin referencia no dice si el día fue bueno. La media
+                    // se calcula sin esta sesión: incluirla diluiría la diferencia.
+                    if let contexto = Comparativa.de(
+                        Float(last.totalShots),
+                        MediasDelJugador.de(model.sessions, excluyendo: last.sessionId).golpeos
+                    ) {
+                        Text(contexto.texto())
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(contexto.mejor ? T.verde : T.tintaSuave)
+                    }
                 }
                 Spacer()
                 if let score = last.score, score.isFinished {
