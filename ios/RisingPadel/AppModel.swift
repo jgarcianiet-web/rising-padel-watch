@@ -72,6 +72,8 @@ final class AppModel: ObservableObject {
         receiver.activate()
         self.receiver = receiver
         refreshTrainingData()
+        // La escala de nivel calibrada manda desde el primer render.
+        aplicarEscalaDeNivel()
         observeSettingsChanges()
     }
 
@@ -221,6 +223,77 @@ final class AppModel: ObservableObject {
     /// Vuelve a los umbrales de fábrica.
     func borrarCalibracion() {
         calibrationJSON = ""
+    }
+
+    // MARK: La escala de nivel, anclada a jugadores de nivel técnico conocido
+
+    /// Las referencias acumuladas: por cada nivel técnico grabado, qué mide el reloj.
+    @AppStorage("levelReferences") private var referenciasJSON = ""
+
+    var referenciasDeNivel: [ReferenciaNivel] {
+        guard let data = referenciasJSON.data(using: .utf8), !data.isEmpty,
+              let lista = try? JSONDecoder().decode([ReferenciaNivel].self, from: data)
+        else { return [] }
+        return lista
+    }
+
+    /// Recalcula las referencias con las tandas grabadas y aplica la escala resultante.
+    ///
+    /// El nivel de cada tanda es el **técnico** de quien llevaba el reloj, que es lo que
+    /// mide esta app. No se usa el nivel de una plataforma de partidos: ese número dice
+    /// con quién ganas, no cómo golpeas — un jugador puede tener técnica de 4 y estar en
+    /// un 3 competitivo, y mezclarlos haría que la medición no significara nada.
+    @discardableResult
+    func recalcularEscalaDeNivel() -> [ReferenciaNivel] {
+        guard let url = trainingDataURL,
+              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+
+        let decoder = JSONDecoder()
+        // nivel técnico → tipo de golpe → velocidades de pala medidas
+        var porNivel: [Float: [String: [Float]]] = [:]
+        var golpesPorNivel: [Float: Int] = [:]
+        let palanca = DetectorConfig.default.armLeverM
+
+        for linea in contenido.split(separator: "\n") {
+            guard let data = linea.data(using: .utf8),
+                  let muestra = try? decoder.decode(TrainingSample.self, from: data),
+                  let nivel = muestra.playerLevel, nivel > 0 else { continue }
+            // La misma fórmula que usa el detector para la velocidad de pala.
+            let velocidad = muestra.heuristicFeatures.peakGyroRadS * palanca * 3.6
+            let clave = Float(nivel)
+            porNivel[clave, default: [:]][muestra.label.wireName, default: []].append(velocidad)
+            golpesPorNivel[clave, default: 0] += 1
+        }
+
+        let referencias = porNivel.map { nivel, porTipo in
+            ReferenciaNivel(
+                nivelTecnico: nivel,
+                velocidadPorTipo: porTipo.mapValues { valores in
+                    let ordenados = valores.sorted()
+                    return ordenados[ordenados.count / 2]
+                },
+                golpes: golpesPorNivel[nivel] ?? 0
+            )
+        }
+        if let data = try? JSONEncoder().encode(referencias),
+           let texto = String(data: data, encoding: .utf8) {
+            referenciasJSON = texto
+        }
+        aplicarEscalaDeNivel()
+        return referencias
+    }
+
+    /// Pone en marcha la escala calibrada. Los golpes sin referencias se quedan con las
+    /// bandas de fábrica: se calibra lo que los datos sostienen, nada más.
+    func aplicarEscalaDeNivel() {
+        let bandas = LevelReferenceCalibrator.bandas(referenciasDeNivel)
+        guard !bandas.isEmpty else {
+            LevelConfig.current = LevelConfig()
+            return
+        }
+        LevelConfig.current = LevelConfig(
+            bands: LevelConfig.defaultBands.merging(bandas) { _, calibrada in calibrada }
+        )
     }
 
     /// Replica al reloj cada cambio de ajustes.

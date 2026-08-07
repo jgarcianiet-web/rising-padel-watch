@@ -72,6 +72,16 @@ public struct LevelConfig: Sendable {
     /// `shot-detection.md` (volea 5-10 rad/s, derecha 15-25, smash 25-35) con el mismo
     /// brazo de palanca que usa el detector, y de ensanchar los extremos para que el 1 y
     /// el 7 sean alcanzables sin saturar a la mitad de los jugadores.
+    /// La configuración vigente de la app: la de fábrica, o la calibrada con
+    /// referencias de jugadores de nivel técnico conocido.
+    ///
+    /// Es global a propósito. El nivel se calcula en decenas de sitios (`session.level`)
+    /// y la escala es una propiedad de la app, no de cada llamada: pasarla a mano por
+    /// todas partes garantizaría que alguna se quedara con la de fábrica y el mismo
+    /// jugador saldría con dos niveles distintos en dos pantallas. Se escribe una vez al
+    /// arrancar y se lee siempre.
+    nonisolated(unsafe) public static var current = LevelConfig()
+
     public static let defaultBands: [ShotType: ShotBand] = [
         .forehand: ShotBand(speedAtLevel1: 28, speedAtLevel7: 65, idealSweptDeg: 200),
         .backhand: ShotBand(speedAtLevel1: 26, speedAtLevel7: 60, idealSweptDeg: 180),

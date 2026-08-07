@@ -9,6 +9,7 @@ struct SettingsView: View {
     @State private var copiando = false
     @State private var codigoRecuperacion: String?
     @State private var resultadoCalibracion: ResultadoCalibracion?
+    @State private var referencias: [ReferenciaNivel] = []
     @Environment(\.dismiss) private var dismiss
 
     @State private var token = ""
@@ -221,9 +222,11 @@ struct SettingsView: View {
                     .autocorrectionDisabled()
                     .textInputAutocapitalization(.never)
 
-                // El nivel viaja con cada golpe grabado: ponerle el reloj a un jugador
-                // de nivel 6-7 media hora es el "esto es un 7" que ancla la escala.
-                Picker("Nivel del jugador que graba", selection: $model.playerLevelRaw) {
+                // El nivel viaja con cada golpe grabado y es lo que ancla la escala:
+                // ponerle el reloj a un jugador de nivel 6-7 media hora es el "esto es
+                // un 7". Es el nivel TÉCNICO de quien lleva el reloj, no el de una
+                // plataforma de partidos: ese mide con quién ganas, no cómo golpeas.
+                Picker("Nivel técnico de quien lleva el reloj", selection: $model.playerLevelRaw) {
                     Text("Sin indicar").tag(0)
                     ForEach(1...7, id: \.self) { Text("\($0)").tag($0) }
                 }
@@ -233,8 +236,12 @@ struct SettingsView: View {
                     // y sin modelo entrenado: tus etiquetas mueven tus umbrales.
                     Button {
                         resultadoCalibracion = model.calibrarConTandas()
+                        referencias = model.recalcularEscalaDeNivel()
                     } label: {
-                        Label("Calibrar el detector con mis tandas", systemImage: "slider.horizontal.3")
+                        Label("Calibrar con las tandas", systemImage: "slider.horizontal.3")
+                    }
+                    if !referencias.isEmpty {
+                        escalaDeNivel(referencias)
                     }
                     if let resultado = resultadoCalibracion {
                         resumenCalibracion(resultado)
@@ -338,6 +345,36 @@ struct SettingsView: View {
             Text(valor)
                 .font(.system(.caption2, design: .monospaced))
                 .foregroundStyle(T.tinta)
+        }
+    }
+
+    /// El parte de la escala de nivel: con qué jugadores está anclada y si ya se
+    /// sostiene. Sin dos niveles técnicos distintos no se calibra nada, y se dice.
+    private func escalaDeNivel(_ referencias: [ReferenciaNivel]) -> some View {
+        let niveles = Set(referencias.filter {
+            $0.golpes >= LevelReferenceCalibrator.minGolpes
+        }.map(\.nivelTecnico)).sorted()
+        return VStack(alignment: .leading, spacing: 4) {
+            Divider().overlay(T.borde)
+            Text("Escala de nivel")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(T.tinta)
+            if niveles.count >= LevelReferenceCalibrator.minNiveles {
+                Text("Anclada con tandas de nivel "
+                     + niveles.map { String(format: "%.0f", $0) }.joined(separator: " y ")
+                     + ". El nivel que mide la app se compara con esos jugadores.")
+                    .font(.caption2)
+                    .foregroundStyle(T.verde)
+            } else {
+                Text("Necesita tandas de al menos dos niveles técnicos distintos. "
+                     + "Hoy hay: "
+                     + (niveles.isEmpty
+                        ? "ninguna con \(LevelReferenceCalibrator.minGolpes)+ golpes"
+                        : niveles.map { String(format: "%.0f", $0) }.joined(separator: ", "))
+                     + ". Grábale una tanda a alguien de otro nivel y la escala se ancla.")
+                    .font(.caption2)
+                    .foregroundStyle(T.tintaSuave)
+            }
         }
     }
 

@@ -355,7 +355,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     /// cada vez. Así no puede quedar desincronizada, y afinar las bandas de `LevelConfig`
     /// cambia el nivel de las sesiones ya grabadas sin migrar nada — que es justo lo que
     /// hace falta mientras el modelo esté sin calibrar.
-    public var level: SessionLevel { LevelEstimator().estimate(shots) }
+    public var level: SessionLevel { LevelEstimator(config: LevelConfig.current).estimate(shots) }
 
     /// Golpeos por minuto: la métrica más comparable entre sesiones de distinta duración.
     public var shotsPerMinute: Float {

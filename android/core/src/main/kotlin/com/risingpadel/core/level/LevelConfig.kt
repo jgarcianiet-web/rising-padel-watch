@@ -68,6 +68,19 @@ data class LevelConfig(
 
         val DEFAULT = LevelConfig()
 
+        /**
+         * La configuración vigente de la app: la de fábrica, o la calibrada con
+         * referencias de jugadores de nivel técnico conocido.
+         *
+         * Es global a propósito. El nivel se calcula en decenas de sitios (`session.level`)
+         * y la escala es una propiedad de la app, no de cada llamada: pasarla a mano por
+         * todas partes garantizaría que alguna se quedara con la de fábrica y el mismo
+         * jugador saldría con dos niveles distintos en dos pantallas. Se escribe una vez
+         * al arrancar y se lee siempre.
+         */
+        @Volatile
+        var current: LevelConfig = DEFAULT
+
         const val MIN_LEVEL = 1f
         const val MAX_LEVEL = 7f
     }

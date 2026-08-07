@@ -1,5 +1,6 @@
 package com.risingpadel.core.model
 
+import com.risingpadel.core.level.LevelConfig
 import com.risingpadel.core.level.LevelEstimator
 import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.score.MatchScore
@@ -244,7 +245,7 @@ data class PadelSession(
      * grabadas sin migrar nada — que es justo lo que hace falta mientras el modelo esté
      * sin calibrar.
      */
-    val level: SessionLevel get() = LevelEstimator().estimate(shots)
+    val level: SessionLevel get() = LevelEstimator(LevelConfig.current).estimate(shots)
 
     /** Golpeos por minuto, la métrica más comparable entre sesiones de distinta duración. */
     val shotsPerMinute: Float
