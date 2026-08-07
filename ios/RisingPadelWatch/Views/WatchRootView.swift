@@ -6,6 +6,7 @@ struct WatchRootView: View {
     @AppStorage("trackScore") private var trackScore = false
     @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
     @State private var showTraining = false
+    @State private var showRutinas = false
     /// La pantalla inicial es una decisión (¿partido o entreno?), no un formulario.
     @State private var choosingFormat = false
     /// Segundo paso del partido: quién saca. Es la única pregunta que no se puede
@@ -26,7 +27,9 @@ struct WatchRootView: View {
                 TabView(selection: $paginaPartido) {
                     SessionControlsView(paginaPartido: $paginaPartido).tag(0)
                     Group {
-                        if let score = controller.score {
+                        if controller.rutina != nil {
+                            RutinaEnCursoView()
+                        } else if let score = controller.score {
                             ScoreView(
                                 score: score,
                                 shotCount: controller.shotCount,
@@ -133,6 +136,12 @@ struct WatchRootView: View {
                     trackScore = false
                     Task { await controller.start() }
                 }
+                // Un entreno con guion: el reloj canta el ejercicio y lleva la cuenta.
+                // Es lo que separa esta app de un contador de golpes.
+                bigButton("Rutina", icon: "list.bullet.rectangle", prominent: false) {
+                    trackScore = false
+                    showRutinas = true
+                }
 
                 // Solo con la recogida de datos activada en el iPhone: es un modo para
                 // quien construye el dataset, no para jugar.
@@ -144,6 +153,9 @@ struct WatchRootView: View {
             }
             .sheet(isPresented: $showTraining) {
                 TrainingView().environmentObject(controller)
+            }
+            .sheet(isPresented: $showRutinas) {
+                RutinaChooserView().environmentObject(controller)
             }
         }
     }
@@ -366,6 +378,14 @@ struct WatchRootView: View {
                 Text(level.label)
                     .font(.caption)
                     .foregroundStyle(.tint)
+            }
+            // Si la sesión iba guiada, lo primero que se quiere saber es si se completó.
+            if let rutina = controller.rutina {
+                Text(controller.rutinaTerminada
+                     ? "\(rutina.nombre) completa ✓"
+                     : "\(rutina.nombre) sin terminar")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(controller.rutinaTerminada ? .green : .secondary)
             }
             if let message = controller.statusMessage {
                 Text(message)

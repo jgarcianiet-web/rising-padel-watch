@@ -35,6 +35,12 @@ final class SessionController: ObservableObject {
     @Published private(set) var sessionLevel: SessionLevel?
     /// Objetivos de la liga que el reloj puede seguir él solo, con su progreso en vivo.
     @Published private(set) var objectiveProgress: [ObjectiveProgress] = []
+    /// Rutina guiada en marcha, si la sesión se arrancó con una. Nil = partido normal.
+    @Published private(set) var rutina: Rutina?
+    /// El ejercicio que toca ahora y cómo va. Nil si no hay rutina o ya terminó.
+    @Published private(set) var pasoDeRutina: ProgresoDeRutina?
+    /// La rutina se completó entera. Se queda a la vista hasta cerrar la sesión.
+    @Published private(set) var rutinaTerminada = false
     /// Sesión en pausa: el workout de Salud se congela y los golpeos no cuentan. El
     /// reloj del partido sigue corriendo — el tiempo de pista es tiempo de pista.
     @Published private(set) var isPaused = false
@@ -67,6 +73,7 @@ final class SessionController: ObservableObject {
     private let transport = PhoneTransport()
 
     private var recorder: SessionRecorder?
+    private var rutinaEnCurso: RutinaEnCurso?
     private var ticker: Timer?
     private var scoreBoard: ScoreBoard?
 
@@ -345,8 +352,21 @@ final class SessionController: ObservableObject {
         )
     }
 
-    func start() async {
+    /// Arranca la sesión. Con [rutina] es una sesión guiada; sin ella, un entreno o un
+    /// partido normal.
+    ///
+    /// Una sesión con rutina no es una sesión distinta: se guarda igual en el historial
+    /// y cuenta igual para el nivel. Lo único que cambia es que el reloj lleva el guion.
+    ///
+    /// La rutina se monta **aquí y siempre**, también cuando es nil: arrancar un entreno
+    /// suelto después de una rutina tiene que dejar la pantalla limpia, y si solo se
+    /// tocara al pasar una, la anterior seguiría en pantalla ya terminada.
+    func start(rutina: Rutina? = nil) async {
         guard status == .idle || status == .saved else { return }
+        self.rutina = rutina
+        rutinaEnCurso = rutina.map { RutinaEnCurso($0) }
+        pasoDeRutina = rutinaEnCurso?.progreso
+        rutinaTerminada = false
         status = .preparing
         statusMessage = nil
 
@@ -407,12 +427,47 @@ final class SessionController: ObservableObject {
                 self?.shotCount = recorder.shots.count
                 self?.lastShotType = shot.type
                 self?.refreshObjectives(recorder.shots)
+                self?.avanzarRutina(shot.type)
             }
         }
 
         startTicker()
         status = .recording
         publishLiveState(completed: false)
+    }
+
+    // MARK: Rutina guiada
+
+    /// Mete el golpe recién detectado en la rutina y avisa con el motor cuando toca.
+    ///
+    /// El háptico es la parte importante: en la pista no se mira el reloj entre golpe y
+    /// golpe, así que el "ya está, pasa al siguiente" tiene que entrar por la muñeca.
+    /// Cada golpe válido da un toque flojo, terminar un ejercicio uno claro, y acabar la
+    /// rutina el de éxito — tres avisos distintos que se distinguen sin mirar.
+    private func avanzarRutina(_ type: ShotType) {
+        guard let curso = rutinaEnCurso else { return }
+        switch curso.onShot(type) {
+        case .cuenta:
+            WKInterfaceDevice.current().play(.click)
+        case .pasoCompletado:
+            WKInterfaceDevice.current().play(.directionUp)
+        case .terminada:
+            WKInterfaceDevice.current().play(.success)
+            rutinaTerminada = true
+        case .noCuenta, .yaTerminada:
+            break
+        }
+        pasoDeRutina = curso.progreso
+    }
+
+    /// Salta el ejercicio en curso. La máquina se queda sin bolas, al compañero le duele
+    /// el hombro, o el detector no reconoce el golpe y el ejercicio se atasca: sin una
+    /// salida, la rutina pasa de ayudar a estorbar.
+    func saltarPasoDeRutina() {
+        guard let curso = rutinaEnCurso else { return }
+        if curso.saltarPaso() == .terminada { rutinaTerminada = true }
+        pasoDeRutina = curso.progreso
+        WKInterfaceDevice.current().play(.directionUp)
     }
 
     // MARK: Objetivo del día
@@ -576,6 +631,10 @@ final class SessionController: ObservableObject {
         sessionLevel = nil
         objectiveProgress = []
         objectivesCelebrated.removeAll()
+        rutina = nil
+        rutinaEnCurso = nil
+        pasoDeRutina = nil
+        rutinaTerminada = false
         liveTip = nil
         tipsSaid.removeAll()
     }
