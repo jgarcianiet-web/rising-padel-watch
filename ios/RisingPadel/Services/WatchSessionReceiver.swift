@@ -49,6 +49,38 @@ final class WatchSessionReceiver: NSObject {
         try? WCSession.default.updateApplicationContext([PhoneTransportKeys.settings: data])
     }
 
+    /// ¿Está la app del reloj a tiro ahora mismo? El mando solo funciona si lo está.
+    var relojAlcanzable: Bool {
+        WCSession.isSupported() && WCSession.default.activationState == .activated
+            && WCSession.default.isReachable
+    }
+
+    /// Manda una orden al reloj y devuelve su estado.
+    ///
+    /// `sendMessage` y no contexto de aplicación a propósito: un contexto se reentrega al
+    /// reconectar, y una orden reentregada arrancaría una tanda que nadie pidió. El precio
+    /// es que el reloj tiene que estar alcanzable — con la app abierta o con la tanda ya
+    /// en marcha, que mantiene la app viva por el workout.
+    func enviarOrden(_ orden: OrdenDeTanda, respuesta: @escaping (EstadoDeTanda?) -> Void) {
+        guard relojAlcanzable, let data = try? JSONEncoder().encode(orden) else {
+            respuesta(nil)
+            return
+        }
+        WCSession.default.sendMessage(
+            [OrdenDeTanda.clave: data],
+            replyHandler: { payload in
+                guard let data = payload[OrdenDeTanda.clave] as? Data,
+                      let estado = try? JSONDecoder().decode(EstadoDeTanda.self, from: data)
+                else {
+                    respuesta(nil)
+                    return
+                }
+                respuesta(estado)
+            },
+            errorHandler: { _ in respuesta(nil) }
+        )
+    }
+
     private func handleLive(_ payload: [String: Any]) {
         guard let data = payload[PhoneTransportKeys.liveScore] as? Data,
               let state = try? decoder.decode(LiveMatchState.self, from: data) else { return }

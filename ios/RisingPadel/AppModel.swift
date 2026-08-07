@@ -364,6 +364,48 @@ final class AppModel: ObservableObject {
 
     // MARK: Datos de entrenamiento
 
+    // MARK: Mando de tandas
+
+    /// Último estado que contestó el reloj. Nil = todavía no ha contestado ninguno.
+    @Published private(set) var estadoTanda: EstadoDeTanda?
+    /// Si el reloj no está a tiro, el mando no puede hacer nada y hay que decirlo.
+    @Published private(set) var relojAlcanzable = false
+    /// Por qué la última orden no hizo lo que se le pidió. Sobrevive a los sondeos de
+    /// estado a propósito: si se borrara con el siguiente latido, el aviso duraría dos
+    /// segundos y el usuario se quedaría con un botón que parece roto.
+    @Published private(set) var avisoTanda: String?
+
+    /// Manda una orden al reloj y guarda el estado que devuelva.
+    ///
+    /// Todas las órdenes pasan por aquí, incluida la de solo preguntar: así el estado que
+    /// ve el móvil siempre viene del reloj y nunca de suponer qué habrá pasado tras pulsar
+    /// un botón. Si el reloj no contesta, el estado se pone a nil en vez de dejar el
+    /// anterior: un contador congelado que parece vivo es peor que un "sin conexión".
+    func ordenarTanda(_ accion: AccionDeTanda, etiqueta: ShotType? = nil) {
+        relojAlcanzable = receiver?.relojAlcanzable ?? false
+        guard let receiver, relojAlcanzable else {
+            estadoTanda = nil
+            return
+        }
+        receiver.enviarOrden(OrdenDeTanda(accion: accion, etiqueta: etiqueta)) { [weak self] estado in
+            Task { @MainActor in
+                guard let self else { return }
+                self.estadoTanda = estado
+                self.relojAlcanzable = estado != nil
+                if let motivo = estado?.motivo {
+                    self.avisoTanda = motivo
+                } else if accion != .estado {
+                    // Una orden nueva que sí funcionó limpia el aviso de la anterior.
+                    self.avisoTanda = nil
+                }
+                // Lo que el reloj mande llega como fichero y actualiza el contador solo,
+                // pero refrescar aquí hace que el número del móvil no se quede viejo si
+                // el envío ya había terminado antes de abrir la pantalla.
+                self.refreshTrainingData()
+            }
+        }
+    }
+
     func refreshTrainingData() {
         let url = Self.trainingDataDestination()
         guard FileManager.default.fileExists(atPath: url.path),

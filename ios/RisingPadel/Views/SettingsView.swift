@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var codigoRecuperacion: String?
     @State private var resultadoCalibracion: ResultadoCalibracion?
     @State private var referencias: [ReferenciaNivel] = []
+    @State private var mandoAbierto = false
     @Environment(\.dismiss) private var dismiss
 
     @State private var token = ""
@@ -38,6 +39,9 @@ struct SettingsView: View {
             // Mismo fondo crema que el resto de la app: un Form con el gris del sistema
             // se veía como una pantalla de otra aplicación.
             .scrollContentBackground(.hidden)
+            .fullScreenCover(isPresented: $mandoAbierto) {
+                TrainingRemoteView().environmentObject(model)
+            }
             .background(T.fondo)
             .tint(T.pista)
             .navigationTitle("Ajustes")
@@ -229,6 +233,15 @@ struct SettingsView: View {
                 Picker("Nivel técnico de quien lleva el reloj", selection: $model.playerLevelRaw) {
                     Text("Sin indicar").tag(0)
                     ForEach(1...7, id: \.self) { Text("\($0)").tag($0) }
+                }
+
+                // Grabar tandas desde aquí y no desde la muñeca: el que dirige el
+                // ejercicio no es el que lleva el reloj, y pararlo todo para cambiar de
+                // golpe entre tanda y tanda es la razón por la que se graban pocas.
+                Button {
+                    mandoAbierto = true
+                } label: {
+                    Label("Dirigir tandas desde el móvil", systemImage: "dot.radiowaves.left.and.right")
                 }
 
                 if let url = model.trainingDataURL {

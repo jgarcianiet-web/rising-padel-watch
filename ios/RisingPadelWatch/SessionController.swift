@@ -133,6 +133,12 @@ final class SessionController: ObservableObject {
         transport.onSettingsReceived = { [weak self] settings in
             Task { @MainActor in self?.applyRemoteSettings(settings) }
         }
+        transport.onTrainingCommand = { [weak self] orden, responder in
+            Task { @MainActor in
+                guard let self else { return }
+                responder(await self.atender(orden))
+            }
+        }
         transport.activate()
         refreshTrainingCounts()
     }
@@ -286,6 +292,57 @@ final class SessionController: ObservableObject {
     private func refreshTrainingCounts() {
         trainingTotalStored = trainingStore.count()
         trainingStoredKB = Int(trainingStore.sizeBytes / 1024)
+    }
+
+    // MARK: Mando de tandas desde el móvil
+
+    /// Atiende una orden del mando y devuelve el estado resultante.
+    ///
+    /// Quien graba la tanda casi nunca es quien lleva el reloj: se lo pones a otro y le
+    /// vas cantando los ejercicios. Con los botones solo en la muñeca había que parar,
+    /// quitarle el reloj y cambiar el tipo entre tanda y tanda, y eso se traduce en menos
+    /// tandas grabadas — justo lo contrario de lo que necesita el detector.
+    ///
+    /// No se toca nada si hay un partido en marcha: una tanda de datos y una sesión de
+    /// juego usan el mismo sensor, y arrancar una encima de la otra estropearía las dos.
+    func atender(_ orden: OrdenDeTanda) async -> EstadoDeTanda {
+        var motivo: String?
+        switch orden.accion {
+        case .estado:
+            break
+        case .iniciar:
+            if let etiqueta = orden.etiqueta { trainingLabel = etiqueta }
+            if trainingRecording {
+                motivo = nil // Ya estaba grabando: la orden repetida no es un error.
+            } else if status != .idle && status != .saved {
+                motivo = "Hay un partido en marcha en el reloj"
+            } else if !collectTrainingData {
+                motivo = "El modo de datos de entrenamiento está apagado"
+            } else if !motionRecorder.isAvailable {
+                motivo = "Este reloj no tiene los sensores necesarios"
+            } else {
+                await startTraining()
+            }
+        case .parar:
+            await stopTraining()
+        case .enviar:
+            if !sendTrainingDataToPhone() { motivo = "No se pudo enviar al móvil" }
+        }
+        return estadoDeTanda(motivo: motivo)
+    }
+
+    private func estadoDeTanda(motivo: String? = nil) -> EstadoDeTanda {
+        EstadoDeTanda(
+            grabando: trainingRecording,
+            etiqueta: trainingLabel,
+            capturadosEnTanda: trainingCapturedInBatch,
+            guardadosEnTotal: trainingTotalStored,
+            kilobytes: trainingStoredKB,
+            alias: playerAlias,
+            nivel: playerLevelRaw > 0 ? playerLevelRaw : nil,
+            sensoresPuedenPararse: sensorsMayStop,
+            motivo: motivo
+        )
     }
 
     func start() async {

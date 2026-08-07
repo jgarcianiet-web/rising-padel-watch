@@ -18,6 +18,10 @@ final class PhoneTransport: NSObject {
     /// Ajustes replicados desde el iPhone. Lo consume `SessionController`.
     var onSettingsReceived: ((DeviceSettings) -> Void)?
 
+    /// Órdenes del mando de tandas. El manejador responde con el estado del reloj, que
+    /// viaja de vuelta en la misma llamada: una orden, una foto fresca de cómo quedó.
+    var onTrainingCommand: ((OrdenDeTanda, @escaping (EstadoDeTanda) -> Void) -> Void)?
+
     func activate() {
         guard WCSession.isSupported() else { return }
         session.delegate = self
@@ -107,5 +111,28 @@ extension PhoneTransport: WCSessionDelegate {
 
     func session(_ session: WCSession, didReceiveApplicationContext context: [String: Any]) {
         applyContext(context)
+    }
+
+    /// Las órdenes del mando. Se contesta **siempre**, aunque sea con un diccionario
+    /// vacío: si no, el móvil se queda esperando hasta que expire el mensaje y el usuario
+    /// ve un botón que no responde sin saber por qué.
+    func session(
+        _ session: WCSession,
+        didReceiveMessage message: [String: Any],
+        replyHandler: @escaping ([String: Any]) -> Void
+    ) {
+        guard let data = message[OrdenDeTanda.clave] as? Data,
+              let orden = try? JSONDecoder().decode(OrdenDeTanda.self, from: data),
+              let manejador = onTrainingCommand else {
+            replyHandler([:])
+            return
+        }
+        manejador(orden) { estado in
+            guard let respuesta = try? JSONEncoder().encode(estado) else {
+                replyHandler([:])
+                return
+            }
+            replyHandler([OrdenDeTanda.clave: respuesta])
+        }
     }
 }

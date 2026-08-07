@@ -1,0 +1,254 @@
+import PadelCore
+import SwiftUI
+
+/// El mando de tandas: se lleva el reloj otra persona y tú diriges desde el móvil.
+///
+/// Nace de cómo se graban las tandas de verdad. El que apunta los datos casi nunca es el
+/// que pega: le pones el reloj a alguien, te quedas fuera de la pista y le vas cantando
+/// "treinta derechas", "ahora bandejas". Con los botones solo en la muñeca hay que parar
+/// el ejercicio, acercarse, quitarle el reloj y cambiar el tipo entre tanda y tanda — y
+/// eso se traduce en menos tandas grabadas, que es justo lo que peor le viene al detector.
+struct TrainingRemoteView: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+
+    /// Tipo que se va a grabar en la siguiente tanda. Arranca en el que tenga el reloj.
+    @State private var etiqueta: ShotType = .forehand
+    @State private var latido: Timer?
+
+    /// Los tipos que tiene sentido pedirle a alguien. `unknown` no se graba a propósito:
+    /// no es un golpe, es la ausencia de clasificación.
+    private var grabables: [ShotType] { ShotType.allCases.filter { $0 != .unknown } }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 12) {
+                    if let estado = model.estadoTanda {
+                        estadoCard(estado)
+                        quienCard(estado)
+                    } else {
+                        sinConexionCard
+                    }
+                    ayudaCard
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+            }
+            .background(T.fondo)
+            .scrollContentBackground(.hidden)
+            .navigationTitle("Mando de tandas")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Cerrar") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            model.ordenarTanda(.estado)
+            // Un latido corto mientras la pantalla está delante: el contador de golpes es
+            // la única forma de saber desde fuera que la tanda va bien. Se para al salir
+            // para no estar despertando el reloj en balde.
+            latido = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+                Task { @MainActor in model.ordenarTanda(.estado) }
+            }
+        }
+        .onDisappear {
+            latido?.invalidate()
+            latido = nil
+        }
+        .onChange(of: model.estadoTanda?.etiqueta) { _, nueva in
+            // Si el reloj cambia de tipo por su cuenta (alguien tocó su pantalla), el
+            // móvil le sigue: manda lo que hay en la muñeca, no lo que el móvil creía.
+            if let nueva, !(model.estadoTanda?.grabando ?? false) { etiqueta = nueva }
+        }
+    }
+
+    // MARK: El mando
+
+    private func estadoCard(_ estado: EstadoDeTanda) -> some View {
+        PadelCard {
+            VStack(spacing: 14) {
+                // Una orden que no hizo nada tiene que decir por qué: si no, el botón
+                // parece roto y lo siguiente es dejar de usar el mando.
+                if let motivo = model.avisoTanda {
+                    Label(motivo, systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(T.rojo)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                if estado.grabando {
+                    Text("\(estado.capturadosEnTanda)")
+                        .font(.padelDisplay(64))
+                        .monospacedDigit()
+                        .foregroundStyle(T.lima)
+                        .contentTransition(.numericText())
+                        .animation(.snappy, value: estado.capturadosEnTanda)
+                    Text("golpes de \(etiquetaLarga(estado.etiqueta)) en esta tanda")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                        .multilineTextAlignment(.center)
+
+                    if estado.sensoresPuedenPararse {
+                        // Sin permiso de entreno la app se suspende al apagarse la
+                        // pantalla y la tanda se queda a medias. Mejor decirlo que
+                        // devolver 10 golpes de 50 como si fueran todos.
+                        Text("Sin permiso de entreno en el reloj: la tanda puede cortarse al apagarse la pantalla")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(T.rojo)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button {
+                        model.ordenarTanda(.parar)
+                    } label: {
+                        Label("Parar tanda", systemImage: "stop.fill")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(T.rojo)
+                    .controlSize(.large)
+                } else {
+                    Text("Qué le pides")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    // Rejilla y no un selector: pulsar el golpe que quieres es un toque,
+                    // y desde fuera de la pista no se anda uno abriendo menús.
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
+                        ForEach(grabables, id: \.self) { tipo in
+                            Button {
+                                etiqueta = tipo
+                            } label: {
+                                Text(etiquetaLarga(tipo))
+                                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 10)
+                                    .background(
+                                        etiqueta == tipo ? T.limaTinte : T.borde.opacity(0.4),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    )
+                                    .foregroundStyle(etiqueta == tipo ? T.lima : T.tinta)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
+                    Button {
+                        model.ordenarTanda(.iniciar, etiqueta: etiqueta)
+                    } label: {
+                        Label("Grabar \(etiquetaLarga(etiqueta).lowercased())", systemImage: "record.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+
+                    HStack {
+                        Text("\(estado.guardadosEnTotal) golpes guardados en el reloj · \(estado.kilobytes) KB")
+                            .font(.system(size: 11, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                        Spacer()
+                        if estado.guardadosEnTotal > 0 {
+                            Button("Traer al móvil") { model.ordenarTanda(.enviar) }
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Quién lleva el reloj
+
+    /// Sin esto el mando sería medio inútil: las muestras se guardan con el alias y el
+    /// nivel técnico de quien las pegó, y son exactamente los dos datos que hay que
+    /// cambiar al pasarle el reloj a otra persona. Enterrados en Ajustes se olvidan, y
+    /// una tanda con el nivel de otro contamina la escala en vez de anclarla.
+    private func quienCard(_ estado: EstadoDeTanda) -> some View {
+        PadelCard(title: "Quién lleva el reloj", icon: "person.crop.circle") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Nombre")
+                        .font(.system(size: 14, design: .rounded))
+                        .foregroundStyle(T.tinta)
+                    Spacer()
+                    TextField("alias", text: $model.playerAlias)
+                        .multilineTextAlignment(.trailing)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .frame(maxWidth: 160)
+                }
+
+                Picker("Nivel técnico", selection: $model.playerLevelRaw) {
+                    Text("Sin declarar").tag(0)
+                    ForEach(1...7, id: \.self) { nivel in
+                        Text("Nivel \(nivel)").tag(nivel)
+                    }
+                }
+                .pickerStyle(.menu)
+
+                Text(estado.nivel == nil
+                     ? "Sin nivel declarado esta tanda mide golpes, pero no ancla la escala de nivel."
+                     : "Estas tandas se guardarán como nivel \(estado.nivel ?? 0), que es lo que ancla la escala.")
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    // MARK: Sin reloj a tiro
+
+    private var sinConexionCard: some View {
+        PadelCard {
+            VStack(spacing: 10) {
+                Image(systemName: "applewatch.slash")
+                    .font(.system(size: 32))
+                    .foregroundStyle(T.tintaSuave)
+                Text("El reloj no contesta")
+                    .font(.padelTitle())
+                    .foregroundStyle(T.tinta)
+                Text("Abre la app Rising Padel en el reloj y déjala en pantalla. Mientras la "
+                     + "tanda está grabando el reloj se mantiene despierto solo, así que solo "
+                     + "hace falta para empezar.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Reintentar") { model.ordenarTanda(.estado) }
+                    .buttonStyle(.borderedProminent)
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var ayudaCard: some View {
+        PadelCard(title: "Cómo sacarle partido", icon: "lightbulb") {
+            VStack(alignment: .leading, spacing: 8) {
+                linea("1.", "Pon el reloj en la muñeca de quien va a pegar y pon aquí su nombre y su nivel técnico.")
+                linea("2.", "Elige el golpe, dale a grabar y que pegue 30-40 seguidos solo de ese tipo.")
+                linea("3.", "Para la tanda, cambia de golpe y repite. Cada tipo con al menos una tanda.")
+                linea("4.", "Al terminar, en Ajustes → Datos de entrenamiento pulsa «Calibrar con las tandas».")
+            }
+        }
+    }
+
+    private func linea(_ numero: String, _ texto: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(numero)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(T.lima)
+            Text(texto)
+                .font(.system(size: 12, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func etiquetaLarga(_ tipo: ShotType) -> String {
+        ShotBreakdownChart.etiqueta(tipo)
+    }
+}
