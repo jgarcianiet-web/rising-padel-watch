@@ -430,8 +430,12 @@ final class LigaModel: ObservableObject {
     ]
 
     /// Un partido interrumpido se decide por sets ganados, como haría el jugador.
+    ///
+    /// Sin marcador **no hay resultado**, y decir "derrota" era mentira: un entreno
+    /// suelto guardado como partido llenaba la racha de derrotas que nadie había perdido
+    /// y bajaba el porcentaje de victorias por haber entrenado.
     private static func resultado(_ score: MatchScore?) -> String {
-        guard let score else { return "derrota" }
+        guard let score else { return ResultadoDePartido.sinResultado }
         if score.isFinished, let winner = score.winner {
             return winner == .us ? "victoria" : "derrota"
         }

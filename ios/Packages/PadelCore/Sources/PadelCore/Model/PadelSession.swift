@@ -202,6 +202,29 @@ public struct SessionReview: Codable, Equatable, Sendable {
     }
 }
 
+/// Lo que costó de batería medir esta sesión.
+///
+/// Es la pregunta que hace todo el mundo antes de comprar un reloj deportivo y la única
+/// que no se puede contestar mirando código: depende del reloj, de su edad, del frío y de
+/// si había pulso encendido. Se apunta el nivel al empezar y al acabar, y con unas cuantas
+/// sesiones la app da un número real en vez de una promesa.
+///
+/// Los porcentajes son 0-100 tal y como los da el sistema.
+public struct BatteryUse: Codable, Equatable, Sendable {
+    public let startPercent: Int
+    public let endPercent: Int
+
+    public init(startPercent: Int, endPercent: Int) {
+        self.startPercent = startPercent
+        self.endPercent = endPercent
+    }
+
+    /// Puntos de batería gastados. Negativo si el reloj estuvo cargando durante la
+    /// sesión: entonces el dato no vale y se descarta arriba, no se convierte en un cero
+    /// que parecería "no gastó nada".
+    public var consumido: Int { startPercent - endPercent }
+}
+
 /// Estado de sincronización de una sesión con la app de liga.
 public enum SyncState: String, Codable, Sendable {
     /// Aún no se ha intentado, o se reintentará.
@@ -259,6 +282,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public var sync: SyncStatus
     /// Corrección del jugador tras revisar los recuentos. Nil sin revisar.
     public var review: SessionReview?
+    /// Batería del reloj al empezar y al acabar. Nil si el reloj no supo decirla.
+    public var battery: BatteryUse?
 
     public var id: String { sessionId }
 
@@ -274,7 +299,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         games: [GameRecord] = [],
         matchRef: MatchRef? = nil,
         sync: SyncStatus = SyncStatus(),
-        review: SessionReview? = nil
+        review: SessionReview? = nil,
+        battery: BatteryUse? = nil
     ) {
         self.sessionId = sessionId
         self.source = source
@@ -288,6 +314,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         self.matchRef = matchRef
         self.sync = sync
         self.review = review
+        self.battery = battery
     }
 
     /// Versión del esquema que se declara al subir **esta** sesión.

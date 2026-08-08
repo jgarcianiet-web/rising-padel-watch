@@ -122,7 +122,10 @@ struct LigaView: View {
         // sigue enseñando todos los partidos.
         let matches = liga.matchesTemporadaActual
         let temporada = liga.temporadaActual
-        let victorias = matches.filter { $0.resultado == "victoria" }.count
+        // Solo cuentan los partidos con resultado: un entreno sin marcador no se ganó
+        // ni se perdió, y meterlo en el denominador castigaría entrenar.
+        let jugados = matches.filter { ResultadoDePartido.cuenta($0.resultado) }
+        let victorias = jugados.filter { $0.resultado == "victoria" }.count
         let racha = LigaMetrics.racha(matches)
         // El nivel medio de sesión sale del reloj (o de la curva si el campo directo
         // falta), como en el panel de la app Expo.
@@ -144,7 +147,7 @@ struct LigaView: View {
                             label: "Victorias",
                             value: matches.isEmpty
                                 ? "–"
-                                : "\(victorias) (\(victorias * 100 / matches.count)%)",
+                                : "\(victorias) (\(LigaMetrics.pctVictorias(matches))%)",
                             tint: T.verde
                         )
                         StatTile(
@@ -232,21 +235,9 @@ struct LigaView: View {
         .foregroundStyle(T.tintaSuave)
     }
 
-    private func badge(_ resultado: String) -> String {
-        switch resultado {
-        case "victoria": return "V"
-        case "empate": return "E"
-        default: return "D"
-        }
-    }
+    private func badge(_ resultado: String) -> String { ResultadoDePartido.letra(resultado) }
 
-    private func badgeColor(_ resultado: String) -> Color {
-        switch resultado {
-        case "victoria": return T.verde
-        case "empate": return T.tintaSuave
-        default: return T.rojo
-        }
-    }
+    private func badgeColor(_ resultado: String) -> Color { ResultadoDePartido.color(resultado) }
 
     private var emptyState: some View {
         ContentUnavailableView {

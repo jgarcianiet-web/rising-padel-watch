@@ -23,6 +23,7 @@ struct PrecisionView: View {
                     } else {
                         vacioCard
                     }
+                    bateriaCard
                     metodoCard
                 }
                 .padding(.horizontal, 16)
@@ -208,6 +209,53 @@ struct PrecisionView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: Lo que cuesta medir
+
+    /// Cuánta batería gasta el reloj midiendo.
+    ///
+    /// Es la primera pregunta que hace cualquiera antes de fiarse de un reloj deportivo,
+    /// y no se puede contestar desde el código: depende del modelo, de su edad, del frío
+    /// y de si el pulso estaba encendido. Lo único honesto es medirlo en el reloj de
+    /// quien pregunta, y eso es lo que hace esta tarjeta. Vive aquí, junto a la
+    /// precisión, porque las dos contestan lo mismo: si este reloj sirve o no.
+    @ViewBuilder
+    private var bateriaCard: some View {
+        PadelCard(title: "Lo que cuesta medir", icon: "battery.100") {
+            if let gasto = GastoDeBateria.de(model.sessions) {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(String(format: "%.0f%%", gasto.porHora))
+                            .font(.padelDisplay(34))
+                            .monospacedDigit()
+                            .foregroundStyle(T.tinta)
+                        Text("de batería por hora")
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                    Text(String(
+                        format: "A este ritmo, un reloj lleno aguanta unas %.0f horas de juego.",
+                        gasto.horasDeAutonomia
+                    ))
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(T.tinta)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text("Medido en tu reloj sobre \(gasto.sesiones) sesiones "
+                         + String(format: "(%.1f horas).", gasto.horas))
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                }
+            } else {
+                Text("Hacen falta \(GastoDeBateria.minSesiones) sesiones de más de "
+                     + "\(GastoDeBateria.minMinutos) minutos para poder decirlo. En sesiones "
+                     + "cortas el indicador de batería no se mueve lo suficiente y el número "
+                     + "saldría inventado.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

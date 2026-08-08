@@ -74,6 +74,8 @@ final class SessionController: ObservableObject {
 
     private var recorder: SessionRecorder?
     private var rutinaEnCurso: RutinaEnCurso?
+    /// Nivel de batería al empezar la sesión, 0-100. Nil si el reloj no supo darlo.
+    private var bateriaAlEmpezar: Int?
     private var ticker: Timer?
     private var scoreBoard: ScoreBoard?
 
@@ -431,9 +433,28 @@ final class SessionController: ObservableObject {
             }
         }
 
+        // La batería, antes de que el workout empiece a gastarla: es el "de dónde
+        // partimos" con el que se calcula el gasto de la sesión.
+        bateriaAlEmpezar = Self.nivelDeBateria()
+
         startTicker()
         status = .recording
         publishLiveState(completed: false)
+    }
+
+    // MARK: Batería
+
+    /// Nivel de batería del reloj, 0-100, o nil si el sistema no lo sabe.
+    ///
+    /// Hay que encender la monitorización antes de leer; sin ella `batteryLevel`
+    /// devuelve -1 siempre. Se enciende aquí y no en el arranque de la app porque solo
+    /// se lee en dos instantes: al empezar y al acabar la sesión.
+    private static func nivelDeBateria() -> Int? {
+        let device = WKInterfaceDevice.current()
+        device.isBatteryMonitoringEnabled = true
+        let nivel = device.batteryLevel
+        guard nivel >= 0 else { return nil }
+        return Int((nivel * 100).rounded())
     }
 
     // MARK: Rutina guiada
@@ -550,11 +571,17 @@ final class SessionController: ObservableObject {
         scoreBoard = nil
         score = nil
 
-        let session = recorder.finish(
+        var session = recorder.finish(
             endedAtEpochMs: Int64(Date().timeIntervalSince1970 * 1000),
             monotonicMs: Self.monotonicMs(),
             shareHealth: shareHealth
         )
+        // Cuánto costó medir esta sesión. No es un dato de salud —no sale del cuerpo de
+        // nadie— así que no depende del consentimiento: es una propiedad del reloj.
+        if let inicio = bateriaAlEmpezar, let fin = Self.nivelDeBateria() {
+            session.battery = BatteryUse(startPercent: inicio, endPercent: fin)
+        }
+        bateriaAlEmpezar = nil
         self.recorder = nil
 
         let queued = transport.send(session)

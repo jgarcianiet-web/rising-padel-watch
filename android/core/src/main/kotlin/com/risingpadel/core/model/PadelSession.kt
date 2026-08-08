@@ -124,6 +124,29 @@ data class HealthMetrics(
     }
 }
 
+/**
+ * Lo que costó de batería medir esta sesión.
+ *
+ * Es la pregunta que hace todo el mundo antes de comprar un reloj deportivo y la única
+ * que no se puede contestar mirando código: depende del reloj, de su edad, del frío y de
+ * si había pulso encendido. Se apunta el nivel al empezar y al acabar, y con unas cuantas
+ * sesiones la app da un número real en vez de una promesa.
+ *
+ * Los porcentajes son 0-100 tal y como los da el sistema.
+ */
+@Serializable
+data class BatteryUse(
+    val startPercent: Int,
+    val endPercent: Int,
+) {
+    /**
+     * Puntos de batería gastados. Negativo imposible: si el reloj estuvo cargando durante
+     * la sesión, el dato no vale y se descarta arriba, no se convierte en un cero que
+     * parecería "no gastó nada".
+     */
+    val consumido: Int get() = startPercent - endPercent
+}
+
 /** Estado de sincronización de una sesión con la app de liga. */
 @Serializable
 enum class SyncState {
@@ -184,6 +207,8 @@ data class PadelSession(
     val sync: SyncStatus = SyncStatus(),
     /** Corrección del jugador tras revisar los recuentos. Null sin revisar. */
     val review: SessionReview? = null,
+    /** Batería del reloj al empezar y al acabar. Null si el reloj no supo decirla. */
+    val battery: BatteryUse? = null,
 ) {
     val durationSeconds: Long get() = ((endedAtEpochMs - startedAtEpochMs) / 1000).coerceAtLeast(0)
 

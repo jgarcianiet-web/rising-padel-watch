@@ -300,19 +300,11 @@ struct LigaMatchDetailView: View {
     }
 
     private func badge(_ resultado: String) -> String {
-        switch resultado {
-        case "victoria": return "V"
-        case "empate": return "E"
-        default: return "D"
-        }
+        ResultadoDePartido.letra(resultado)
     }
 
     private func badgeColor(_ resultado: String) -> Color {
-        switch resultado {
-        case "victoria": return T.verde
-        case "empate": return T.tintaSuave
-        default: return T.rojo
-        }
+        ResultadoDePartido.color(resultado)
     }
 }
 

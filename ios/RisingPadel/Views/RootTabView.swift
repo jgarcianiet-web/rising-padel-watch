@@ -398,10 +398,16 @@ struct LastSessionView: View {
         }
     }
 
-    /// Los últimos cinco partidos de la liga, como letras: V V D V V.
+    /// Los últimos cinco partidos de la liga, como letras: V E D V V.
+    ///
+    /// Los entrenos sin marcador no entran: no se ganaron ni se perdieron, y meterlos
+    /// llenaba la racha de derrotas que nadie había perdido.
     @ViewBuilder
     private var racha: some View {
-        let ultimos = liga.matches.sorted { $0.id > $1.id }.prefix(5)
+        let ultimos = liga.matches
+            .filter { ResultadoDePartido.cuenta($0.resultado) }
+            .sorted { $0.id > $1.id }
+            .prefix(5)
         if !ultimos.isEmpty {
             HStack(spacing: 6) {
                 Text("RACHA")
@@ -409,12 +415,11 @@ struct LastSessionView: View {
                     .kerning(1.2)
                     .foregroundStyle(T.tintaSuave)
                 ForEach(Array(ultimos.enumerated()), id: \.offset) { _, match in
-                    let victoria = match.resultado == "victoria"
-                    Text(victoria ? "V" : "D")
+                    Text(ResultadoDePartido.letra(match.resultado))
                         .font(.system(size: 12, weight: .heavy, design: .rounded))
                         .foregroundStyle(.white)
                         .frame(width: 22, height: 22)
-                        .background(victoria ? T.verde : T.rojo, in: Circle())
+                        .background(ResultadoDePartido.color(match.resultado), in: Circle())
                 }
             }
         }

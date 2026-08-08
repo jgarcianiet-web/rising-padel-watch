@@ -106,10 +106,15 @@ enum LigaMetrics {
         return mejor
     }
 
+    /// Porcentaje de victorias sobre los partidos **con resultado**.
+    ///
+    /// Los entrenos sin marcador quedan fuera del denominador: si contaran, entrenar
+    /// bajaría tu porcentaje de victorias, que es exactamente al revés de lo que pasa.
     static func pctVictorias(_ matches: [LigaMatch]) -> Int {
-        guard !matches.isEmpty else { return 0 }
-        let victorias = matches.filter { $0.resultado == "victoria" }.count
-        return Int((Double(victorias) * 100 / Double(matches.count)).rounded())
+        let jugados = matches.filter { ResultadoDePartido.cuenta($0.resultado) }
+        guard !jugados.isEmpty else { return 0 }
+        let victorias = jugados.filter { $0.resultado == "victoria" }.count
+        return Int((Double(victorias) * 100 / Double(jugados.count)).rounded())
     }
 
     // MARK: Nivel Playtomic y meta

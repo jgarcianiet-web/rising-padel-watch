@@ -186,6 +186,22 @@ struct SessionDetailView: View {
                     )
                 }
 
+                // Lo que costó de batería medir la sesión. No es un dato de salud, es
+                // una propiedad del reloj, así que no depende del consentimiento.
+                if let bateria = session.battery, bateria.consumido >= 0,
+                   session.durationSeconds > 0 {
+                    let porHora = Float(bateria.consumido) * 3600 / Float(session.durationSeconds)
+                    Label(
+                        String(
+                            format: "Batería del reloj: %d%% en esta sesión (%.0f%%/hora)",
+                            bateria.consumido, porHora
+                        ),
+                        systemImage: "battery.50"
+                    )
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(T.tintaSuave)
+                }
+
                 if !session.profile.watchOnRacketArm {
                     warning("El reloj no estaba en el brazo de la pala: el conteo es orientativo.")
                 }
