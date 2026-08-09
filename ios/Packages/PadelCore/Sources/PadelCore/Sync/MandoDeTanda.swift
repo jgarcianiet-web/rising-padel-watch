@@ -8,10 +8,19 @@ import Foundation
 /// reloj, cambiar el tipo y volver a empezar. Eso rompe la tanda y, peor, invita a grabar
 /// menos tandas de las que hacen falta.
 ///
-/// Las órdenes van por `sendMessage` con respuesta y **nunca** por contexto de aplicación:
-/// un contexto se reentrega al reconectar, y una orden reentregada arrancaría una tanda
-/// que nadie ha pedido. Cada orden devuelve el estado completo del reloj, así que el
-/// móvil nunca tiene que adivinar en qué punto está.
+/// Las órdenes viajan por dos caminos y **nunca** por contexto de aplicación: un contexto
+/// se reentrega al reconectar, y una orden reentregada arrancaría una tanda que nadie ha
+/// pedido.
+///
+/// - Con el reloj a mano (su app en primer plano) va por `sendMessage`, que contesta al
+///   instante con el estado entero.
+/// - Con el reloj dormido va por `transferUserInfo`, que **encola** y despierta la app del
+///   reloj en segundo plano. Cada elemento se entrega una sola vez, así que no hay riesgo
+///   de reentrega, y el reloj devuelve su estado por el mismo camino.
+///
+/// El segundo camino es el que hace que el mando sirva para algo: mirar el móvil apaga la
+/// pantalla del reloj, y exigir que estuviera despierto era exigirlo justo en el momento
+/// en que no puede estarlo.
 public enum AccionDeTanda: String, Codable, Sendable {
     /// No cambia nada: solo pregunta cómo va. Es lo que refresca el contador.
     case estado
@@ -26,14 +35,29 @@ public struct OrdenDeTanda: Codable, Sendable {
     public let accion: AccionDeTanda
     /// Tipo de golpe que se va a grabar. Solo lo mira `iniciar`.
     public let etiqueta: ShotType?
+    /// Cuándo se dio la orden. Nil en órdenes de versiones viejas.
+    public let creadoEpochMs: Int64?
 
-    public init(accion: AccionDeTanda, etiqueta: ShotType? = nil) {
+    public init(accion: AccionDeTanda, etiqueta: ShotType? = nil, creadoEpochMs: Int64? = nil) {
         self.accion = accion
         self.etiqueta = etiqueta
+        self.creadoEpochMs = creadoEpochMs
     }
 
     /// La clave del mensaje en WatchConnectivity. Una sola, compartida por los dos lados.
     public static let clave = "padel_mando_tanda"
+
+    /// Una orden encolada puede tardar en llegar si el reloj estaba sin cobertura. Pasado
+    /// este rato ya no se obedece: arrancar una tanda diez minutos después de pedirla, con
+    /// el reloj otra vez en la muñeca de otro, es peor que no arrancarla.
+    public static let maxAntiguedadMs: Int64 = 3 * 60_000
+
+    /// ¿Sigue vigente esta orden? Las de `estado` siempre lo están: no cambian nada.
+    public func vigente(ahoraEpochMs: Int64) -> Bool {
+        if accion == .estado { return true }
+        guard let creadoEpochMs else { return true }
+        return ahoraEpochMs - creadoEpochMs <= Self.maxAntiguedadMs
+    }
 }
 
 /// Lo que el reloj contesta a cualquier orden: su estado entero.
@@ -56,6 +80,10 @@ public struct EstadoDeTanda: Codable, Sendable, Equatable {
     /// todo en orden. Sin esto, pulsar "Grabar" durante un partido deja un botón que
     /// parece roto en vez de una explicación.
     public let motivo: String?
+
+    /// La clave con la que el reloj devuelve su estado cuando la orden vino encolada y
+    /// no había a quién contestar en el momento.
+    public static let clave = "padel_estado_tanda"
 
     public init(
         grabando: Bool,

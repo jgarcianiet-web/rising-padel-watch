@@ -315,6 +315,13 @@ final class SessionController: ObservableObject {
     /// No se toca nada si hay un partido en marcha: una tanda de datos y una sesión de
     /// juego usan el mismo sensor, y arrancar una encima de la otra estropearía las dos.
     func atender(_ orden: OrdenDeTanda) async -> EstadoDeTanda {
+        // Una orden encolada puede llegar tarde: el reloj estaba sin cobertura, o en la
+        // muñeca de otro. Arrancar una tanda diez minutos después de pedirla sorprende
+        // más de lo que ayuda, así que caduca. Preguntar el estado nunca caduca.
+        guard orden.vigente(ahoraEpochMs: Int64(Date().timeIntervalSince1970 * 1000)) else {
+            return estadoDeTanda(motivo: "La orden llegó tarde y no se ha ejecutado")
+        }
+
         var motivo: String?
         switch orden.accion {
         case .estado:

@@ -62,11 +62,17 @@ La misma pantalla lleva el **nombre y el nivel técnico de quien lleva el reloj*
 los dos datos que hay que cambiar al pasárselo a otro. Enterrados en Ajustes se olvidan, y
 una tanda guardada con el nivel de otra persona contamina la escala en vez de anclarla.
 
-> El reloj tiene que estar **alcanzable** para recibir la orden: con la app abierta en
-> pantalla. Una vez la tanda arranca ya se mantiene despierto solo (el workout lo
-> sostiene), así que solo hace falta para empezar. Las órdenes van por mensaje directo y
-> nunca por contexto replicado: un contexto se reentrega al reconectar, y una orden
-> reentregada arrancaría una tanda que nadie ha pedido.
+> **No hace falta tener el reloj despierto.** Con su app en primer plano la orden llega al
+> instante y el contador se actualiza en vivo; con el reloj dormido la orden queda
+> encolada y el sistema despierta la app del reloj para entregarla, y el reloj devuelve su
+> estado por el mismo camino. Esto último es lo que hace que el mando sirva: mirar el
+> móvil apaga la pantalla del reloj, así que exigir que estuviera despierto era exigirlo
+> justo cuando no puede estarlo.
+>
+> Las órdenes nunca van por contexto replicado: un contexto se reentrega al reconectar y
+> arrancaría una tanda que nadie ha pedido. Y una orden encolada **caduca a los tres
+> minutos**: si el reloj estuvo sin cobertura, arrancar la tanda mucho después sorprende
+> más de lo que ayuda.
 
 ### Cuántos y de quién
 

@@ -79,6 +79,17 @@ final class PhoneTransport: NSObject {
         try? session.updateApplicationContext([Self.liveScoreKey: data])
     }
 
+    /// Devuelve el estado de la tanda al iPhone por la vía encolada.
+    ///
+    /// Se usa cuando la orden llegó dormida (`transferUserInfo`): entonces no hay a quién
+    /// contestar en el momento, y sin este camino de vuelta el móvil se quedaría con un
+    /// "esperando" para siempre aunque la tanda ya estuviera grabando.
+    func enviarEstadoDeTanda(_ estado: EstadoDeTanda) {
+        guard WCSession.isSupported(), session.activationState == .activated,
+              let data = try? encoder.encode(estado) else { return }
+        session.transferUserInfo([EstadoDeTanda.clave: data])
+    }
+
     /// Envía el fichero de datos de entrenamiento al iPhone.
     ///
     /// `transferFile` y no `transferUserInfo` porque el fichero puede pesar decenas de
@@ -113,17 +124,15 @@ extension PhoneTransport: WCSessionDelegate {
         applyContext(context)
     }
 
-    /// Las órdenes del mando. Se contesta **siempre**, aunque sea con un diccionario
-    /// vacío: si no, el móvil se queda esperando hasta que expire el mensaje y el usuario
-    /// ve un botón que no responde sin saber por qué.
+    /// Las órdenes del mando cuando el reloj está despierto. Se contesta **siempre**,
+    /// aunque sea con un diccionario vacío: si no, el móvil se queda esperando hasta que
+    /// expire el mensaje y el usuario ve un botón que no responde sin saber por qué.
     func session(
         _ session: WCSession,
         didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
-        guard let data = message[OrdenDeTanda.clave] as? Data,
-              let orden = try? JSONDecoder().decode(OrdenDeTanda.self, from: data),
-              let manejador = onTrainingCommand else {
+        guard let orden = Self.orden(en: message), let manejador = onTrainingCommand else {
             replyHandler([:])
             return
         }
@@ -134,5 +143,22 @@ extension PhoneTransport: WCSessionDelegate {
             }
             replyHandler([OrdenDeTanda.clave: respuesta])
         }
+    }
+
+    /// Las órdenes encoladas, que llegan con el reloj dormido y despiertan la app en
+    /// segundo plano. Es el camino que hace que el mando funcione de verdad: mirar el
+    /// móvil apaga la pantalla del reloj, y con ella la vía directa.
+    func session(_ session: WCSession, didReceiveUserInfo userInfo: [String: Any]) {
+        guard let orden = Self.orden(en: userInfo), let manejador = onTrainingCommand else {
+            return
+        }
+        manejador(orden) { [weak self] estado in
+            self?.enviarEstadoDeTanda(estado)
+        }
+    }
+
+    private static func orden(en payload: [String: Any]) -> OrdenDeTanda? {
+        guard let data = payload[OrdenDeTanda.clave] as? Data else { return nil }
+        return try? JSONDecoder().decode(OrdenDeTanda.self, from: data)
     }
 }

@@ -24,12 +24,13 @@ struct TrainingRemoteView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 12) {
-                    if let estado = model.estadoTanda {
-                        estadoCard(estado)
-                        quienCard(estado)
-                    } else {
-                        sinConexionCard
-                    }
+                    conexionBanner
+                    // Los controles están siempre, conteste el reloj o no. Antes, sin
+                    // respuesta no había pantalla, y como mirar el móvil apaga la
+                    // pantalla del reloj, eso pasaba casi siempre: el mando se quedaba
+                    // en un "no se puede conectar" del que no se salía.
+                    estadoCard(model.estadoTanda)
+                    quienCard
                     ayudaCard
                 }
                 .padding(.horizontal, 16)
@@ -67,7 +68,7 @@ struct TrainingRemoteView: View {
 
     // MARK: El mando
 
-    private func estadoCard(_ estado: EstadoDeTanda) -> some View {
+    private func estadoCard(_ estado: EstadoDeTanda?) -> some View {
         PadelCard {
             VStack(spacing: 14) {
                 // Una orden que no hizo nada tiene que decir por qué: si no, el botón
@@ -78,19 +79,19 @@ struct TrainingRemoteView: View {
                         .foregroundStyle(T.rojo)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                if estado.grabando {
-                    Text("\(estado.capturadosEnTanda)")
+                if estado?.grabando == true {
+                    Text("\(estado?.capturadosEnTanda ?? 0)")
                         .font(.padelDisplay(64))
                         .monospacedDigit()
                         .foregroundStyle(T.lima)
                         .contentTransition(.numericText())
-                        .animation(.snappy, value: estado.capturadosEnTanda)
-                    Text("golpes de \(etiquetaLarga(estado.etiqueta)) en esta tanda")
+                        .animation(.snappy, value: estado?.capturadosEnTanda ?? 0)
+                    Text("golpes de \(etiquetaLarga(estado?.etiqueta ?? etiqueta)) en esta tanda")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(T.tintaSuave)
                         .multilineTextAlignment(.center)
 
-                    if estado.sensoresPuedenPararse {
+                    if estado?.sensoresPuedenPararse == true {
                         // Sin permiso de entreno la app se suspende al apagarse la
                         // pantalla y la tanda se queda a medias. Mejor decirlo que
                         // devolver 10 golpes de 50 como si fueran todos.
@@ -147,11 +148,13 @@ struct TrainingRemoteView: View {
                     .controlSize(.large)
 
                     HStack {
-                        Text("\(estado.guardadosEnTotal) golpes guardados en el reloj · \(estado.kilobytes) KB")
+                        Text(estado.map {
+                            "\($0.guardadosEnTotal) golpes guardados en el reloj · \($0.kilobytes) KB"
+                        } ?? "El reloj todavía no ha dicho qué tiene guardado")
                             .font(.system(size: 11, design: .rounded))
                             .foregroundStyle(T.tintaSuave)
                         Spacer()
-                        if estado.guardadosEnTotal > 0 {
+                        if (estado?.guardadosEnTotal ?? 0) > 0 {
                             Button("Traer al móvil") { model.ordenarTanda(.enviar) }
                                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                         }
@@ -167,7 +170,7 @@ struct TrainingRemoteView: View {
     /// nivel técnico de quien las pegó, y son exactamente los dos datos que hay que
     /// cambiar al pasarle el reloj a otra persona. Enterrados en Ajustes se olvidan, y
     /// una tanda con el nivel de otro contamina la escala en vez de anclarla.
-    private func quienCard(_ estado: EstadoDeTanda) -> some View {
+    private var quienCard: some View {
         PadelCard(title: "Quién lleva el reloj", icon: "person.crop.circle") {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
@@ -190,9 +193,9 @@ struct TrainingRemoteView: View {
                 }
                 .pickerStyle(.menu)
 
-                Text(estado.nivel == nil
+                Text(model.playerLevelRaw <= 0
                      ? "Sin nivel declarado esta tanda mide golpes, pero no ancla la escala de nivel."
-                     : "Estas tandas se guardarán como nivel \(estado.nivel ?? 0), que es lo que ancla la escala.")
+                     : "Estas tandas se guardarán como nivel \(model.playerLevelRaw), que es lo que ancla la escala.")
                     .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(T.tintaSuave)
                     .fixedSize(horizontal: false, vertical: true)
@@ -200,29 +203,53 @@ struct TrainingRemoteView: View {
         }
     }
 
-    // MARK: Sin reloj a tiro
+    // MARK: Cómo va la conexión
 
-    private var sinConexionCard: some View {
-        PadelCard {
-            VStack(spacing: 10) {
-                Image(systemName: "applewatch.slash")
-                    .font(.system(size: 32))
-                    .foregroundStyle(T.tintaSuave)
-                Text("El reloj no contesta")
-                    .font(.padelTitle())
-                    .foregroundStyle(T.tinta)
-                Text("Abre la app Rising Padel en el reloj y déjala en pantalla. Mientras la "
-                     + "tanda está grabando el reloj se mantiene despierto solo, así que solo "
-                     + "hace falta para empezar.")
-                    .font(.system(size: 12, design: .rounded))
-                    .foregroundStyle(T.tintaSuave)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("Reintentar") { model.ordenarTanda(.estado) }
-                    .buttonStyle(.borderedProminent)
+    /// Un aviso, no una pared. El reloj dormido no impide mandar la orden — solo hace
+    /// que tarde en confirmarse.
+    @ViewBuilder
+    private var conexionBanner: some View {
+        switch model.conexionDelMando {
+        case .directa:
+            EmptyView()
+        case .enCola:
+            if model.ordenEsperando {
+                aviso(
+                    icono: "paperplane.fill",
+                    color: T.pista,
+                    texto: "Orden enviada. El reloj la atenderá en cuanto despierte — "
+                        + "levanta la muñeca o abre la app para que sea ahora."
+                )
+            } else {
+                aviso(
+                    icono: "clock.arrow.circlepath",
+                    color: T.tintaSuave,
+                    texto: model.estadoTanda == nil
+                        ? "El reloj está dormido. Las órdenes se le mandan igual y las atiende al despertar; para verlo al instante, abre la app en el reloj."
+                        : "El reloj está dormido: lo que ves es lo último que dijo. Las órdenes le llegan igual."
+                )
             }
-            .frame(maxWidth: .infinity)
+        case .imposible:
+            aviso(
+                icono: "applewatch.slash",
+                color: T.rojo,
+                texto: "No hay ningún Apple Watch emparejado con la app instalada."
+            )
         }
+    }
+
+    private func aviso(icono: String, color: Color, texto: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icono)
+                .font(.system(size: 13, weight: .semibold))
+            Text(texto)
+                .font(.system(size: 11, design: .rounded))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(color)
+        .padding(12)
+        .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private var ayudaCard: some View {

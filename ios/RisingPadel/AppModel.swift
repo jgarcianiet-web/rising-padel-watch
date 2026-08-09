@@ -69,6 +69,10 @@ final class AppModel: ObservableObject {
                 Task { @MainActor in self?.receiveLive(state) }
             }
         )
+        // El reloj devuelve su estado por la cola cuando la orden le llegó dormido.
+        receiver.onEstadoDeTanda = { [weak self] estado in
+            Task { @MainActor in self?.aplicarEstadoDeTanda(estado, deOrden: nil) }
+        }
         receiver.activate()
         self.receiver = receiver
         refreshTrainingData()
@@ -424,10 +428,21 @@ final class AppModel: ObservableObject {
 
     // MARK: Mando de tandas
 
+    /// Cómo va la conexión con el reloj para el mando de tandas.
+    enum ConexionDelMando {
+        /// El reloj contesta al momento: su app está despierta.
+        case directa
+        /// La orden va encolada y el reloj contestará al despertar. Tarda, pero llega.
+        case enCola
+        /// No hay reloj emparejado o WatchConnectivity no está disponible.
+        case imposible
+    }
+
     /// Último estado que contestó el reloj. Nil = todavía no ha contestado ninguno.
     @Published private(set) var estadoTanda: EstadoDeTanda?
-    /// Si el reloj no está a tiro, el mando no puede hacer nada y hay que decirlo.
-    @Published private(set) var relojAlcanzable = false
+    @Published private(set) var conexionDelMando: ConexionDelMando = .enCola
+    /// Hay una orden esperando a que el reloj despierte. Se limpia cuando contesta.
+    @Published private(set) var ordenEsperando = false
     /// Por qué la última orden no hizo lo que se le pidió. Sobrevive a los sondeos de
     /// estado a propósito: si se borrara con el siguiente latido, el aviso duraría dos
     /// segundos y el usuario se quedaría con un botón que parece roto.
@@ -440,28 +455,56 @@ final class AppModel: ObservableObject {
     /// un botón. Si el reloj no contesta, el estado se pone a nil en vez de dejar el
     /// anterior: un contador congelado que parece vivo es peor que un "sin conexión".
     func ordenarTanda(_ accion: AccionDeTanda, etiqueta: ShotType? = nil) {
-        relojAlcanzable = receiver?.relojAlcanzable ?? false
-        guard let receiver, relojAlcanzable else {
-            estadoTanda = nil
+        guard let receiver else {
+            conexionDelMando = .imposible
             return
         }
-        receiver.enviarOrden(OrdenDeTanda(accion: accion, etiqueta: etiqueta)) { [weak self] estado in
+        let orden = OrdenDeTanda(
+            accion: accion,
+            etiqueta: etiqueta,
+            creadoEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+        // Preguntar el estado no encola: se sondea cada dos segundos y despertar el
+        // reloj (o llenarle la cola de preguntas viejas) por eso no compensa. Las
+        // órdenes que cambian algo sí esperan a que despierte.
+        receiver.enviarOrden(orden, encolarSiDuerme: accion != .estado) { [weak self] envio in
             Task { @MainActor in
                 guard let self else { return }
-                self.estadoTanda = estado
-                self.relojAlcanzable = estado != nil
-                if let motivo = estado?.motivo {
-                    self.avisoTanda = motivo
-                } else if accion != .estado {
-                    // Una orden nueva que sí funcionó limpia el aviso de la anterior.
-                    self.avisoTanda = nil
+                switch envio {
+                case .directa(let estado):
+                    self.conexionDelMando = .directa
+                    self.ordenEsperando = false
+                    self.aplicarEstadoDeTanda(estado, deOrden: accion)
+                case .encolada:
+                    // El estado anterior se queda: el reloj sigue como estaba, solo que
+                    // todavía no lo ha confirmado. Borrarlo dejaría la pantalla en
+                    // blanco cada vez que la muñeca se baja, que es siempre.
+                    self.conexionDelMando = .enCola
+                    self.ordenEsperando = true
+                case .dormido:
+                    self.conexionDelMando = .enCola
+                case .imposible:
+                    self.conexionDelMando = .imposible
                 }
-                // Lo que el reloj mande llega como fichero y actualiza el contador solo,
-                // pero refrescar aquí hace que el número del móvil no se quede viejo si
-                // el envío ya había terminado antes de abrir la pantalla.
-                self.refreshTrainingData()
             }
         }
+    }
+
+    /// Aplica un estado del reloj, venga por respuesta directa o encolado más tarde.
+    fileprivate func aplicarEstadoDeTanda(_ estado: EstadoDeTanda, deOrden accion: AccionDeTanda?) {
+        estadoTanda = estado
+        conexionDelMando = .directa
+        ordenEsperando = false
+        if let motivo = estado.motivo {
+            avisoTanda = motivo
+        } else if let accion, accion != .estado {
+            // Una orden nueva que sí funcionó limpia el aviso de la anterior.
+            avisoTanda = nil
+        }
+        // Lo que el reloj mande llega como fichero y actualiza el contador solo, pero
+        // refrescar aquí hace que el número del móvil no se quede viejo si el envío ya
+        // había terminado antes de abrir la pantalla.
+        refreshTrainingData()
     }
 
     func refreshTrainingData() {
