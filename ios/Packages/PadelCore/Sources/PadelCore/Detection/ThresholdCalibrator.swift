@@ -14,6 +14,19 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     public var smashPeakGyroRadS: Float?
     public var viboraAxialRadS: Float?
     public var volleyAxialMaxRadS: Float?
+    /// El eje del antebrazo lee la elevación al revés en este reloj.
+    ///
+    /// Se decide **con tandas etiquetadas** y no en vivo. Antes lo decidía una media
+    /// larga de la sesión: si el brazo salía "en alto" un rato, se daba por invertido.
+    /// Esa regla no puede distinguir "el sensor está al revés" de "este jugador acaba de
+    /// dar treinta bandejas", y una tanda de golpes altos es exactamente el caso que la
+    /// dispara en falso — justo cuando la elevación más falta hace. En pista (ago 2026)
+    /// llegó a oscilar dentro de una misma tanda: cinco saques seguidos salieron tres
+    /// con preparación +45..+49 y dos con −46..−49.
+    ///
+    /// Aquí no hay ambigüedad: si en las tandas los golpes altos se preparan más abajo
+    /// que los bajos, el eje está invertido. Lo dice la etiqueta, no una suposición.
+    public var ejeDeElevacionInvertido: Bool?
     /// Cuántos golpeos etiquetados la sostienen.
     public var muestras: Int
     public var creadoEpochMs: Int64
