@@ -101,6 +101,9 @@ public struct ShotFeatures: Codable, Equatable, Sendable {
         peakElevationDeg =
             try container.decodeIfPresent(Float.self, forKey: .peakElevationDeg) ?? elevationDeg
         prepElevationDeg = try container.decodeIfPresent(Float.self, forKey: .prepElevationDeg)
+        peakAxialRotationRadS =
+            try container.decodeIfPresent(Float.self, forKey: .peakAxialRotationRadS)
+        elevationDropDeg = try container.decodeIfPresent(Float.self, forKey: .elevationDropDeg)
     }
 }
 

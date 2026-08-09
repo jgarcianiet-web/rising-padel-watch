@@ -198,12 +198,4 @@ public enum ThresholdCalibrator {
         }.count
         return Float(buenos) / Float(etiquetados.count)
     }
-}// ── Víbora contra bandeja: la ALTURA del golpeo ──
-        // Las dos se preparan igual; la víbora se golpea más baja. Ojo al orden de los
-        // argumentos: aquí la familia "alta" es la BANDEJA, al revés que en los demás
-        // rasgos, porque lo que define a la víbora es quedarse por debajo.
-        let alturaVibora = etiquetados.filter { $0.0 == .vibora }
-            .map { $0.1.peakElevationDeg * giro }
-        let alturaBandeja = etiquetados.filter { $0.0 == .bandeja }
-            .map { $0.1.peakElevationDeg * giro }
-        let vibora = frontera(bajos: alturaVibora, altos: alturaBandeja, rango: -10...45)
+}

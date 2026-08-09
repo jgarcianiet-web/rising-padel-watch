@@ -163,7 +163,7 @@ public final class ShotDetector {
             if gyroMag > peakGyroRadS { peakGyroRadS = gyroMag }
             // El pico de rotación axial se mide muestra a muestra: una víbora no rota
             // todo el swing, da un latigazo al final, y la media lo borra.
-            let axialAhora = classifier.axialRotation(current.gyro)
+            let axialAhora = classifier.axialRotation(meanGyro: current.gyro)
             if abs(axialAhora) > abs(peakAxialRadS) { peakAxialRadS = axialAhora }
             swingElevations.append(classifier.elevationDeg(gravity: current.gravity))
 
