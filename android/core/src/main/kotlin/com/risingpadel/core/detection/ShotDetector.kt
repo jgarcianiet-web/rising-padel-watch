@@ -33,6 +33,7 @@ import kotlin.math.abs
  * como la bandeja o la volea; si es `impactoConSwingCorto`, sobran `minSwingMs` o
  * `minPeakGyroRadS`.
  */
+@kotlinx.serialization.Serializable
 data class DescartesDelDetector(
     /** Hubo impacto pero el swing fue corto o flojo: `minSwingMs` / `minPeakGyroRadS`. */
     val impactoConSwingCorto: Int = 0,

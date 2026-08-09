@@ -162,8 +162,5 @@ private fun linea(etiqueta: String, valor: String) {
     }
 }
 
-private fun resultadoLargo(resultado: String) = when (resultado) {
-    "victoria" -> "Victoria"
-    "empate" -> "Empate"
-    else -> "Derrota"
-}
+private fun resultadoLargo(resultado: String) =
+    com.risingpadel.mobile.ui.ResultadoDePartido.nombre(resultado)

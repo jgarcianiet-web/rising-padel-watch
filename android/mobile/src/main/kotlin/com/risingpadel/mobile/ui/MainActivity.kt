@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -54,6 +55,8 @@ private object Routes {
     const val LIGA_DETAIL = "liga/{matchId}"
     const val COMUNIDAD = "comunidad"
     const val SETTINGS = "settings"
+    const val TANDA = "tanda"
+    const val PRECISION = "precision"
     const val DETAIL = "sessions/{sessionId}"
 
     fun detail(sessionId: String) = "sessions/$sessionId"
@@ -123,6 +126,10 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
     val preferences by viewModel.preferences.collectAsStateWithLifecycle()
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    // El resumen de la última calibración, para poder enseñarlo debajo del botón.
+    var resumenCalibracion by androidx.compose.runtime.saveable.rememberSaveable {
+        androidx.compose.runtime.mutableStateOf<String?>(null)
+    }
 
     LaunchedEffect(message) {
         message?.let {
@@ -199,6 +206,13 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                         playerAverageLevel = playerAverageLevel,
                         onOpenSession = { navController.navigate(Routes.detail(last.sessionId)) },
                         onOpenSettings = { navController.navigate(Routes.SETTINGS) },
+                        // Solo para quien construye el detector: a un cliente normal un
+                        // "tu reloj acierta el 58%" le quita la confianza en lo que sí va.
+                        onOpenPrecision = if (preferences.developerMode) {
+                            { navController.navigate(Routes.PRECISION) }
+                        } else {
+                            null
+                        },
                     )
                 }
             }
@@ -283,6 +297,51 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                     onVersionTapped = viewModel::onVersionTapped,
                     onExportTrainingData = { shareTrainingData(context, viewModel) },
                     onDeleteTrainingData = viewModel::deleteTrainingData,
+                    onOpenMando = { navController.navigate(Routes.TANDA) },
+                    onCalibrar = {
+                        viewModel.calibrarConTandas { resultado ->
+                            resumenCalibracion = resultado?.let {
+                                val antes = (it.aciertoAntes * 100).toInt()
+                                val despues = (it.aciertoDespues * 100).toInt()
+                                "Calibrado con ${it.calibracion.muestras} golpes tuyos: " +
+                                    "acierto sobre tus tandas $antes% → $despues%"
+                            } ?: "Todavía no hay tandas con las que calibrar"
+                        }
+                    },
+                    onBorrarCalibracion = {
+                        viewModel.borrarCalibracion()
+                        resumenCalibracion = null
+                    },
+                    resumenCalibracion = resumenCalibracion,
+                )
+            }
+
+            composable(Routes.TANDA) {
+                val estadoTanda by viewModel.estadoDeTanda.collectAsStateWithLifecycle()
+                val conexion by viewModel.conexionDelMando.collectAsStateWithLifecycle()
+                val avisoTanda by viewModel.avisoTanda.collectAsStateWithLifecycle()
+                val esperando by viewModel.ordenEsperando.collectAsStateWithLifecycle()
+                com.risingpadel.mobile.ui.screens.TandaRemotaScreen(
+                    estado = estadoTanda,
+                    conexion = conexion,
+                    aviso = avisoTanda,
+                    esperando = esperando,
+                    alias = preferences.playerAlias,
+                    nivel = preferences.playerLevel,
+                    onAlias = viewModel::setPlayerAlias,
+                    onNivel = viewModel::setPlayerLevel,
+                    onOrden = viewModel::ordenarTanda,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+
+            composable(Routes.PRECISION) {
+                com.risingpadel.mobile.ui.screens.PrecisionScreen(
+                    informe = remember(sessions) { viewModel.informeDePrecision(sessions) },
+                    bateria = remember(sessions) {
+                        com.risingpadel.core.analytics.GastoDeBateria.de(sessions)
+                    },
+                    onBack = { navController.popBackStack() },
                 )
             }
         }

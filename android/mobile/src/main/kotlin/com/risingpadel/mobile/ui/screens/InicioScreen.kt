@@ -33,6 +33,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.mobile.data.LigaStore
+import com.risingpadel.mobile.ui.ResultadoDePartido
 import com.risingpadel.mobile.ui.formatDuration
 import com.risingpadel.mobile.ui.formatSessionDate
 
@@ -48,6 +49,8 @@ fun InicioScreen(
     playerAverageLevel: Float?,
     onOpenSession: () -> Unit,
     onOpenSettings: () -> Unit,
+    /** Solo en modo desarrollador: a un cliente normal, "acierta el 58%" no le sirve. */
+    onOpenPrecision: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     // La liga se relee al entrar: la portada mezcla sesiones y partidos.
@@ -58,7 +61,12 @@ fun InicioScreen(
     } else {
         liga.matches
     }
-    val ultimos = liga.matches.sortedByDescending { it.id }.take(5)
+    // Solo los que tienen resultado: un entreno guardado sin marcador no es una derrota,
+    // y colarlo en la racha pintaba una D por haber entrenado.
+    val ultimos = liga.matches
+        .filter { ResultadoDePartido.cuenta(it.resultado) }
+        .sortedByDescending { it.id }
+        .take(5)
     val nivel = session.level.takeIf { it.gradedShots > 0 }?.overall ?: playerAverageLevel
 
     Scaffold(
@@ -115,14 +123,17 @@ fun InicioScreen(
                         ) {
                             Text("RACHA", style = MaterialTheme.typography.labelSmall)
                             ultimos.forEach { match ->
-                                val victoria = match.resultado == "victoria"
+                                val letra = ResultadoDePartido.letra(match.resultado)
                                 Text(
-                                    if (victoria) "V" else "D",
+                                    letra,
                                     modifier = Modifier
                                         .size(22.dp)
                                         .background(
-                                            if (victoria) MaterialTheme.colorScheme.primary
-                                            else MaterialTheme.colorScheme.error,
+                                            when (letra) {
+                                                "V" -> MaterialTheme.colorScheme.primary
+                                                "E" -> MaterialTheme.colorScheme.outline
+                                                else -> MaterialTheme.colorScheme.error
+                                            },
                                             CircleShape,
                                         ),
                                     color = MaterialTheme.colorScheme.onPrimary,
@@ -197,6 +208,18 @@ fun InicioScreen(
                         Text("VER →", style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Black,
                             color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+
+            onOpenPrecision?.let { abrir ->
+                Card(onClick = abrir, modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Precisión del reloj", style = MaterialTheme.typography.labelMedium)
+                        Text(
+                            "Cuánto acierta al decir qué golpe fue, tipo por tipo",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
             }

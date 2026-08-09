@@ -21,6 +21,10 @@ import com.risingpadel.core.liga.LigaMapper
 import com.risingpadel.mobile.data.LigaStore
 import com.risingpadel.mobile.PadelMobileApp
 import com.risingpadel.mobile.data.AppPreferences
+import com.risingpadel.core.sync.AccionDeTanda
+import com.risingpadel.core.sync.EstadoDeTanda
+import com.risingpadel.mobile.sync.BuzonDeTanda
+import com.risingpadel.mobile.sync.ConexionDelMando
 import com.risingpadel.mobile.sync.SyncScheduler
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -28,6 +32,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -50,6 +55,7 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
             restaurarCopiaSiHaceFalta()
         }
         replicateSettingsToWatch()
+        escucharAlReloj()
     }
 
     /**
@@ -182,6 +188,58 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
 
     fun borrarCalibracion() {
         viewModelScope.launch { container.settings.setCalibration(null) }
+    }
+
+    // MARK: Mando de tandas
+
+    /** Lo último que contestó el reloj. Null mientras no haya contestado nunca. */
+    val estadoDeTanda: StateFlow<EstadoDeTanda?> = BuzonDeTanda.estado
+
+    val conexionDelMando: StateFlow<ConexionDelMando> = container.tandaRemote.conexion
+
+    /** Una orden que se mandó y todavía no ha tenido respuesta del reloj. */
+    private val _ordenEsperando = MutableStateFlow(false)
+    val ordenEsperando: StateFlow<Boolean> = _ordenEsperando.asStateFlow()
+
+    private val _avisoTanda = MutableStateFlow<String?>(null)
+    val avisoTanda: StateFlow<String?> = _avisoTanda.asStateFlow()
+
+    /**
+     * Manda una orden al reloj.
+     *
+     * El aviso se limpia al mandar y se vuelve a poner con lo que conteste el reloj: si
+     * se dejara el anterior, un "no había nada grabando" de hace dos minutos parecería la
+     * respuesta a la orden de ahora.
+     */
+    fun ordenarTanda(accion: AccionDeTanda, etiqueta: ShotType? = null) {
+        viewModelScope.launch {
+            _avisoTanda.value = null
+            _ordenEsperando.value = true
+            val entregada = container.tandaRemote.ordenar(accion, etiqueta)
+            if (!entregada) {
+                _ordenEsperando.value = false
+                _avisoTanda.value = "No se pudo conectar con el reloj"
+            }
+        }
+    }
+
+    fun limpiarAvisoDeTanda() {
+        _avisoTanda.value = null
+    }
+
+    /**
+     * Escucha lo que contesta el reloj: apaga la espera y enseña el motivo si lo hay.
+     *
+     * Sin esto, una orden que el reloj rechaza —"hay un partido en marcha"— dejaría el
+     * botón girando para siempre, que es la peor forma de decir que algo no ha ido.
+     */
+    private fun escucharAlReloj() {
+        viewModelScope.launch {
+            BuzonDeTanda.estado.filterNotNull().collect { estado ->
+                _ordenEsperando.value = false
+                estado.motivo?.let { _avisoTanda.value = it }
+            }
+        }
     }
 
     fun deleteSession(sessionId: String) {

@@ -6,6 +6,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +24,18 @@ class MainActivity : ComponentActivity() {
 
     private var bodySensorsDenied by mutableStateOf(false)
 
+    /**
+     * La rutina elegida, a la espera de que el usuario conteste a los permisos.
+     *
+     * El servicio lee esto al arrancar y no puede arrancarse antes de saber qué ha
+     * contestado el usuario: desde Android 14 un servicio en primer plano de tipo
+     * `health` sin ningún permiso de salud concedido lanza SecurityException.
+     */
+    private var rutinaPendiente: String? = null
+
+    /** Venimos del aviso que dejó el móvil: hay que abrir la tanda y arrancarla. */
+    private var arrancarTandaAlAbrir = false
+
     private val requestPermissions =
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
             // La FC y los pasos son opcionales: sin ellos la app sigue contando golpeos,
@@ -32,12 +45,14 @@ class MainActivity : ComponentActivity() {
             // primer plano de tipo `health`, y desde Android 14 arrancar uno de ese tipo
             // sin ningún permiso de salud concedido lanza SecurityException. Hay que
             // esperar a saber qué ha contestado el usuario.
-            PadelExerciseService.start(this)
+            PadelExerciseService.start(this, rutinaPendiente)
+            rutinaPendiente = null
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val container = (application as PadelWearApp).container
+        arrancarTandaAlAbrir = intent?.action == ACTION_ARRANCAR_TANDA
 
         setContent {
             val state by PadelExerciseService.state.collectAsStateWithLifecycle()
@@ -45,7 +60,16 @@ class MainActivity : ComponentActivity() {
             val preferences by container.settings.preferences
                 .collectAsStateWithLifecycle(initialValue = WearPreferences())
             val training by container.trainingSession.state.collectAsStateWithLifecycle()
-            var showTraining by remember { mutableStateOf(false) }
+            var showTraining by remember { mutableStateOf(arrancarTandaAlAbrir) }
+            var showRutinas by remember { mutableStateOf(false) }
+
+            // El móvil pidió una tanda con la app cerrada y Android no dejó arrancarla
+            // sola; el jugador ha tocado el aviso, que es el toque que la desbloquea.
+            LaunchedEffect(Unit) {
+                if (!arrancarTandaAlAbrir) return@LaunchedEffect
+                arrancarTandaAlAbrir = false
+                if (!training.recording) PadelExerciseService.startTraining(this@MainActivity)
+            }
 
             MaterialTheme {
                 val liveScore = score
@@ -63,6 +87,24 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onExit = { showTraining = false },
+                    )
+                    return@MaterialTheme
+                }
+
+                if (showRutinas && state.status == SessionStatus.IDLE) {
+                    RutinaChooser(
+                        onPick = { rutina ->
+                            showRutinas = false
+                            // Igual que en el arranque normal: los ajustes se escriben
+                            // ANTES de pedir permisos, porque el servicio los lee al
+                            // arrancar y una escritura en paralelo podría llegar tarde.
+                            lifecycleScope.launch {
+                                container.settings.update(preferences.copy(trackScore = false))
+                                rutinaPendiente = rutina.id
+                                requestPermissions.launch(requiredPermissions())
+                            }
+                        },
+                        onBack = { showRutinas = false },
                     )
                     return@MaterialTheme
                 }
@@ -89,6 +131,7 @@ class MainActivity : ComponentActivity() {
                         deuceFormat = preferences.deuceFormat,
                         collectTrainingData = preferences.collectTrainingData,
                         onOpenTraining = { showTraining = true },
+                        onOpenRutinas = { showRutinas = true },
                         // Los ajustes se escriben ANTES de pedir permisos: el servicio
                         // lee las preferencias al arrancar, y si la escritura fuera en
                         // paralelo podría ver todavía el modo anterior.
@@ -107,6 +150,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onStop = { PadelExerciseService.stop(this) },
+                        onSkipStep = { PadelExerciseService.skipStep(this) },
                         onDone = { PadelExerciseService.acknowledge() },
                     )
                 }
@@ -121,4 +165,9 @@ class MainActivity : ComponentActivity() {
             add(Manifest.permission.POST_NOTIFICATIONS)
         }
     }.toTypedArray()
+
+    companion object {
+        /** El aviso del reloj que arranca una tanda pedida desde el móvil. */
+        const val ACTION_ARRANCAR_TANDA = "com.risingpadel.wear.ARRANCAR_TANDA"
+    }
 }

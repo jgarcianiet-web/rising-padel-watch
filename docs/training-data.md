@@ -74,6 +74,20 @@ una tanda guardada con el nivel de otra persona contamina la escala en vez de an
 > minutos**: si el reloj estuvo sin cobertura, arrancar la tanda mucho después sorprende
 > más de lo que ayuda.
 
+En **Wear OS** el mando es el mismo y está en el mismo sitio, pero el camino cambia: las
+órdenes van por `MessageClient`, que entrega cada mensaje una sola vez y hace que Play
+Services despierte la app del reloj aunque esté cerrada. No van por `DataClient` por el
+mismo motivo por el que en Apple no van por contexto: un data item se reentrega al
+reconectar.
+
+> **La única diferencia real.** Desde Android 12 una app en segundo plano no puede
+> levantar un servicio en primer plano, y la tanda necesita uno para que los sensores
+> sigan con la pantalla apagada. Con la app del reloj abierta la tanda arranca sola; con
+> la app cerrada, el reloj deja un aviso tocable —"tanda pedida desde el móvil"— y el
+> móvil lo dice con esas palabras en vez de fingir que arrancó. El toque del usuario es lo
+> que levanta la restricción; parar, enviar y preguntar el estado no la tienen y funcionan
+> siempre.
+
 ### Cuántos y de quién
 
 | Necesitas | Por qué |

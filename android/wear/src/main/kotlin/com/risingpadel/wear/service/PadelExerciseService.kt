@@ -24,6 +24,9 @@ import com.risingpadel.core.score.Side
 import com.risingpadel.core.session.SessionRecorder
 import com.risingpadel.core.sync.LiveScorePayload
 import com.risingpadel.core.sync.toPayload
+import com.risingpadel.core.training.ProgresoDeRutina
+import com.risingpadel.core.training.Rutina
+import com.risingpadel.core.training.RutinaEnCurso
 import java.time.Instant
 import com.risingpadel.wear.PadelWearApp
 import com.risingpadel.wear.R
@@ -49,6 +52,12 @@ data class SessionUiState(
     val activeEnergyKcal: Float? = null,
     val lastShotType: ShotType? = null,
     val wrongWristWarning: Boolean = false,
+    /** Nombre de la rutina que se está haciendo, si la sesión tiene guion. */
+    val rutinaNombre: String? = null,
+    /** El ejercicio que toca ahora. Null si no hay rutina o si ya terminó. */
+    val rutina: ProgresoDeRutina? = null,
+    /** La rutina se completó entera. Se enseña hasta que el jugador cierra la sesión. */
+    val rutinaTerminada: Boolean = false,
     /** Nivel técnico de la sesión. Solo al terminar: en vivo no aporta y distrae. */
     val level: SessionLevel? = null,
     val errorMessage: String? = null,
@@ -69,6 +78,15 @@ class PadelExerciseService : LifecycleService() {
 
     private var mode = Mode.SESSION
     private var recorder: SessionRecorder? = null
+
+    /**
+     * La rutina en marcha, si la sesión tiene guion.
+     *
+     * Vive en el servicio y no en la Activity porque la sesión sobrevive a que se apague
+     * la pantalla: llevar la cuenta en la UI la perdería en el primer bloqueo, que es
+     * exactamente cuando el jugador está dando los golpes.
+     */
+    private var rutina: RutinaEnCurso? = null
     /** Nivel de batería al empezar, 0-100. Null si el sistema no lo supo decir. */
     private var bateriaAlEmpezar: Int? = null
 
@@ -96,9 +114,10 @@ class PadelExerciseService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
-            ACTION_START -> startSession()
+            ACTION_START -> startSession(intent.getStringExtra(EXTRA_RUTINA))
             ACTION_START_TRAINING -> startTraining()
             ACTION_STOP -> if (mode == Mode.TRAINING) stopTraining() else stopSession()
+            ACTION_SKIP_STEP -> saltarPasoDeRutina()
             else -> stopSelf()
         }
         return START_NOT_STICKY
@@ -158,10 +177,17 @@ class PadelExerciseService : LifecycleService() {
         stopForegroundAndSelf()
     }
 
-    private fun startSession() {
+    private fun startSession(rutinaId: String? = null) {
         if (_state.value.status == SessionStatus.RECORDING) return
         mode = Mode.SESSION
-        _state.value = SessionUiState(status = SessionStatus.PREPARING)
+        rutina = rutinaId
+            ?.let { id -> Rutina.DE_FABRICA.firstOrNull { it.id == id } }
+            ?.let { RutinaEnCurso(it) }
+        _state.value = SessionUiState(
+            status = SessionStatus.PREPARING,
+            rutinaNombre = rutina?.rutina?.nombre,
+            rutina = rutina?.progreso,
+        )
         if (!goForeground()) return
 
         lifecycleScope.launch {
@@ -214,6 +240,7 @@ class PadelExerciseService : LifecycleService() {
                     .collect { sample ->
                         newRecorder.onMotion(sample)?.let { shot ->
                             _state.value = _state.value.copy(lastShotType = shot.type)
+                            anotarEnRutina(shot.type, container)
                         }
                     }
             }
@@ -234,6 +261,39 @@ class PadelExerciseService : LifecycleService() {
                 wrongWristWarning = !preferences.profile.watchOnRacketArm,
             )
         }
+    }
+
+    /**
+     * Apunta el golpe en la rutina y avisa con el motor de vibración si cambia el paso.
+     *
+     * Solo cuentan los golpes del tipo que toca: si contara cualquiera, la rutina se
+     * completaría sola peloteando y dejaría de ser un entrenamiento.
+     */
+    private fun anotarEnRutina(type: ShotType, container: com.risingpadel.wear.WearContainer) {
+        val enCurso = rutina ?: return
+        val evento = enCurso.onShot(type)
+        container.haptics.rutina(evento)
+        _state.value = _state.value.copy(
+            rutina = enCurso.progreso,
+            rutinaTerminada = enCurso.terminada,
+        )
+    }
+
+    /**
+     * Salta el ejercicio en curso.
+     *
+     * Hace falta de verdad: se acaban las pelotas, al compañero le duele el hombro o el
+     * detector no está cogiendo un golpe y el ejercicio se queda atascado. Sin salida, la
+     * rutina pasa de ayudar a estorbar.
+     */
+    private fun saltarPasoDeRutina() {
+        val enCurso = rutina ?: return
+        val evento = enCurso.saltarPaso()
+        (application as PadelWearApp).container.haptics.rutina(evento)
+        _state.value = _state.value.copy(
+            rutina = enCurso.progreso,
+            rutinaTerminada = enCurso.terminada,
+        )
     }
 
     private suspend fun startExerciseTracking(container: com.risingpadel.wear.WearContainer) {
@@ -299,6 +359,7 @@ class PadelExerciseService : LifecycleService() {
                 )
             }
             bateriaAlEmpezar = null
+            rutina = null
             recorder = null
 
             val sent = runCatching { container.phoneSender.send(session) }.isSuccess
@@ -429,15 +490,26 @@ class PadelExerciseService : LifecycleService() {
         private const val CHANNEL_ID = "padel_session"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_START = "com.risingpadel.wear.START"
+        const val ACTION_SKIP_STEP = "com.risingpadel.wear.SKIP_STEP"
+        const val EXTRA_RUTINA = "rutina_id"
         const val ACTION_START_TRAINING = "com.risingpadel.wear.START_TRAINING"
         const val ACTION_STOP = "com.risingpadel.wear.STOP"
 
         private val _state = MutableStateFlow(SessionUiState())
         val state: StateFlow<SessionUiState> = _state.asStateFlow()
 
-        fun start(context: Context) {
+        fun start(context: Context, rutinaId: String? = null) {
             context.startForegroundService(
-                Intent(context, PadelExerciseService::class.java).setAction(ACTION_START)
+                Intent(context, PadelExerciseService::class.java)
+                    .setAction(ACTION_START)
+                    .putExtra(EXTRA_RUTINA, rutinaId)
+            )
+        }
+
+        /** Salta el ejercicio en curso de la rutina y pasa al siguiente. */
+        fun skipStep(context: Context) {
+            context.startService(
+                Intent(context, PadelExerciseService::class.java).setAction(ACTION_SKIP_STEP)
             )
         }
 

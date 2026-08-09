@@ -68,5 +68,23 @@
             </intent-filter>
         </service>
 
+        <!--
+            El mando a distancia de las tandas: el móvil ordena, el reloj obedece. Va por
+            mensaje y no por data item porque un data item se reentrega al reconectar, y
+            una orden reentregada arrancaría una tanda que nadie ha pedido.
+        -->
+        <service
+            android:name=".transport.TandaCommandService"
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_WEARABLE_LISTENER">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data
+                    android:scheme="wear"
+                    android:host="*"
+                    android:pathPrefix="/padel/mando-tanda" />
+            </intent-filter>
+        </service>
+
     </application>
 </manifest>

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.risingpadel.core.liga.LigaMatch
 import com.risingpadel.core.liga.LigaMetrics
 import com.risingpadel.mobile.data.LigaStore
+import com.risingpadel.mobile.ui.ResultadoDePartido
 
 /**
  * La Liga Personal en Android: primer tramo de paridad con iOS.
@@ -229,16 +230,12 @@ private fun MatchRow(match: LigaMatch, onClick: () -> Unit) {
                 }
             }
             Text(
-                when (match.resultado) {
-                    "victoria" -> "V"
-                    "empate" -> "E"
-                    else -> "D"
-                },
+                ResultadoDePartido.letra(match.resultado),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Black,
-                color = when (match.resultado) {
-                    "victoria" -> MaterialTheme.colorScheme.primary
-                    "empate" -> MaterialTheme.colorScheme.outline
+                color = when (ResultadoDePartido.letra(match.resultado)) {
+                    "V" -> MaterialTheme.colorScheme.primary
+                    "E", "—" -> MaterialTheme.colorScheme.outline
                     else -> MaterialTheme.colorScheme.error
                 },
             )

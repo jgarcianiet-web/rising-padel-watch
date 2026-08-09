@@ -43,6 +43,17 @@ class TrainingSession(context: Context) {
     private val _state = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = _state.asStateFlow()
 
+    /**
+     * Los swings que el detector tiró en la tanda en curso, con el motivo.
+     *
+     * Se guarda al parar para que el resumen siga en pie con la tanda ya cerrada: es
+     * justo cuando el móvil pregunta cómo ha ido. Null antes de la primera tanda.
+     */
+    val descartes: com.risingpadel.core.detection.DescartesDelDetector?
+        get() = recorder?.descartes ?: descartesDeLaUltima
+
+    private var descartesDeLaUltima: com.risingpadel.core.detection.DescartesDelDetector? = null
+
     init {
         refreshStoredCounts()
     }
@@ -73,6 +84,7 @@ class TrainingSession(context: Context) {
         }
         newRecorder.start(monotonicMs)
         recorder = newRecorder
+        descartesDeLaUltima = null
         _state.value = _state.value.copy(recording = true, capturedInBatch = 0)
     }
 
@@ -92,6 +104,7 @@ class TrainingSession(context: Context) {
         val current = recorder ?: return
         store.appendAll(current.stop())
         val captured = current.capturedCount
+        descartesDeLaUltima = current.descartes
         recorder = null
         _state.value = _state.value.copy(recording = false, capturedInBatch = captured)
         refreshStoredCounts()

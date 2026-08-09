@@ -36,9 +36,11 @@ fun PadelWearScreen(
     deuceFormat: DeuceFormat,
     collectTrainingData: Boolean,
     onOpenTraining: () -> Unit,
+    onOpenRutinas: () -> Unit,
     onStartMatch: (DeuceFormat) -> Unit,
     onStartFree: () -> Unit,
     onStop: () -> Unit,
+    onSkipStep: () -> Unit,
     onDone: () -> Unit,
 ) {
     // Con varios botones la columna no cabe en un reloj pequeño; sin scroll, lo de
@@ -57,11 +59,12 @@ fun PadelWearScreen(
                 deuceFormat = deuceFormat,
                 collectTrainingData = collectTrainingData,
                 onOpenTraining = onOpenTraining,
+                onOpenRutinas = onOpenRutinas,
                 onStartMatch = onStartMatch,
                 onStartFree = onStartFree,
             )
             SessionStatus.PREPARING -> LoadingContent("Preparando…")
-            SessionStatus.RECORDING -> RecordingContent(state, onStop)
+            SessionStatus.RECORDING -> RecordingContent(state, onStop, onSkipStep)
             SessionStatus.SAVING -> LoadingContent("Guardando…")
             SessionStatus.SAVED -> SummaryContent(state, onDone)
             SessionStatus.ERROR -> ErrorContent(state.errorMessage, onDone)
@@ -80,6 +83,7 @@ private fun IdleContent(
     deuceFormat: DeuceFormat,
     collectTrainingData: Boolean,
     onOpenTraining: () -> Unit,
+    onOpenRutinas: () -> Unit,
     onStartMatch: (DeuceFormat) -> Unit,
     onStartFree: () -> Unit,
 ) {
@@ -120,6 +124,15 @@ private fun IdleContent(
     Chip(
         onClick = onStartFree,
         label = { Text("Entreno", style = MaterialTheme.typography.button) },
+        colors = ChipDefaults.secondaryChipColors(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp),
+    )
+    // Entreno con guion: el reloj canta el ejercicio y lleva la cuenta.
+    Chip(
+        onClick = onOpenRutinas,
+        label = { Text("Rutina", style = MaterialTheme.typography.button) },
         colors = ChipDefaults.secondaryChipColors(),
         modifier = Modifier
             .fillMaxWidth()
@@ -190,7 +203,25 @@ private fun LoadingContent(label: String) {
 }
 
 @Composable
-private fun RecordingContent(state: SessionUiState, onStop: () -> Unit) {
+private fun RecordingContent(
+    state: SessionUiState,
+    onStop: () -> Unit,
+    onSkipStep: () -> Unit,
+) {
+    // Con rutina, lo que manda es el ejercicio: el contador de golpeos de la sesión
+    // entera no dice nada útil a mitad de una tanda de veinte bandejas.
+    state.rutina?.let { progreso ->
+        RutinaEnCursoPanel(progreso = progreso, onSaltar = onSkipStep)
+        Button(onClick = onStop, modifier = Modifier.padding(top = 6.dp)) {
+            Text("Parar")
+        }
+        return
+    }
+    if (state.rutinaTerminada) {
+        RutinaTerminadaPanel(onParar = onStop)
+        return
+    }
+
     Text(
         text = "${state.shotCount}",
         style = MaterialTheme.typography.display1,
@@ -308,9 +339,11 @@ private fun RecordingPreview() {
             deuceFormat = DeuceFormat.STAR_POINT,
             collectTrainingData = false,
             onOpenTraining = {},
+            onOpenRutinas = {},
             onStartMatch = {},
             onStartFree = {},
             onStop = {},
+            onSkipStep = {},
             onDone = {},
         )
     }

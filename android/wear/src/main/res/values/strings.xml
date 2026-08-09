@@ -4,4 +4,7 @@
     <string name="session_channel_name">Sesión de pádel</string>
     <string name="session_in_progress">Midiendo sesión de pádel</string>
     <string name="session_progress_format">%1$d golpeos · %2$d min</string>
+    <string name="tanda_channel_name">Tandas desde el móvil</string>
+    <string name="tanda_aviso_titulo">Tanda pedida desde el móvil</string>
+    <string name="tanda_aviso_texto">Toca para empezar a grabar</string>
 </resources>

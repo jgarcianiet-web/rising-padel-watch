@@ -54,6 +54,10 @@ fun SettingsScreen(
     onPlayerLevelChange: (Int?) -> Unit,
     onExportTrainingData: () -> Unit,
     onDeleteTrainingData: () -> Unit,
+    onOpenMando: () -> Unit,
+    onCalibrar: () -> Unit,
+    onBorrarCalibracion: () -> Unit,
+    resumenCalibracion: String? = null,
     onVersionTapped: () -> Unit,
 ) {
     Scaffold(
@@ -92,6 +96,10 @@ fun SettingsScreen(
                     onLevelChange = onPlayerLevelChange,
                     onExport = onExportTrainingData,
                     onDelete = onDeleteTrainingData,
+                    onOpenMando = onOpenMando,
+                    onCalibrar = onCalibrar,
+                    onBorrarCalibracion = onBorrarCalibracion,
+                    resumenCalibracion = resumenCalibracion,
                 )
             }
             AboutCard(
@@ -268,6 +276,10 @@ private fun TrainingDataCard(
     onLevelChange: (Int?) -> Unit,
     onExport: () -> Unit,
     onDelete: () -> Unit,
+    onOpenMando: () -> Unit,
+    onCalibrar: () -> Unit,
+    onBorrarCalibracion: () -> Unit,
+    resumenCalibracion: String?,
 ) {
     var alias by remember(preferences.playerAlias) { mutableStateOf(preferences.playerAlias) }
 
@@ -320,12 +332,44 @@ private fun TrainingDataCard(
                 }
             }
 
+            // Grabar tandas desde aquí y no desde la muñeca: el que dirige el ejercicio
+            // no es el que lleva el reloj, y pararlo todo para cambiar de golpe entre
+            // tanda y tanda es la razón por la que se graban pocas.
+            Button(
+                onClick = onOpenMando,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
+            ) {
+                Text("Dirigir tandas desde el móvil")
+            }
+
             if (preferences.trainingDataBytes > 0) {
                 Text(
                     "${preferences.trainingDataBytes / 1024} KB recogidos",
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                // Lo que convierte una tanda en algo útil hoy mismo, sin ordenador y sin
+                // modelo entrenado: tus etiquetas mueven tus umbrales.
+                Button(onClick = onCalibrar, modifier = Modifier.fillMaxWidth()) {
+                    Text("Calibrar con las tandas")
+                }
+                resumenCalibracion?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+                if (preferences.calibration != null) {
+                    OutlinedButton(
+                        onClick = onBorrarCalibracion,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Volver a los umbrales de fábrica")
+                    }
+                }
                 Button(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
                     Text("Exportar")
                 }
