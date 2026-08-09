@@ -127,9 +127,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
     val message by viewModel.message.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
     // El resumen de la última calibración, para poder enseñarlo debajo del botón.
-    var resumenCalibracion by androidx.compose.runtime.saveable.rememberSaveable {
-        androidx.compose.runtime.mutableStateOf<String?>(null)
-    }
+    var resumenCalibracion by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
     LaunchedEffect(message) {
         message?.let {
