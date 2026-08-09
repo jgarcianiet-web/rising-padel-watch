@@ -115,12 +115,21 @@ final class SessionController: ObservableObject {
     ///
     /// El clasificador invierte el eje él solo para la muñeca izquierda (modela el
     /// hardware girado, cosa que watchOS ya normaliza), así que aquí se le pre-compensa
-    /// para que el eje efectivo sea -Y en las dos muñecas.
+    /// para que el eje efectivo sea el mismo en las dos muñecas.
+    ///
+    /// **El signo se giró con datos de pista (ago 2026).** Cuarenta golpes etiquetados,
+    /// ocho tipos de cinco: los golpes altos —remate, bandeja, víbora— medían −40° de
+    /// preparación y −12° de pico, y los de fondo +16° y +46°. Es decir, exactamente al
+    /// revés de lo que pasa en una pista. Con el signo girado, la puerta de "¿fue un
+    /// golpe alto?" acierta 38 de 40; antes no pasaba ni uno.
+    ///
+    /// El valor anterior se había "validado" en la época en que la autocalificación del
+    /// signo oscilaba dentro de una misma tanda, así que se validó contra ruido.
     private func detectorConfig() -> DetectorConfig {
         var config = DetectorConfig.default.withSensitivity(
             Sensitivity(rawValue: sensitivityRaw) ?? .medium
         )
-        config.forearmAxis = profile.watchWrist == .right ? Vector3(0, -1, 0) : Vector3(0, 1, 0)
+        config.forearmAxis = profile.watchWrist == .right ? Vector3(0, 1, 0) : Vector3(0, -1, 0)
         // Los umbrales del jugador, sacados de sus tandas etiquetadas: la calibración
         // se calcula en el móvil (que tiene el fichero) y viaja con los ajustes.
         if let calibration = storedCalibration {

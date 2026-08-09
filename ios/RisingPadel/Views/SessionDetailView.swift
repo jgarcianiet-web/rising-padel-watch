@@ -408,6 +408,21 @@ struct SessionDetailView: View {
                         ))
                         .font(.system(size: 10, design: .monospaced))
                         .foregroundStyle(T.tintaSuave)
+                        // Los dos rasgos nuevos, en su propia línea: son los que tienen
+                        // que separar la víbora de la bandeja (el pico de rotación, que
+                        // la media borra) y el remate de las dos (cuánto cae el brazo).
+                        if shot.features.peakAxialRotationRadS != nil
+                            || shot.features.elevationDropDeg != nil {
+                            Text(String(
+                                format: "pico axial %@ · caída %@",
+                                shot.features.peakAxialRotationRadS
+                                    .map { String(format: "%+.1f", $0) } ?? "—",
+                                shot.features.elevationDropDeg
+                                    .map { String(format: "%+.0f°", $0) } ?? "—"
+                            ))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(T.lima)
+                        }
                     }
                 }
                 Text("""

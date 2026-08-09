@@ -5,6 +5,7 @@ import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.model.Shot
 import com.risingpadel.core.model.ShotFeatures
 import com.risingpadel.core.model.Vector3
+import kotlin.math.abs
 
 /**
  * Detector de golpeos en streaming. Ver `docs/shot-detection.md`.
@@ -70,6 +71,8 @@ class ShotDetector(
     private var swingStartMs = 0L
     private var sweptAngleRad = 0f
     private var peakGyroRadS = 0f
+    /** Mayor rotación axial vista en el swing, con su signo. */
+    private var peakAxialRadS = 0f
 
     /**
      * Elevación del antebrazo en cada muestra del swing. Se guarda la serie entera —como
@@ -97,6 +100,7 @@ class ShotDetector(
         pendingSweptRad = 0f
         sweptAngleRad = 0f
         peakGyroRadS = 0f
+        peakAxialRadS = 0f
         refractoryUntilMs = Long.MIN_VALUE
         descartes = DescartesDelDetector()
     }
@@ -156,6 +160,10 @@ class ShotDetector(
             State.SWINGING -> {
                 sweptAngleRad += gyroMag * dt
                 if (gyroMag > peakGyroRadS) peakGyroRadS = gyroMag
+                // El pico de rotación axial se mide muestra a muestra: una víbora no
+                // rota todo el swing, da un latigazo al final, y la media lo borra.
+                val axialAhora = classifier.axialRotation(s.gyro)
+                if (abs(axialAhora) > abs(peakAxialRadS)) peakAxialRadS = axialAhora
                 swingElevations += classifier.elevationDeg(s.gravity)
 
                 val duration = s.timestampMs - swingStartMs
@@ -248,6 +256,11 @@ class ShotDetector(
             swingDurationMs = durationMs,
             peakElevationDeg = percentile(elevations, 0.8f),
             prepElevationDeg = prepElevationDeg,
+            peakAxialRotationRadS = peakAxialRadS,
+            // De lo más alto del swing a donde estaba el brazo al golpear. Positivo =
+            // el brazo bajó, que es la firma del remate.
+            elevationDropDeg = if (swingElevations.isEmpty()) null else
+                percentile(elevations, 0.9f) - classifier.elevationDeg(impact.gravity),
         )
         val classification = classifier.classify(features)
         val shot = Shot(
@@ -269,6 +282,7 @@ class ShotDetector(
         pendingSweptRad = 0f
         sweptAngleRad = 0f
         peakGyroRadS = 0f
+        peakAxialRadS = 0f
         swingElevations.clear()
     }
 

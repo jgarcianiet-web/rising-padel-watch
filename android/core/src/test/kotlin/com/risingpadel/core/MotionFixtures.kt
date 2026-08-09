@@ -32,6 +32,11 @@ object MotionFixtures {
      * @param axialFraction fracción de la rotación que va sobre el eje del antebrazo,
      *   con signo: positivo = lado de derecha, negativo = lado de revés.
      * @param elevationDeg elevación del antebrazo sobre la horizontal en el impacto.
+     *   **Convenio medido en pista (ago 2026)** con el eje del antebrazo ya bien
+     *   orientado: los golpes de fondo y las voleas caen entre −3° y −75°, y los altos
+     *   entre −2° y +36°. La frontera está en la horizontal, no a 50° sobre ella — las
+     *   cifras de antes (+78, +85 para un alto; +10 para una derecha) venían del eje
+     *   invertido y no se parecían a lo que mide el reloj.
      */
     fun swing(
         startMs: Long,
@@ -126,7 +131,7 @@ object MotionFixtures {
         swingDurationMs = 300,
         impactG = 6.5f,
         axialFraction = 0.8f,
-        elevationDeg = 10f,
+        elevationDeg = -40f,
     )
 
     fun backhand(startMs: Long) = swing(
@@ -135,7 +140,7 @@ object MotionFixtures {
         swingDurationMs = 300,
         impactG = 5.5f,
         axialFraction = -0.8f,
-        elevationDeg = 8f,
+        elevationDeg = -40f,
     )
 
     fun forehandVolley(startMs: Long) = swing(
@@ -143,8 +148,12 @@ object MotionFixtures {
         peakGyroRadS = 7f,
         swingDurationMs = 280,
         impactG = 4.0f,
-        axialFraction = 0.75f,
-        elevationDeg = 12f,
+        // 0,2 y no 0,75: una volea real es la pala QUIETA. Las ocho voleas de revés
+        // medidas en pista llevaban |axial| 0,3-3,8 sobre picos de 10-16 rad/s, o sea
+        // fracciones de 0,03 a 0,3. Con 0,75 la volea sintética llevaba más efecto que
+        // una derecha de fondo, que es lo contrario de lo que define una volea.
+        axialFraction = 0.2f,
+        elevationDeg = -25f,
     )
 
     fun backhandVolley(startMs: Long) = swing(
@@ -152,8 +161,8 @@ object MotionFixtures {
         peakGyroRadS = 7f,
         swingDurationMs = 280,
         impactG = 4.0f,
-        axialFraction = -0.75f,
-        elevationDeg = 12f,
+        axialFraction = -0.2f,
+        elevationDeg = -25f,
     )
 
     /** Bandeja / smash: brazo alto y swing contenido. */
@@ -164,7 +173,7 @@ object MotionFixtures {
         swingDurationMs = 250,
         impactG = 6f,
         axialFraction = 0.2f,
-        elevationDeg = 78f,
+        elevationDeg = 20f,
     )
 
     /**
@@ -178,7 +187,7 @@ object MotionFixtures {
         swingDurationMs = 240,
         impactG = 8f,
         axialFraction = 0.5f,
-        elevationDeg = 80f,
+        elevationDeg = 15f,
     )
 
     /** Smash: el remate — violento y corto, con el pico de giro por encima de todo. */
@@ -188,7 +197,7 @@ object MotionFixtures {
         swingDurationMs = 170,
         impactG = 10f,
         axialFraction = 0.3f,
-        elevationDeg = 85f,
+        elevationDeg = 25f,
     )
 
     /** Saque: BAJO como el del pádel — se arma a la cintura — con un barrido enorme. */
@@ -198,7 +207,7 @@ object MotionFixtures {
         swingDurationMs = 350,
         impactG = 9f,
         axialFraction = 0.6f,
-        elevationDeg = 15f,
+        elevationDeg = -30f,
     )
 
     private const val BASELINE_ACCEL_G = 0.2f

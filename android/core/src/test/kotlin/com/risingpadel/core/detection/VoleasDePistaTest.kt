@@ -10,23 +10,38 @@ import kotlin.test.assertTrue
  * Verdad-terreno de pista (ago 2026): una tanda de 8 voleas de revés reales. Con la
  * regla vieja, tres caían como golpes de fondo (barridos de 147-170°) y otras tres
  * se ejecutaban por confianza baja (la fórmula castigaba el axial bajo, que es justo
- * lo que define una volea). Los vectores son los medidos, tal cual salieron del
- * diagnóstico del reloj.
+ * lo que define una volea).
+ *
+ * **La elevación medida en esta tanda no se usa.** Se grabó con la autocalibración del
+ * signo puesta, que llegó a oscilar dentro de una misma tanda, así que sus grados no
+ * describen dónde estaba el brazo. El resto de rasgos —barrido, rotación axial y pico—
+ * no dependen de la gravedad y son los que esta prueba fija; la elevación se sustituye
+ * por la que mide el reloj ya corregido en un golpe a la altura del pecho.
  */
 class VoleasDePistaTest {
 
     private val classifier = ShotClassifier()
 
+    /** Los dos primeros parámetros eran la elevación medida; se ignoran a propósito. */
     private fun rasgos(
-        elev: Float, alto: Float, axial: Float, barrido: Float, pico: Float
+        @Suppress("UNUSED_PARAMETER") elev: Float,
+        @Suppress("UNUSED_PARAMETER") alto: Float,
+        axial: Float,
+        barrido: Float,
+        pico: Float,
     ) = ShotFeatures(
         sweptAngleDeg = barrido,
         peakGyroRadS = pico,
-        elevationDeg = elev,
+        elevationDeg = ELEVACION_DE_PECHO,
         axialRotationRadS = axial,
         swingDurationMs = 250,
-        peakElevationDeg = alto,
+        peakElevationDeg = ELEVACION_DE_PECHO,
     )
+
+    private companion object {
+        /** Lo que mide el reloj corregido en un golpe a la altura del pecho. */
+        const val ELEVACION_DE_PECHO = -25f
+    }
 
     private val voleasReales = listOf(
         rasgos(-6f, -2f, -0.7f, 62f, 11.9f),

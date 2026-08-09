@@ -53,6 +53,19 @@ public struct ShotFeatures: Codable, Equatable, Sendable {
     /// postura de preparación es el testigo honesto de si el golpe se armó en alto.
     /// Nil en sesiones grabadas antes de que existiera el rasgo.
     public let prepElevationDeg: Float?
+    /// Pico de rotación axial durante el swing, no la media.
+    ///
+    /// La media no distingue una víbora de una bandeja: en pista (ago 2026) las dos
+    /// dieron −2,0 y −1,9 rad/s. Y es lógico — una víbora **no** rota todo el rato, da
+    /// un latigazo al final, y promediarlo sobre 200° de arco lo borra. El pico sí lo ve.
+    /// Nil en sesiones grabadas antes de medirlo.
+    public let peakAxialRotationRadS: Float?
+    /// Cuánto **baja** el brazo entre lo más alto del swing y el impacto, en grados.
+    ///
+    /// Es lo que separa el remate de la bandeja, que con los rasgos agregados salían
+    /// idénticos: el remate se pega desde arriba hacia abajo y cae en picado; la bandeja
+    /// es un golpe de control que se mantiene plano. Nil en sesiones viejas.
+    public let elevationDropDeg: Float?
 
     public init(
         sweptAngleDeg: Float,
@@ -61,7 +74,9 @@ public struct ShotFeatures: Codable, Equatable, Sendable {
         axialRotationRadS: Float,
         swingDurationMs: Int64,
         peakElevationDeg: Float? = nil,
-        prepElevationDeg: Float? = nil
+        prepElevationDeg: Float? = nil,
+        peakAxialRotationRadS: Float? = nil,
+        elevationDropDeg: Float? = nil
     ) {
         self.sweptAngleDeg = sweptAngleDeg
         self.peakGyroRadS = peakGyroRadS
@@ -70,6 +85,8 @@ public struct ShotFeatures: Codable, Equatable, Sendable {
         self.swingDurationMs = swingDurationMs
         self.peakElevationDeg = peakElevationDeg ?? elevationDeg
         self.prepElevationDeg = prepElevationDeg
+        self.peakAxialRotationRadS = peakAxialRotationRadS
+        self.elevationDropDeg = elevationDropDeg
     }
 
     /// Sesiones grabadas antes de que existiera `peakElevationDeg` no lo traen: cae a la

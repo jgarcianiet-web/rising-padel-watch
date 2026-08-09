@@ -61,6 +61,23 @@ data class ShotFeatures(
      * Null en sesiones grabadas antes de que existiera el rasgo.
      */
     val prepElevationDeg: Float? = null,
+    /**
+     * Pico de rotación axial durante el swing, no la media.
+     *
+     * La media no distingue una víbora de una bandeja: en pista (ago 2026) las dos
+     * dieron −2,0 y −1,9 rad/s. Y es lógico — una víbora **no** rota todo el rato, da
+     * un latigazo al final, y promediarlo sobre 200° de arco lo borra. El pico sí lo ve.
+     * Null en sesiones grabadas antes de medirlo.
+     */
+    val peakAxialRotationRadS: Float? = null,
+    /**
+     * Cuánto **baja** el brazo entre lo más alto del swing y el impacto, en grados.
+     *
+     * Es lo que separa el remate de la bandeja, que con los rasgos agregados salían
+     * idénticos: el remate se pega desde arriba hacia abajo y cae en picado; la bandeja
+     * es un golpe de control que se mantiene plano. Null en sesiones viejas.
+     */
+    val elevationDropDeg: Float? = null,
 )
 
 /**

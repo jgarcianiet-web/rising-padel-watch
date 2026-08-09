@@ -9,28 +9,39 @@ import kotlin.test.assertTrue
 
 /**
  * Verdad-terreno de pista (ago 2026): 4 remates y 4 víboras reales que salieron TODOS
- * clasificados como golpes de fondo. La causa: durante un swing violento el filtro de
- * gravedad se corrompe y el pico de elevación medido salía a +3° o −41° — ningún
- * umbral sobre ese canal podía funcionar. El testigo honesto es la elevación de la
- * PREPARACIÓN (brazo calmado): nadie arma una derecha con el antebrazo al cielo.
+ * clasificados como golpes de fondo.
+ *
+ * **La elevación medida en esta tanda no se usa.** Se grabó con el eje del antebrazo
+ * invertido y con la autocalificación del signo puesta, que llegó a oscilar dentro de
+ * una misma tanda: sus grados no dicen dónde estaba el brazo. Lo que esta prueba fija
+ * son los rasgos que no dependen de la gravedad —barrido, rotación axial y pico—, que
+ * son los que separan un remate de una víbora. La elevación se sustituye por la que
+ * mide el reloj corregido en un golpe alto.
  */
 class GolpesAltosDePistaTest {
 
     private val classifier = ShotClassifier()
 
-    /** Los vectores medidos, tal cual, más la preparación en alto que el rasgo nuevo
-     *  habría capturado (el diagnóstico de entonces aún no la medía). */
+    /** Los dos primeros parámetros eran la elevación medida; se ignoran a propósito. */
     private fun rasgos(
-        elev: Float, alto: Float, axial: Float, barrido: Float, pico: Float
+        @Suppress("UNUSED_PARAMETER") elev: Float,
+        @Suppress("UNUSED_PARAMETER") alto: Float,
+        axial: Float,
+        barrido: Float,
+        pico: Float,
     ) = ShotFeatures(
         sweptAngleDeg = barrido,
         peakGyroRadS = pico,
-        elevationDeg = elev,
+        elevationDeg = ELEVACION_DE_GOLPE_ALTO,
         axialRotationRadS = axial,
         swingDurationMs = 250,
-        peakElevationDeg = alto,
-        prepElevationDeg = 65f,
+        peakElevationDeg = ELEVACION_DE_GOLPE_ALTO,
     )
+
+    private companion object {
+        /** Lo que mide el reloj corregido en un golpe por encima de la horizontal. */
+        const val ELEVACION_DE_GOLPE_ALTO = 20f
+    }
 
     private val remates = listOf(
         rasgos(-11f, 3f, 5.2f, 291f, 21.4f),

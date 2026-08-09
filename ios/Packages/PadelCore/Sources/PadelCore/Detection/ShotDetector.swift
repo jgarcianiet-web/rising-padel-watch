@@ -68,6 +68,8 @@ public final class ShotDetector {
     private var swingStartMs: Int64 = 0
     private var sweptAngleRad: Float = 0
     private var peakGyroRadS: Float = 0
+    /// Mayor rotación axial vista en el swing, con su signo.
+    private var peakAxialRadS: Float = 0
     private var refractoryUntilMs: Int64 = .min
 
     /// Lo que se ha tirado desde el último `reset`, por motivo.
@@ -100,6 +102,7 @@ public final class ShotDetector {
         pendingSweptRad = 0
         sweptAngleRad = 0
         peakGyroRadS = 0
+        peakAxialRadS = 0
         refractoryUntilMs = .min
         descartes = DescartesDelDetector()
     }
@@ -158,6 +161,10 @@ public final class ShotDetector {
         case .swinging:
             sweptAngleRad += gyroMag * dt
             if gyroMag > peakGyroRadS { peakGyroRadS = gyroMag }
+            // El pico de rotación axial se mide muestra a muestra: una víbora no rota
+            // todo el swing, da un latigazo al final, y la media lo borra.
+            let axialAhora = classifier.axialRotation(current.gyro)
+            if abs(axialAhora) > abs(peakAxialRadS) { peakAxialRadS = axialAhora }
             swingElevations.append(classifier.elevationDeg(gravity: current.gravity))
 
             let duration = current.timestampMs - swingStartMs
@@ -240,7 +247,13 @@ public final class ShotDetector {
             axialRotationRadS: classifier.axialRotation(meanGyro: meanGyroBefore(impact.timestampMs)),
             swingDurationMs: durationMs,
             peakElevationDeg: Self.percentile(elevations, 0.8),
-            prepElevationDeg: prepElevationDeg
+            prepElevationDeg: prepElevationDeg,
+            peakAxialRotationRadS: peakAxialRadS,
+            // De lo más alto del swing a donde estaba el brazo al golpear. Positivo =
+            // el brazo bajó, que es la firma del remate.
+            elevationDropDeg: swingElevations.isEmpty ? nil
+                : Self.percentile(elevations, 0.9)
+                    - classifier.elevationDeg(gravity: impact.gravity)
         )
         let classification = classifier.classify(features)
         let shot = Shot(
@@ -262,6 +275,7 @@ public final class ShotDetector {
         pendingSweptRad = 0
         sweptAngleRad = 0
         peakGyroRadS = 0
+        peakAxialRadS = 0
         swingElevations.removeAll(keepingCapacity: true)
     }
 

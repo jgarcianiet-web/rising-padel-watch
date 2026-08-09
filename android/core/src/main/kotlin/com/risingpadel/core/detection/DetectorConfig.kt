@@ -51,23 +51,33 @@ data class DetectorConfig(
      * Grados sobre la horizontal que tiene que alcanzar el brazo
      * ([ShotFeatures.peakElevationDeg]) para que el golpeo sea por encima de la cabeza.
      *
-     * Se compara contra el recorrido del swing y no contra la postura en el impacto:
-     * medida sobre el impacto, la elevación de una tanda de derechas (+41..+77 en pista,
-     * ago 2026) y la de una tanda de víboras (−20..+56) se solapaban por completo, así
-     * que ningún umbral sobre ese valor podía separarlas.
+     * Se compara contra el recorrido del swing y no contra la postura en el impacto.
+     *
+     * **−5 y no 50**, medido con cuarenta golpes etiquetados de pista (ago 2026), ocho
+     * tipos de cinco. Con el eje del antebrazo ya bien orientado, los golpes altos
+     * —remate, bandeja, víbora— picaron entre −2° y +36°, y los de fondo y las voleas
+     * entre −3° y −75°. Es decir: la frontera real está en la horizontal, no a 50° sobre
+     * ella. Con este umbral la puerta acierta 38 de 40; con 50 no pasaba ni uno.
+     *
+     * Tiene sentido físico: un golpe alto de pádel es cualquiera en el que la pala
+     * cruza por encima de la horizontal. No hace falta que el brazo suba 50°.
      */
-    val overheadElevationDeg: Float = 50f,
+    val overheadElevationDeg: Float = -5f,
     /** Por debajo de este ángulo barrido el golpeo es una volea. */
-    val volleySweptDeg: Float = 70f,
+    val volleySweptDeg: Float = 50f,
     /**
      * La segunda firma de la volea, validada en pista (ago 2026): swing medio con la
      * pala quieta. Una tanda de voleas de revés reales barría 147-170° (por encima de
      * volleySweptDeg) pero con axial 0.3-3.8, mientras las derechas de fondo reales
      * promediaban 7.9-10.5: el efecto separa lo que el barrido solapa.
+     *
+     * 4,0 es la única ventana que satisface las dos tandas de pista: la volea más
+     * rotada de agosto llevaba 3,8, y el revés de fondo menos rotado de la tanda de
+     * ocho tipos llevaba 4,5. Entre medias no cabe nada más.
      */
-    val volleyAxialMaxRadS: Float = 4.5f,
+    val volleyAxialMaxRadS: Float = 4f,
     /** Techo de barrido para esa segunda firma: más allá ya es un swing completo. */
-    val volleyMaxSweptDeg: Float = 190f,
+    val volleyMaxSweptDeg: Float = 210f,
     /**
      * Barrido mínimo del saque: 270°.
      *
@@ -118,8 +128,19 @@ data class DetectorConfig(
      * preparación, con el brazo aún calmado (la gravedad ahí sí es fiable).
      */
     val prepWindowMs: Long = 400,
-    /** Elevación de preparación a partir de la cual el golpe se armó en alto. */
-    val prepOverheadElevationDeg: Float = 45f,
+    /**
+     * Elevación de preparación a partir de la cual el golpe se armó en alto.
+     *
+     * **90 = prácticamente apagado, y a propósito.** Este testigo se añadió cuando el
+     * pico de elevación llegaba corrupto y no servía para nada; con el eje del antebrazo
+     * ya bien orientado, el pico separa altos de bajos 38 veces de 40 y la preparación
+     * solo mete falsos: en la tanda de ocho tipos, los saques se preparan a +56..+64 —
+     * más alto que las víboras— porque el saque de pádel se arma con el brazo recogido.
+     *
+     * Se deja el campo porque la calibración por jugador puede bajarlo si sus tandas
+     * demuestran que en su técnica la preparación sí distingue.
+     */
+    val prepOverheadElevationDeg: Float = 90f,
     /** Escala para normalizar la rotación axial al calcular la confianza. */
     val axialConfidenceScaleRadS: Float = 4.0f,
     /** Por debajo de esta confianza el tipo se reporta como UNKNOWN (el golpeo sigue contando). */
