@@ -4,6 +4,11 @@ import SwiftUI
 struct SessionListView: View {
     @EnvironmentObject private var model: AppModel
     @State private var showingSettings = false
+    /// Modo de selección múltiple. Borrar sesiones de prueba una a una, entrando en
+    /// cada ficha y bajando hasta el final, era el camino más largo de la app.
+    @State private var seleccionando = false
+    @State private var seleccionadas: Set<String> = []
+    @State private var confirmandoBorrado = false
 
     private var hasPending: Bool {
         model.sessions.contains { $0.sync.state != .synced }
@@ -29,7 +34,30 @@ struct SessionListView: View {
                     }
                     .accessibilityLabel("Ajustes")
                 }
-                if hasPending {
+                if !model.sessions.isEmpty {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button(seleccionando ? "Hecho" : "Seleccionar") {
+                            seleccionando.toggle()
+                            seleccionadas.removeAll()
+                        }
+                    }
+                }
+                if seleccionando {
+                    ToolbarItem(placement: .bottomBar) {
+                        Button(role: .destructive) {
+                            confirmandoBorrado = true
+                        } label: {
+                            Label(
+                                seleccionadas.isEmpty
+                                    ? "Borrar"
+                                    : "Borrar \(seleccionadas.count)",
+                                systemImage: "trash"
+                            )
+                        }
+                        .disabled(seleccionadas.isEmpty)
+                        .tint(T.rojo)
+                    }
+                } else if hasPending {
                     ToolbarItem(placement: .bottomBar) {
                         Button {
                             Task { await model.syncNow() }
@@ -41,6 +69,24 @@ struct SessionListView: View {
             }
             .sheet(isPresented: $showingSettings) {
                 SettingsView().environmentObject(model)
+            }
+            // Confirmación y no borrado directo: una sesión no se recupera, y en una
+            // lista de tarjetas el dedo resbala. El resumen dice cuántas van.
+            .confirmationDialog(
+                seleccionadas.count == 1
+                    ? "¿Borrar esta sesión?"
+                    : "¿Borrar \(seleccionadas.count) sesiones?",
+                isPresented: $confirmandoBorrado,
+                titleVisibility: .visible
+            ) {
+                Button("Borrar", role: .destructive) {
+                    for id in seleccionadas { model.delete(id) }
+                    seleccionadas.removeAll()
+                    seleccionando = false
+                }
+                Button("Cancelar", role: .cancel) {}
+            } message: {
+                Text("No se pueden recuperar.")
             }
             .refreshable { await model.syncNow() }
         }
@@ -68,17 +114,53 @@ struct SessionListView: View {
                     }
                     .padding(.top, 6)
                     ForEach(mes.sesiones) { session in
-                        NavigationLink {
-                            SessionDetailView(session: session).environmentObject(model)
-                        } label: {
-                            row(session)
+                        if seleccionando {
+                            Button {
+                                if seleccionadas.contains(session.sessionId) {
+                                    seleccionadas.remove(session.sessionId)
+                                } else {
+                                    seleccionadas.insert(session.sessionId)
+                                }
+                            } label: {
+                                filaSeleccionable(session)
+                            }
+                            .buttonStyle(.plain)
+                        } else {
+                            NavigationLink {
+                                SessionDetailView(session: session).environmentObject(model)
+                            } label: {
+                                row(session)
+                            }
+                            .buttonStyle(.plain)
+                            // Mantener pulsado para borrar una suelta, sin entrar en la
+                            // ficha ni pasar por el modo selección.
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    seleccionadas = [session.sessionId]
+                                    confirmandoBorrado = true
+                                } label: {
+                                    Label("Borrar sesión", systemImage: "trash")
+                                }
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
+        }
+    }
+
+    /// La misma tarjeta con su marca de selección al lado. El check va fuera y no
+    /// encima para no tapar el dato de la sesión, que es lo que se mira para decidir.
+    private func filaSeleccionable(_ session: PadelSession) -> some View {
+        let marcada = seleccionadas.contains(session.sessionId)
+        return HStack(spacing: 10) {
+            Image(systemName: marcada ? "checkmark.circle.fill" : "circle")
+                .font(.system(size: 20))
+                .foregroundStyle(marcada ? T.rojo : T.borde)
+            row(session)
+                .opacity(marcada ? 1 : 0.7)
         }
     }
 
