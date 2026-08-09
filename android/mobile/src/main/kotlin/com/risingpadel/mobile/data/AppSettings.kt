@@ -111,7 +111,7 @@ class AppSettings(private val context: Context) {
             trainingDataBytes = trainingDataFile.let { if (it.exists()) it.length() else 0L },
             developerMode = prefs[KEY_DEVELOPER_MODE] ?: false,
             calibration = prefs[KEY_CALIBRATION]?.let {
-                runCatching { calibracionJson.decodeFromString<DetectorCalibration>(it) }.getOrNull()
+                runCatching { calibracionJson.decodeFromString(DetectorCalibration.serializer(), it) }.getOrNull()
             },
         )
     }
@@ -180,7 +180,7 @@ class AppSettings(private val context: Context) {
             if (calibracion == null) {
                 prefs.remove(KEY_CALIBRATION)
             } else {
-                prefs[KEY_CALIBRATION] = calibracionJson.encodeToString(calibracion)
+                prefs[KEY_CALIBRATION] = calibracionJson.encodeToString(DetectorCalibration.serializer(), calibracion)
             }
         }
     }

@@ -99,7 +99,7 @@ class WearSettings(private val context: Context) {
             playerLevel = prefs[KEY_PLAYER_LEVEL],
             updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
             calibration = prefs[KEY_CALIBRATION]?.let {
-                runCatching { calibracionJson.decodeFromString<DetectorCalibration>(it) }.getOrNull()
+                runCatching { calibracionJson.decodeFromString(DetectorCalibration.serializer(), it) }.getOrNull()
             },
         )
     }
@@ -136,7 +136,7 @@ class WearSettings(private val context: Context) {
                 ?: prefs.remove(KEY_PLAYER_LEVEL)
             prefs[KEY_UPDATED_AT] = preferences.updatedAtEpochMs
             preferences.calibration
-                ?.let { prefs[KEY_CALIBRATION] = calibracionJson.encodeToString(it) }
+                ?.let { prefs[KEY_CALIBRATION] = calibracionJson.encodeToString(DetectorCalibration.serializer(), it) }
                 ?: prefs.remove(KEY_CALIBRATION)
         }
     }
