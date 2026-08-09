@@ -6,7 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.MatchRef
+import com.risingpadel.core.analytics.InformeDePrecision
+import com.risingpadel.core.detection.DetectorConfig
+import com.risingpadel.core.detection.ResultadoCalibracion
+import com.risingpadel.core.detection.ShotClassifier
+import com.risingpadel.core.detection.ThresholdCalibrator
 import com.risingpadel.core.model.PadelSession
+import com.risingpadel.core.model.ShotFeatures
+import com.risingpadel.core.model.ShotType
+import com.risingpadel.core.training.TrainingSample
 import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.model.SessionReview
 import com.risingpadel.core.liga.LigaMapper
@@ -119,8 +127,70 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // MARK: Calibración y precisión del detector
+
+    /**
+     * Pares (lo que era, lo que dice el reloj) sacados de las tandas etiquetadas.
+     *
+     * Se vuelve a pasar el clasificador **con la calibración puesta**: lo que interesa
+     * saber es cómo acierta el detector que llevas hoy, no el que llevabas al grabar.
+     */
+    private fun paresDeTandas(): List<Pair<ShotType, ShotFeatures>> {
+        val fichero = trainingDataFile() ?: return emptyList()
+        var config = DetectorConfig.DEFAULT
+        preferences.value.calibration?.let { config = config.aplicando(it) }
+        val clasificador = ShotClassifier(config)
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        return fichero.useLines { lineas ->
+            lineas.mapNotNull { linea ->
+                val muestra = runCatching {
+                    json.decodeFromString<TrainingSample>(linea)
+                }.getOrNull() ?: return@mapNotNull null
+                muestra.label to muestra.heuristicFeatures
+            }.toList()
+        }
+    }
+
+    /** El informe de acierto del reloj, la pregunta de la que depende todo lo demás. */
+    fun informeDePrecision(sesiones: List<PadelSession>): InformeDePrecision =
+        InformeDePrecision.de(sesiones, paresDeTandas().map { it.first to clasificar(it.second) })
+
+    private fun clasificar(rasgos: ShotFeatures): ShotType {
+        var config = DetectorConfig.DEFAULT
+        preferences.value.calibration?.let { config = config.aplicando(it) }
+        return ShotClassifier(config).classify(rasgos).type
+    }
+
+    /**
+     * Deriva los umbrales del jugador de sus propias tandas y los replica al reloj.
+     * Null si todavía no hay tandas con las que calibrar.
+     */
+    fun calibrarConTandas(onResultado: (ResultadoCalibracion?) -> Unit) {
+        viewModelScope.launch {
+            val etiquetados = paresDeTandas()
+            if (etiquetados.isEmpty()) {
+                onResultado(null)
+                return@launch
+            }
+            val resultado = ThresholdCalibrator.calibrar(
+                etiquetados, ahoraEpochMs = System.currentTimeMillis()
+            )
+            container.settings.setCalibration(resultado.calibracion)
+            onResultado(resultado)
+        }
+    }
+
+    fun borrarCalibracion() {
+        viewModelScope.launch { container.settings.setCalibration(null) }
+    }
+
     fun deleteSession(sessionId: String) {
         viewModelScope.launch { container.sessions.delete(sessionId) }
+    }
+
+    /** Borrado múltiple desde el histórico: limpiar tandas de prueba de una vez. */
+    fun deleteSessions(ids: Set<String>) {
+        viewModelScope.launch { ids.forEach { container.sessions.delete(it) } }
     }
 
     /**

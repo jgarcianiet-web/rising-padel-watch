@@ -40,6 +40,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
+import com.risingpadel.core.analytics.Comparativa
+import com.risingpadel.core.analytics.MediasDelJugador
 import com.risingpadel.core.analytics.SessionAnalytics
 import com.risingpadel.core.analytics.ShotBreakdown
 import com.risingpadel.core.level.SessionLevel
@@ -69,6 +71,10 @@ fun SessionDetailScreen(
     onDelete: () -> Unit,
     onOpenSettings: (() -> Unit)? = null,
     onApplyReview: ((Map<String, Int>) -> Unit)? = null,
+    /** Las medias del jugador **sin esta sesión**, para poner sus cifras en contexto. */
+    medias: MediasDelJugador = MediasDelJugador.VACIAS,
+    /** La revisión de recuentos es una herramienta de quien construye el detector. */
+    developerMode: Boolean = false,
 ) {
     // El guardado en la liga vive aquí y no en un ViewModel: es una acción puntual
     // sobre el fichero-estado de la liga, el mismo que la pestaña Liga.
@@ -101,13 +107,15 @@ fun SessionDetailScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            HeadlineStats(session)
+            HeadlineStats(session, medias)
             session.score?.let { ScoreCard(it) }
             session.level.takeIf { it.gradedShots > 0 }?.let { LevelCard(it) }
             FrequencyChartCard(session)
             ProgressChartCard(session, playerAverageLevel)
             ShotBreakdown(session)
-            if (onApplyReview != null && session.shots.isNotEmpty()) {
+            // Solo en modo desarrollador: pedirle a un cliente que audite los
+            // recuentos de su propia sesión es pedirle que haga de control de calidad.
+            if (developerMode && onApplyReview != null && session.shots.isNotEmpty()) {
                 ReviewCard(session, onApplyReview)
             }
             if (!session.health.isEmpty) HealthCard(session)
@@ -246,21 +254,39 @@ private fun ReviewDialog(
 }
 
 @Composable
-private fun HeadlineStats(session: PadelSession) {
+private fun HeadlineStats(session: PadelSession, medias: MediasDelJugador) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text("${session.totalShots}", style = MaterialTheme.typography.displaySmall)
             Text("golpeos en ${formatDuration(session.durationSeconds)}",
                 style = MaterialTheme.typography.bodyMedium)
+            // "45 km/h" no dice nada a quien no lleva años midiéndose; con su
+            // comparación al lado, sí. La media excluye esta sesión.
+            Comparativa.de(session.totalShots.toFloat(), medias.golpeos)?.let { Contexto(it) }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Stat("Ritmo", "%.1f/min".format(session.shotsPerMinute))
-                Stat("Media pala", "%.0f km/h".format(session.intensity.meanRacketSpeedKmh))
-                Stat("Máx pala", "%.0f km/h".format(session.intensity.maxRacketSpeedKmh))
+                Stat("Ritmo", "%.1f/min".format(session.shotsPerMinute),
+                    Comparativa.de(session.shotsPerMinute, medias.ritmo), decimales = 1)
+                Stat("Media pala", "%.0f km/h".format(session.intensity.meanRacketSpeedKmh),
+                    Comparativa.de(session.intensity.meanRacketSpeedKmh, medias.velocidadMedia))
+                Stat("Máx pala", "%.0f km/h".format(session.intensity.maxRacketSpeedKmh),
+                    Comparativa.de(session.intensity.maxRacketSpeedKmh, medias.velocidadMaxima))
+            }
+            // Lo que costó de batería medir la sesión. No es un dato de salud, es una
+            // propiedad del reloj, así que no depende del consentimiento.
+            session.battery?.takeIf { it.consumido >= 0 && session.durationSeconds > 0 }?.let {
+                val porHora = it.consumido * 3600f / session.durationSeconds
+                Text(
+                    "Batería del reloj: %d%% en esta sesión (%.0f%%/hora)"
+                        .format(it.consumido, porHora),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
             }
             if (!session.profile.watchOnRacketArm) {
                 Text(
@@ -362,7 +388,12 @@ private fun ScoreCard(score: MatchScore) {
 }
 
 @Composable
-private fun Stat(label: String, value: String) {
+private fun Stat(
+    label: String,
+    value: String,
+    contexto: Comparativa? = null,
+    decimales: Int = 0,
+) {
     Column {
         Text(value, style = MaterialTheme.typography.titleMedium)
         Text(
@@ -370,7 +401,25 @@ private fun Stat(label: String, value: String) {
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+        // Nada si no hay historial o si la diferencia es despreciable: un "+0" parece
+        // un dato sin serlo.
+        contexto?.let { Contexto(it, decimales) }
     }
+}
+
+/** "+3 sobre tu media", en verde si mejora. */
+@Composable
+private fun Contexto(c: Comparativa, decimales: Int = 0) {
+    val signo = if (c.delta > 0) "+" else "−"
+    Text(
+        "$signo${"%.${decimales}f".format(kotlin.math.abs(c.delta))} sobre tu media",
+        style = MaterialTheme.typography.labelSmall,
+        color = if (c.mejor) {
+            androidx.compose.ui.graphics.Color(0xFF1F8A5B)
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
 }
 
 /**

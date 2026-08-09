@@ -16,6 +16,7 @@ import androidx.security.crypto.MasterKey
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.PlayerProfile
+import com.risingpadel.core.detection.DetectorCalibration
 import com.risingpadel.core.settings.DeviceSettings
 import com.risingpadel.core.sync.LeagueConfig
 import kotlinx.coroutines.flow.Flow
@@ -50,6 +51,8 @@ data class AppPreferences(
      * a depender de un rol de verdad.
      */
     val developerMode: Boolean = false,
+    /** Umbrales personales sacados de las tandas. Null = los de fábrica. */
+    val calibration: DetectorCalibration? = null,
 ) {
     /** Lo que se replica al reloj. Ni credenciales ni ajustes de marcador. */
     fun toDeviceSettings(): DeviceSettings = DeviceSettings(
@@ -59,6 +62,7 @@ data class AppPreferences(
         collectTrainingData = collectTrainingData,
         playerAlias = playerAlias,
         playerLevel = playerLevel,
+        calibration = calibration,
         updatedAtEpochMs = updatedAtEpochMs,
     )
 }
@@ -106,6 +110,9 @@ class AppSettings(private val context: Context) {
             updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
             trainingDataBytes = trainingDataFile.let { if (it.exists()) it.length() else 0L },
             developerMode = prefs[KEY_DEVELOPER_MODE] ?: false,
+            calibration = prefs[KEY_CALIBRATION]?.let {
+                runCatching { calibracionJson.decodeFromString<DetectorCalibration>(it) }.getOrNull()
+            },
         )
     }
 
@@ -163,6 +170,26 @@ class AppSettings(private val context: Context) {
      * Sin la marca, la reentrega que hace el Data Layer al reconectar devolvería al reloj
      * un estado viejo. Va aquí y no en cada llamada para que no se pueda olvidar.
      */
+    /**
+     * Guarda los umbrales personales. Va por [editReplicated] a propósito: la
+     * calibración tiene que llegar al reloj, que es quien detecta. Guardarla solo en el
+     * móvil dejaba el número mejorado en la pantalla y el reloj midiendo de fábrica.
+     */
+    suspend fun setCalibration(calibracion: DetectorCalibration?) {
+        editReplicated { prefs ->
+            if (calibracion == null) {
+                prefs.remove(KEY_CALIBRATION)
+            } else {
+                prefs[KEY_CALIBRATION] = calibracionJson.encodeToString(calibracion)
+            }
+        }
+    }
+
+    private val calibracionJson = kotlinx.serialization.json.Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
+
     private suspend fun editReplicated(block: (MutablePreferences) -> Unit) {
         context.dataStore.edit { prefs ->
             block(prefs)
@@ -209,6 +236,7 @@ class AppSettings(private val context: Context) {
         val KEY_PLAYER_LEVEL = intPreferencesKey("player_level")
         val KEY_UPDATED_AT = longPreferencesKey("settings_updated_at")
         val KEY_DEVELOPER_MODE = booleanPreferencesKey("developer_mode")
+        val KEY_CALIBRATION = stringPreferencesKey("detector_calibration")
         const val KEY_TOKEN = "league_token"
     }
 }

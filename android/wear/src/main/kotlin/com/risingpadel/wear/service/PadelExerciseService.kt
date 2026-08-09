@@ -69,6 +69,25 @@ class PadelExerciseService : LifecycleService() {
 
     private var mode = Mode.SESSION
     private var recorder: SessionRecorder? = null
+    /** Nivel de batería al empezar, 0-100. Null si el sistema no lo supo decir. */
+    private var bateriaAlEmpezar: Int? = null
+
+    /**
+     * Nivel de batería del reloj, 0-100, o null si el sistema no lo sabe.
+     *
+     * Es la primera pregunta que hace cualquiera antes de fiarse de un reloj deportivo
+     * y no se puede contestar desde el código: depende del modelo, del frío y de si el
+     * pulso estaba encendido. Se apunta al empezar y al acabar, y con unas cuantas
+     * sesiones la app da un número real en vez de una promesa.
+     */
+    private fun nivelDeBateria(): Int? {
+        val manager = getSystemService(android.content.Context.BATTERY_SERVICE)
+            as? android.os.BatteryManager ?: return null
+        val nivel = manager.getIntProperty(
+            android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY
+        )
+        return nivel.takeIf { it in 0..100 }
+    }
     private var motionJob: Job? = null
     private var metricsJob: Job? = null
     private var tickerJob: Job? = null
@@ -112,7 +131,10 @@ class PadelExerciseService : LifecycleService() {
                     appVersion = container.appVersion,
                 ),
                 profile = preferences.profile,
-                config = DetectorConfig.DEFAULT.withSensitivity(preferences.sensitivity),
+                // Los umbrales del jugador, sacados de sus tandas: se calculan en el móvil
+                // (que tiene el fichero) y viajan con los ajustes.
+                config = DetectorConfig.DEFAULT.withSensitivity(preferences.sensitivity)
+                    .let { base -> preferences.calibration?.let { base.aplicando(it) } ?: base },
                 playerAlias = preferences.playerAlias,
                 playerLevel = preferences.playerLevel,
                 monotonicMs = SystemClock.elapsedRealtime(),
@@ -159,10 +181,15 @@ class PadelExerciseService : LifecycleService() {
                     appVersion = container.appVersion,
                 ),
                 profile = preferences.profile,
-                config = DetectorConfig.DEFAULT.withSensitivity(preferences.sensitivity),
+                // Los umbrales del jugador, sacados de sus tandas: se calculan en el móvil
+                // (que tiene el fichero) y viajan con los ajustes.
+                config = DetectorConfig.DEFAULT.withSensitivity(preferences.sensitivity)
+                    .let { base -> preferences.calibration?.let { base.aplicando(it) } ?: base },
                 sessionIdProvider = { UUID.randomUUID().toString() },
             )
             recorder = newRecorder
+            // La batería, antes de que la sesión empiece a gastarla.
+            bateriaAlEmpezar = nivelDeBateria()
 
             val startedAtEpochMs = System.currentTimeMillis()
             newRecorder.start(startedAtEpochMs, SystemClock.elapsedRealtime())
@@ -257,11 +284,21 @@ class PadelExerciseService : LifecycleService() {
             // dentro de ella y no en un mensaje aparte que pueda perderse.
             current.score = container.scoreSession.finish()
 
-            val session = current.finish(
+            var session = current.finish(
                 endedAtEpochMs = System.currentTimeMillis(),
                 monotonicMs = SystemClock.elapsedRealtime(),
                 shareHealth = shareHealth,
             )
+            // Cuánto costó medir esta sesión. No es un dato de salud —no sale del cuerpo
+            // de nadie— así que no depende del consentimiento: es del reloj.
+            val bateriaInicio = bateriaAlEmpezar
+            val bateriaFin = nivelDeBateria()
+            if (bateriaInicio != null && bateriaFin != null) {
+                session = session.copy(
+                    battery = com.risingpadel.core.model.BatteryUse(bateriaInicio, bateriaFin)
+                )
+            }
+            bateriaAlEmpezar = null
             recorder = null
 
             val sent = runCatching { container.phoneSender.send(session) }.isSuccess

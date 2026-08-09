@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.risingpadel.core.detection.DetectorCalibration
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.Hand
 import com.risingpadel.core.model.PlayerProfile
@@ -40,6 +41,12 @@ data class WearPreferences(
     val playerLevel: Int? = null,
     /** Marca de tiempo de la última edición, para resolver la replicación. */
     val updatedAtEpochMs: Long = 0L,
+    /**
+     * Umbrales personales del jugador, calculados en el móvil con sus tandas
+     * etiquetadas. Sin esto el reloj medía siempre de fábrica aunque la app enseñara la
+     * calibración hecha: el número mejoraba en la pantalla y nada cambiaba en la muñeca.
+     */
+    val calibration: DetectorCalibration? = null,
 ) {
     /** La parte que se replica desde el móvil. El marcador se queda fuera a propósito. */
     fun toDeviceSettings(): DeviceSettings = DeviceSettings(
@@ -49,6 +56,7 @@ data class WearPreferences(
         collectTrainingData = collectTrainingData,
         playerAlias = playerAlias,
         playerLevel = playerLevel,
+        calibration = calibration,
         updatedAtEpochMs = updatedAtEpochMs,
     )
 
@@ -60,6 +68,7 @@ data class WearPreferences(
         collectTrainingData = settings.collectTrainingData,
         playerAlias = settings.playerAlias,
         playerLevel = settings.playerLevel,
+        calibration = settings.calibration,
         updatedAtEpochMs = settings.updatedAtEpochMs,
     )
 }
@@ -89,6 +98,9 @@ class WearSettings(private val context: Context) {
             playerAlias = prefs[KEY_PLAYER_ALIAS] ?: DeviceSettings.DEFAULT_ALIAS,
             playerLevel = prefs[KEY_PLAYER_LEVEL],
             updatedAtEpochMs = prefs[KEY_UPDATED_AT] ?: 0L,
+            calibration = prefs[KEY_CALIBRATION]?.let {
+                runCatching { calibracionJson.decodeFromString<DetectorCalibration>(it) }.getOrNull()
+            },
         )
     }
 
@@ -123,10 +135,19 @@ class WearSettings(private val context: Context) {
             preferences.playerLevel?.let { prefs[KEY_PLAYER_LEVEL] = it }
                 ?: prefs.remove(KEY_PLAYER_LEVEL)
             prefs[KEY_UPDATED_AT] = preferences.updatedAtEpochMs
+            preferences.calibration
+                ?.let { prefs[KEY_CALIBRATION] = calibracionJson.encodeToString(it) }
+                ?: prefs.remove(KEY_CALIBRATION)
         }
     }
 
+    private val calibracionJson = kotlinx.serialization.json.Json {
+        encodeDefaults = true
+        ignoreUnknownKeys = true
+    }
+
     private companion object {
+        val KEY_CALIBRATION = stringPreferencesKey("detector_calibration")
         val KEY_HAND = stringPreferencesKey("hand")
         val KEY_WRIST = stringPreferencesKey("watch_wrist")
         val KEY_BIRTH_YEAR = intPreferencesKey("birth_year")

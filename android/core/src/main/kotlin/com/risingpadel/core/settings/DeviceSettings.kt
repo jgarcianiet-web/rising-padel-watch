@@ -1,5 +1,6 @@
 package com.risingpadel.core.settings
 
+import com.risingpadel.core.detection.DetectorCalibration
 import com.risingpadel.core.detection.Sensitivity
 import com.risingpadel.core.model.PlayerProfile
 import kotlinx.serialization.Serializable
@@ -41,6 +42,15 @@ data class DeviceSettings(
      * la liga; el reloj solo los lee.
      */
     val matchObjectives: List<String> = emptyList(),
+    /**
+     * Los umbrales personales del jugador, sacados de sus tandas etiquetadas.
+     *
+     * Se calculan en el móvil —que es quien tiene el fichero de tandas— y viajan al
+     * reloj con el resto de ajustes. Sin esto la calibración se quedaba en el móvil y el
+     * reloj seguía midiendo con los umbrales de fábrica: se podía ver el número mejorado
+     * en la pantalla y no cambiaba nada en la muñeca.
+     */
+    val calibration: DetectorCalibration? = null,
     /**
      * Cuándo se editaron estos ajustes en el dispositivo de origen.
      *

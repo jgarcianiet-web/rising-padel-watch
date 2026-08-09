@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -27,6 +29,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.risingpadel.core.model.PadelSession
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.risingpadel.core.model.SyncState
 import com.risingpadel.mobile.ui.LevelHistoryCard
 import com.risingpadel.mobile.ui.formatDuration
@@ -40,14 +51,43 @@ fun SessionListScreen(
     onOpenSession: (String) -> Unit,
     onOpenSettings: () -> Unit,
     onSyncNow: () -> Unit,
+    onDeleteSessions: (Set<String>) -> Unit = {},
 ) {
+    // Borrar una sesión de prueba era el camino más largo de la app: entrar en la
+    // ficha y bajar hasta el final. Mantener pulsada una tarjeta la borra, y
+    // "Seleccionar" abre el modo múltiple para llevarse varias de una vez.
+    var seleccionando by remember { mutableStateOf(false) }
+    var seleccionadas by remember { mutableStateOf(emptySet<String>()) }
+    var confirmando by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Mis sesiones") },
+                title = { Text(if (seleccionando) "${seleccionadas.size} seleccionadas" else "Mis sesiones") },
                 actions = {
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Default.Settings, contentDescription = "Ajustes")
+                    if (sessions.isNotEmpty()) {
+                        TextButton(onClick = {
+                            seleccionando = !seleccionando
+                            seleccionadas = emptySet()
+                        }) {
+                            Text(if (seleccionando) "Hecho" else "Seleccionar")
+                        }
+                    }
+                    if (seleccionando) {
+                        IconButton(
+                            onClick = { confirmando = true },
+                            enabled = seleccionadas.isNotEmpty(),
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = "Borrar seleccionadas",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    } else {
+                        IconButton(onClick = onOpenSettings) {
+                            Icon(Icons.Default.Settings, contentDescription = "Ajustes")
+                        }
                     }
                 },
             )
@@ -79,18 +119,80 @@ fun SessionListScreen(
                 LevelHistoryCard(sessions)
             }
             items(sessions, key = { it.sessionId }) { session ->
-                SessionCard(session = session, onClick = { onOpenSession(session.sessionId) })
+                SessionCard(
+                    session = session,
+                    seleccionando = seleccionando,
+                    marcada = session.sessionId in seleccionadas,
+                    onClick = {
+                        if (seleccionando) {
+                            seleccionadas = if (session.sessionId in seleccionadas) {
+                                seleccionadas - session.sessionId
+                            } else {
+                                seleccionadas + session.sessionId
+                            }
+                        } else {
+                            onOpenSession(session.sessionId)
+                        }
+                    },
+                    onLongClick = {
+                        seleccionadas = setOf(session.sessionId)
+                        confirmando = true
+                    },
+                )
             }
         }
     }
+
+    // Confirmación y no borrado directo: una sesión no se recupera y en una lista de
+    // tarjetas el dedo resbala. El resumen dice cuántas van, así que confirmar una vez
+    // sirve para diez.
+    if (confirmando) {
+        AlertDialog(
+            onDismissRequest = { confirmando = false },
+            title = {
+                Text(
+                    if (seleccionadas.size == 1) "¿Borrar esta sesión?"
+                    else "¿Borrar ${seleccionadas.size} sesiones?"
+                )
+            },
+            text = { Text("No se pueden recuperar.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteSessions(seleccionadas)
+                    seleccionadas = emptySet()
+                    seleccionando = false
+                    confirmando = false
+                }) { Text("Borrar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmando = false }) { Text("Cancelar") }
+            },
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SessionCard(session: PadelSession, onClick: () -> Unit) {
+private fun SessionCard(
+    session: PadelSession,
+    seleccionando: Boolean,
+    marcada: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Card(modifier = Modifier
         .fillMaxWidth()
-        .clickable(onClick = onClick)) {
+        .combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
         Column(modifier = Modifier.padding(16.dp)) {
+            if (seleccionando) {
+                Icon(
+                    if (marcada) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (marcada) MaterialTheme.colorScheme.error
+                    else MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
             Text(
                 text = formatSessionDate(session.startedAtEpochMs),
                 style = MaterialTheme.typography.labelMedium,

@@ -209,6 +209,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                     onOpenSession = { navController.navigate(Routes.detail(it)) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onSyncNow = viewModel::syncNow,
+                    onDeleteSessions = viewModel::deleteSessions,
                 )
             }
 
@@ -256,6 +257,12 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                         navController.popBackStack()
                     },
                     onApplyReview = { viewModel.applyReview(session.sessionId, it) },
+                    // Las medias excluyen esta sesión: compararla contra una media que
+                    // la incluye diluye la diferencia, y cuanto menos historial hay, más.
+                    medias = com.risingpadel.core.analytics.MediasDelJugador.de(
+                        sessions, excluyendo = session.sessionId
+                    ),
+                    developerMode = preferences.developerMode,
                 )
             }
 
