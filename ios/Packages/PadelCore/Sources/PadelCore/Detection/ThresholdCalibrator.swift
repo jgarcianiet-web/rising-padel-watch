@@ -12,7 +12,7 @@ import Foundation
 public struct DetectorCalibration: Codable, Equatable, Sendable {
     public var prepOverheadElevationDeg: Float?
     public var smashPeakGyroRadS: Float?
-    public var viboraAxialRadS: Float?
+    public var viboraElevationDeg: Float?
     public var volleyAxialMaxRadS: Float?
     /// El eje del antebrazo lee la elevación al revés en este reloj.
     ///
@@ -34,7 +34,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     public init(
         prepOverheadElevationDeg: Float? = nil,
         smashPeakGyroRadS: Float? = nil,
-        viboraAxialRadS: Float? = nil,
+        viboraElevationDeg: Float? = nil,
         volleyAxialMaxRadS: Float? = nil,
         ejeDeElevacionInvertido: Bool? = nil,
         muestras: Int = 0,
@@ -42,7 +42,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     ) {
         self.prepOverheadElevationDeg = prepOverheadElevationDeg
         self.smashPeakGyroRadS = smashPeakGyroRadS
-        self.viboraAxialRadS = viboraAxialRadS
+        self.viboraElevationDeg = viboraElevationDeg
         self.volleyAxialMaxRadS = volleyAxialMaxRadS
         self.ejeDeElevacionInvertido = ejeDeElevacionInvertido
         self.muestras = muestras
@@ -51,7 +51,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
 
     public var vacia: Bool {
         prepOverheadElevationDeg == nil && smashPeakGyroRadS == nil
-            && viboraAxialRadS == nil && volleyAxialMaxRadS == nil
+            && viboraElevationDeg == nil && volleyAxialMaxRadS == nil
             && ejeDeElevacionInvertido == nil
     }
 }
@@ -120,12 +120,15 @@ public enum ThresholdCalibrator {
             .map { $0.1.peakGyroRadS }
         let smash = frontera(bajos: picoOtrosAltos, altos: picoSmash, rango: 10...30)
 
-        // Víbora contra bandeja: el efecto lateral.
-        let axialVibora = etiquetados.filter { $0.0 == .vibora }
-            .map { abs($0.1.axialRotationRadS) }
-        let axialBandeja = etiquetados.filter { $0.0 == .bandeja }
-            .map { abs($0.1.axialRotationRadS) }
-        let vibora = frontera(bajos: axialBandeja, altos: axialVibora, rango: 2...12)
+        // Víbora contra bandeja: la ALTURA del golpeo. Las dos se preparan igual; la
+        // víbora se golpea más baja. Ojo al orden de los argumentos: aquí la familia
+        // "alta" es la BANDEJA, al revés que en los demás rasgos, porque lo que define
+        // a la víbora es quedarse por debajo.
+        let alturaVibora = etiquetados.filter { $0.0 == .vibora }
+            .map { $0.1.peakElevationDeg * giro }
+        let alturaBandeja = etiquetados.filter { $0.0 == .bandeja }
+            .map { $0.1.peakElevationDeg * giro }
+        let vibora = frontera(bajos: alturaVibora, altos: alturaBandeja, rango: -10...45)
 
         // Volea contra golpe de fondo: la pala quieta.
         let axialVoleas = etiquetados.filter { voleas.contains($0.0) }
@@ -137,7 +140,7 @@ public enum ThresholdCalibrator {
         let calibracion = DetectorCalibration(
             prepOverheadElevationDeg: prep,
             smashPeakGyroRadS: smash,
-            viboraAxialRadS: vibora,
+            viboraElevationDeg: vibora,
             volleyAxialMaxRadS: volea,
             ejeDeElevacionInvertido: invertido,
             muestras: etiquetados.count,
@@ -195,4 +198,12 @@ public enum ThresholdCalibrator {
         }.count
         return Float(buenos) / Float(etiquetados.count)
     }
-}
+}// ── Víbora contra bandeja: la ALTURA del golpeo ──
+        // Las dos se preparan igual; la víbora se golpea más baja. Ojo al orden de los
+        // argumentos: aquí la familia "alta" es la BANDEJA, al revés que en los demás
+        // rasgos, porque lo que define a la víbora es quedarse por debajo.
+        let alturaVibora = etiquetados.filter { $0.0 == .vibora }
+            .map { $0.1.peakElevationDeg * giro }
+        let alturaBandeja = etiquetados.filter { $0.0 == .bandeja }
+            .map { $0.1.peakElevationDeg * giro }
+        let vibora = frontera(bajos: alturaVibora, altos: alturaBandeja, rango: -10...45)

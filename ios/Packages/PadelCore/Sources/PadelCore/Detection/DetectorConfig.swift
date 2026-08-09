@@ -93,7 +93,17 @@ public struct DetectorConfig: Equatable, Sendable {
     /// plana ya promedia 6-11 rad/s de axial. Con el umbral de elevación en 60° esas
     /// derechas ya no llegan a esta rama; aquí solo compiten golpes altos de verdad, y
     /// la bandeja plana promedia 2-5 mientras la víbora vive por encima de 10.
-    public var viboraAxialRadS: Float
+    /// Altura del golpeo que separa la bandeja de la víbora.
+    ///
+    /// Las dos empiezan igual —brazo arriba, misma preparación— pero **la víbora se
+    /// golpea más baja**: es un golpe cortado que sale más plano, mientras la bandeja se
+    /// impacta arriba. Con la tanda de ocho tipos (ago 2026) la bandeja picó a +11..+36°
+    /// (mediana +25) y la víbora a −71..+17 (mediana +4).
+    ///
+    /// Antes se intentaba separarlas por el efecto, y no funcionaba porque no puede: la
+    /// rotación axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el
+    /// mismo número.
+    public var viboraElevationDeg: Float
     /// Ventana previa al impacto sobre la que se promedia la rotación axial.
     public var axialWindowMs: Int64
     /// Ventana previa al **arranque del swing** sobre la que se mide la elevación de
@@ -137,7 +147,7 @@ public struct DetectorConfig: Equatable, Sendable {
         serveSweptDeg: Float = 270,
         serveAxialRadS: Float = 5.5,
         smashPeakGyroRadS: Float = 16,
-        viboraAxialRadS: Float = 4,
+        viboraElevationDeg: Float = 18,
         axialWindowMs: Int64 = 200,
         prepWindowMs: Int64 = 400,
         prepOverheadElevationDeg: Float = 90,
@@ -162,7 +172,7 @@ public struct DetectorConfig: Equatable, Sendable {
         self.serveSweptDeg = serveSweptDeg
         self.serveAxialRadS = serveAxialRadS
         self.smashPeakGyroRadS = smashPeakGyroRadS
-        self.viboraAxialRadS = viboraAxialRadS
+        self.viboraElevationDeg = viboraElevationDeg
         self.axialWindowMs = axialWindowMs
         self.prepWindowMs = prepWindowMs
         self.prepOverheadElevationDeg = prepOverheadElevationDeg
@@ -194,7 +204,7 @@ public struct DetectorConfig: Equatable, Sendable {
         var copy = self
         if let valor = calibracion.prepOverheadElevationDeg { copy.prepOverheadElevationDeg = valor }
         if let valor = calibracion.smashPeakGyroRadS { copy.smashPeakGyroRadS = valor }
-        if let valor = calibracion.viboraAxialRadS { copy.viboraAxialRadS = valor }
+        if let valor = calibracion.viboraElevationDeg { copy.viboraElevationDeg = valor }
         if let valor = calibracion.volleyAxialMaxRadS { copy.volleyAxialMaxRadS = valor }
         // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
         // hay que corregir cuando las tandas dicen que este reloj la lee al revés.

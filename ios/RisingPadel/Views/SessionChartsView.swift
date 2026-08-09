@@ -68,25 +68,22 @@ struct SessionProgressChart: View {
                 .foregroundStyle(T.tintaSuave)
         } else {
             Chart {
+                // Sin relleno bajo la curva, por lo mismo que en el histórico: el área
+                // bajo un nivel no es una cantidad de nada y la mancha azul se peleaba
+                // con el fondo de la ficha.
                 ForEach(points, id: \.offsetMs) { point in
-                    AreaMark(
-                        x: .value("Tiempo", minutes(point.offsetMs)),
-                        y: .value("Nivel", point.level)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .foregroundStyle(T.pista.opacity(0.15))
                     LineMark(
                         x: .value("Tiempo", minutes(point.offsetMs)),
                         y: .value("Nivel", point.level)
                     )
                     .interpolationMethod(.catmullRom)
                     .foregroundStyle(T.pista)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5))
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 }
                 if let playerAverage {
                     RuleMark(y: .value("Tu media", playerAverage))
-                        .foregroundStyle(T.bola)
-                        .lineStyle(StrokeStyle(lineWidth: 2))
+                        .foregroundStyle(T.tintaSuave.opacity(0.6))
+                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
                         .annotation(position: .top, alignment: .trailing) {
                             Text(String(format: "tu media %.2f", playerAverage))
                                 .font(.caption2)
@@ -170,28 +167,46 @@ struct LevelHistoryChart: View {
                     .foregroundStyle(T.tintaSuave)
             } else {
                 Chart {
+                    // Sin relleno bajo la curva: la mancha azul ocupaba media tarjeta
+                    // y no significaba nada —el área bajo un nivel no es una cantidad
+                    // de nada— además de pelearse con el fondo de la ficha. Lo que
+                    // interesa es la forma de la línea y dónde cae respecto a tu media.
+                    if let media = mediaDeNivel(points) {
+                        RuleMark(y: .value("Tu media", media))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
+                            .foregroundStyle(T.tintaSuave.opacity(0.6))
+                            .annotation(position: .top, alignment: .leading) {
+                                Text(String(format: "media %.1f", media))
+                                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(T.tintaSuave)
+                            }
+                    }
                     ForEach(points) { point in
-                        AreaMark(
-                            x: .value("Fecha", point.date),
-                            y: .value("Nivel", point.level)
-                        )
-                        .interpolationMethod(.catmullRom)
-                        .foregroundStyle(T.pista.opacity(0.15))
                         LineMark(
                             x: .value("Fecha", point.date),
                             y: .value("Nivel", point.level)
                         )
                         .interpolationMethod(.catmullRom)
                         .foregroundStyle(T.pista)
-                        .lineStyle(StrokeStyle(lineWidth: 2.5))
+                        .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
                         PointMark(
                             x: .value("Fecha", point.date),
                             y: .value("Nivel", point.level)
                         )
+                        .symbolSize(50)
                         .foregroundStyle(T.pista)
                     }
                 }
                 .chartYScale(domain: yDomain(points))
+                // Rejilla horizontal fina y nada de vertical: las fechas ya se leen
+                // abajo y las líneas verticales solo añaden ruido.
+                .chartXAxis { AxisMarks { AxisValueLabel() } }
+                .chartYAxis {
+                    AxisMarks { 
+                        AxisGridLine().foregroundStyle(T.borde)
+                        AxisValueLabel()
+                    }
+                }
                 .frame(height: 180)
             }
         }
@@ -202,6 +217,12 @@ struct LevelHistoryChart: View {
         let low = points.map(\.level).min() ?? 1
         let high = points.map(\.level).max() ?? 7
         return max(low - 0.2, 1)...min(high + 0.2, 7)
+    }
+
+    /// La referencia contra la que se lee la curva. Nil con un solo punto.
+    private func mediaDeNivel(_ points: [HistoryPoint]) -> Float? {
+        guard points.count >= 2 else { return nil }
+        return points.map(\.level).reduce(0, +) / Float(points.count)
     }
 
     /// Sin `unknown` (no se puntúa) y sin más criba: si un golpe no aparece en ninguna

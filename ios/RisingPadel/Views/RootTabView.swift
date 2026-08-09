@@ -189,14 +189,14 @@ struct LastSessionView: View {
 
     /// Cuánto acierta el reloj, en una línea y a un toque del detalle.
     ///
-    /// Va en la portada y no escondido en Ajustes porque de este número depende que el
-    /// resto de la pantalla signifique algo: un nivel calculado sobre golpes mal
-    /// clasificados es un nivel inventado, y el jugador tiene derecho a saberlo sin
-    /// buscarlo. Solo aparece cuando hay con qué medirlo.
+    /// **Solo en modo desarrollador.** Es una herramienta de quien construye el
+    /// detector, no de quien juega: a un cliente, un "63% de acierto" en la portada le
+    /// dice que la app no funciona, y no le da nada que pueda hacer al respecto. Quien
+    /// sí puede hacer algo —grabar tandas y calibrar— es quien tiene el modo activado.
     @ViewBuilder
     private var precisionCard: some View {
         let informe = model.precision
-        if informe.hayDatos {
+        if model.developerMode, informe.hayDatos {
             Button { precisionAbierta = true } label: {
                 PadelCard(title: "Precisión del reloj", icon: "checkmark.seal") {
                     HStack(alignment: .center, spacing: 14) {

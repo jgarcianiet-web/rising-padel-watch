@@ -323,11 +323,15 @@ struct SettingsView: View {
                     .font(.caption2)
                     .foregroundStyle(T.tintaSuave)
             } else {
-                if let vibora = resultado.calibracion.viboraAxialRadS {
-                    linea("Efecto mínimo de tu víbora", String(format: "%.1f", vibora))
+                if let vibora = resultado.calibracion.viboraElevationDeg {
+                    linea("Altura que separa tu bandeja de tu víbora",
+                          String(format: "%.0f°", vibora))
                 }
                 if let smash = resultado.calibracion.smashPeakGyroRadS {
                     linea("Violencia mínima de tu remate", String(format: "%.1f", smash))
+                }
+                if resultado.calibracion.ejeDeElevacionInvertido == true {
+                    linea("Eje de la elevación", "corregido (tu reloj lo lee al revés)")
                 }
                 if let prep = resultado.calibracion.prepOverheadElevationDeg {
                     linea("Altura a la que armas los golpes altos", String(format: "%.0f°", prep))

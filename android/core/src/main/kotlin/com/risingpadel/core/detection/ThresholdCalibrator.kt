@@ -20,7 +20,7 @@ import kotlin.math.abs
 data class DetectorCalibration(
     val prepOverheadElevationDeg: Float? = null,
     val smashPeakGyroRadS: Float? = null,
-    val viboraAxialRadS: Float? = null,
+    val viboraElevationDeg: Float? = null,
     val volleyAxialMaxRadS: Float? = null,
     /**
      * El eje del antebrazo lee la elevación al revés en este reloj.
@@ -42,7 +42,7 @@ data class DetectorCalibration(
 ) {
     val vacia: Boolean
         get() = prepOverheadElevationDeg == null && smashPeakGyroRadS == null &&
-            viboraAxialRadS == null && volleyAxialMaxRadS == null &&
+            viboraElevationDeg == null && volleyAxialMaxRadS == null &&
             ejeDeElevacionInvertido == null
 }
 
@@ -120,12 +120,15 @@ object ThresholdCalibrator {
             .map { it.second.peakGyroRadS }
         val smash = frontera(picoOtrosAltos, picoSmash, rango = 10f..30f)
 
-        // ── Víbora contra bandeja: el efecto lateral ──
-        val axialVibora = etiquetados.filter { it.first == ShotType.VIBORA }
-            .map { abs(it.second.axialRotationRadS) }
-        val axialBandeja = etiquetados.filter { it.first == ShotType.BANDEJA }
-            .map { abs(it.second.axialRotationRadS) }
-        val vibora = frontera(axialBandeja, axialVibora, rango = 2f..12f)
+        // ── Víbora contra bandeja: la ALTURA del golpeo ──
+        // Las dos se preparan igual; la víbora se golpea más baja. Ojo al orden de los
+        // argumentos: aquí la familia "alta" es la BANDEJA, al revés que en los demás
+        // rasgos, porque lo que define a la víbora es quedarse por debajo.
+        val alturaVibora = etiquetados.filter { it.first == ShotType.VIBORA }
+            .map { it.second.peakElevationDeg * giro }
+        val alturaBandeja = etiquetados.filter { it.first == ShotType.BANDEJA }
+            .map { it.second.peakElevationDeg * giro }
+        val vibora = frontera(alturaVibora, alturaBandeja, rango = -10f..45f)
 
         // ── Volea contra golpe de fondo: la pala quieta ──
         val axialVoleas = etiquetados.filter { it.first in VOLEAS }
@@ -137,7 +140,7 @@ object ThresholdCalibrator {
         val calibracion = DetectorCalibration(
             prepOverheadElevationDeg = prep,
             smashPeakGyroRadS = smash,
-            viboraAxialRadS = vibora,
+            viboraElevationDeg = vibora,
             volleyAxialMaxRadS = volea,
             ejeDeElevacionInvertido = invertido,
             muestras = etiquetados.size,

@@ -15,22 +15,23 @@ class ThresholdCalibratorTest {
         pico: Float,
         prep: Float?,
         barrido: Float = 160f,
+        alto: Float = 0f,
     ) = ShotFeatures(
         sweptAngleDeg = barrido,
         peakGyroRadS = pico,
-        elevationDeg = 0f,
+        elevationDeg = alto,
         axialRotationRadS = axial,
         swingDurationMs = 250,
-        peakElevationDeg = 0f,
+        peakElevationDeg = alto,
         prepElevationDeg = prep,
     )
 
     /** Una tanda de n golpes de un tipo, con pequeñas variaciones alrededor del centro. */
     private fun tanda(
-        tipo: ShotType, n: Int, axial: Float, pico: Float, prep: Float?
+        tipo: ShotType, n: Int, axial: Float, pico: Float, prep: Float?, alto: Float = 0f
     ): List<Pair<ShotType, ShotFeatures>> = (0 until n).map { i ->
         val d = (i - n / 2) * 0.1f
-        tipo to rasgos(axial + d, pico + d, prep?.plus(d * 5))
+        tipo to rasgos(axial + d, pico + d, prep?.plus(d * 5), alto = alto + d)
     }
 
     @Test
@@ -42,34 +43,35 @@ class ThresholdCalibratorTest {
     }
 
     @Test
-    fun `el umbral de vibora cae entre las medianas de las tandas del jugador`() {
-        // El caso real: víboras de |4-5| y bandejas de |2|, con el umbral de fábrica en
-        // 4 — este jugador necesita el suyo, no el de catálogo.
-        val etiquetados = tanda(ShotType.VIBORA, 8, axial = -5f, pico = 13f, prep = 60f) +
-            tanda(ShotType.BANDEJA, 8, axial = 1.5f, pico = 12f, prep = 60f)
+    fun `el umbral de vibora cae entre las alturas de golpeo del jugador`() {
+        // Las dos empiezan igual; la víbora se golpea más baja. Este jugador impacta
+        // sus bandejas a +30 y sus víboras a +5.
+        val etiquetados = tanda(ShotType.VIBORA, 8, axial = -2f, pico = 13f, prep = 60f, alto = 5f) +
+            tanda(ShotType.BANDEJA, 8, axial = -2f, pico = 12f, prep = 60f, alto = 30f)
         val calibracion = ThresholdCalibrator.calibrar(etiquetados).calibracion
-        val umbral = assertNotNull(calibracion.viboraAxialRadS)
-        assertTrue(umbral in 2f..5f, "el umbral debería caer entre 1.5 y 5: $umbral")
+        val umbral = assertNotNull(calibracion.viboraElevationDeg)
+        assertTrue(umbral in 5f..30f, "el umbral debería caer entre las dos alturas: $umbral")
         assertEquals(16, calibracion.muestras)
     }
 
     @Test
     fun `familias solapadas dejan el umbral de fabrica`() {
-        // Bandejas y víboras con el mismo efecto: ese rasgo no separa a este jugador.
-        val etiquetados = tanda(ShotType.VIBORA, 8, axial = 3f, pico = 13f, prep = 60f) +
-            tanda(ShotType.BANDEJA, 8, axial = 3f, pico = 13f, prep = 60f)
-        assertNull(ThresholdCalibrator.calibrar(etiquetados).calibracion.viboraAxialRadS)
+        // Bandejas y víboras golpeadas a la misma altura: ese rasgo no separa a este
+        // jugador y no se toca nada.
+        val etiquetados = tanda(ShotType.VIBORA, 8, axial = 3f, pico = 13f, prep = 60f, alto = 20f) +
+            tanda(ShotType.BANDEJA, 8, axial = 3f, pico = 13f, prep = 60f, alto = 20f)
+        assertNull(ThresholdCalibrator.calibrar(etiquetados).calibracion.viboraElevationDeg)
     }
 
     @Test
     fun `la calibracion mejora el acierto sobre las propias tandas`() {
-        // Un jugador de muñeca suave: sus víboras llevan |3| de efecto (el umbral de
-        // fábrica es 4, así que de fábrica salen todas como bandeja) y sus remates
-        // pican 12 (el umbral de fábrica es 16: ninguno llega).
+        // Un jugador que golpea sus víboras muy bajas (+2, con el umbral de fábrica en
+        // 18: de fábrica ya salen bien) y sus remates flojos, picando 14 cuando el
+        // umbral de fábrica pide 16.
         val etiquetados =
-            tanda(ShotType.VIBORA, 8, axial = -3f, pico = 10f, prep = 60f) +
-                tanda(ShotType.BANDEJA, 8, axial = 0.5f, pico = 9f, prep = 60f) +
-                tanda(ShotType.SMASH, 8, axial = -1f, pico = 14f, prep = 60f)
+            tanda(ShotType.VIBORA, 8, axial = -3f, pico = 10f, prep = 60f, alto = 2f) +
+                tanda(ShotType.BANDEJA, 8, axial = 0.5f, pico = 9f, prep = 60f, alto = 30f) +
+                tanda(ShotType.SMASH, 8, axial = -1f, pico = 14f, prep = 60f, alto = 10f)
 
         val resultado = ThresholdCalibrator.calibrar(etiquetados)
         assertTrue(
@@ -82,13 +84,13 @@ class ThresholdCalibratorTest {
 
     @Test
     fun `una tanda absurda no puede dejar el detector inservible`() {
-        // Etiquetas cruzadas a propósito: víboras sin efecto y bandejas con muchísimo.
-        // El umbral resultante se acota al rango sensato en vez de irse a 40.
-        val etiquetados = tanda(ShotType.VIBORA, 8, axial = 30f, pico = 13f, prep = 60f) +
-            tanda(ShotType.BANDEJA, 8, axial = 20f, pico = 12f, prep = 60f)
-        val umbral = ThresholdCalibrator.calibrar(etiquetados).calibracion.viboraAxialRadS
+        // Alturas imposibles: el umbral resultante se acota al rango sensato en vez de
+        // irse a 200° y dejar el detector sin poder llamar bandeja a nada.
+        val etiquetados = tanda(ShotType.VIBORA, 8, axial = -2f, pico = 13f, prep = 60f, alto = 150f) +
+            tanda(ShotType.BANDEJA, 8, axial = -2f, pico = 12f, prep = 60f, alto = 300f)
+        val umbral = ThresholdCalibrator.calibrar(etiquetados).calibracion.viboraElevationDeg
         assertNotNull(umbral)
-        assertTrue(umbral <= 12f, "el umbral debe quedar acotado: $umbral")
+        assertTrue(umbral <= 45f, "el umbral debe quedar acotado: $umbral")
     }
 
     @Test

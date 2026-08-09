@@ -54,7 +54,11 @@ struct SessionDetailView: View {
                 // mandan en la liga y en los objetivos. Se lee del modelo y no del
                 // valor con el que se abrió la vista, para reflejar la corrección al
                 // instante sin salir y volver a entrar.
-                if !session.shots.isEmpty {
+                //
+                // Solo en modo desarrollador: pedirle a un cliente que audite los
+                // recuentos de su propia sesión es pedirle que haga de control de
+                // calidad. Quien construye el detector sí lo necesita.
+                if model.developerMode, !session.shots.isEmpty {
                     SessionReviewCard(
                         session: model.sessions.first { $0.sessionId == session.sessionId }
                             ?? session

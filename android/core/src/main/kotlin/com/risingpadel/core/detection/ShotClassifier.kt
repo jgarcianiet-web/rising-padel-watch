@@ -151,21 +151,34 @@ class ShotClassifier(
      */
     private fun classifyOverhead(features: ShotFeatures, elevationMargin: Float): Classification {
         // Aquí ya no vive el saque: el saque del pádel es BAJO (se arma a la cintura),
-        // así que se decide en la rama de fondo. Herencia del tenis corregida en
+        // así que se decide antes, por su pronación. Herencia del tenis corregida en
         // pista (ago 2026): un remate real barrió 291° y caía como "saque".
-        val axialAbs = abs(features.axialRotationRadS)
+        //
+        // Entre los tres golpes altos manda la ALTURA DEL GOLPEO, no el efecto. La
+        // bandeja y la víbora empiezan igual —brazo arriba— pero la víbora se golpea
+        // más baja: es un golpe cortado que sale más plano. Con la tanda de ocho tipos
+        // en la mano, la bandeja pica a +25° de mediana y la víbora a +4°.
+        //
+        // El efecto NO sirve para separarlas, aunque parezca lo lógico: la rotación
+        // axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el mismo
+        // número. Una víbora no rota todo el swing, da un latigazo al final, y
+        // promediarlo sobre 200° de arco lo borra. Por eso se mide ahora el pico de
+        // rotación ([ShotFeatures.peakAxialRotationRadS]), que aún no tiene tanda con
+        // la que fijar su umbral.
+        val alturaMargin = margin(
+            features.peakElevationDeg, config.viboraElevationDeg, config.viboraElevationDeg
+        )
         val peakMargin =
             margin(features.peakGyroRadS, config.smashPeakGyroRadS, config.smashPeakGyroRadS * 0.35f)
-        val axialMargin = margin(axialAbs, config.viboraAxialRadS, config.viboraAxialRadS * 0.5f)
 
         val type = when {
             features.peakGyroRadS > config.smashPeakGyroRadS -> ShotType.SMASH
-            axialAbs > config.viboraAxialRadS -> ShotType.VIBORA
-            else -> ShotType.BANDEJA
+            features.peakElevationDeg >= config.viboraElevationDeg -> ShotType.BANDEJA
+            else -> ShotType.VIBORA
         }
         // Dos rasgos y ya: el que decidió el tipo, y la certeza de que fue golpe alto.
         // El barrido no aporta aquí (los tres golpes altos barren parecido).
-        val decisionMargin = if (type == ShotType.SMASH) peakMargin else axialMargin
+        val decisionMargin = if (type == ShotType.SMASH) peakMargin else alturaMargin
         return finalize(type, 0.5f * decisionMargin + 0.5f * elevationMargin)
     }
 

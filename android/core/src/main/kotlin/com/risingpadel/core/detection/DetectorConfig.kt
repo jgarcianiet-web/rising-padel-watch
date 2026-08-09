@@ -111,16 +111,19 @@ data class DetectorConfig(
      */
     val smashPeakGyroRadS: Float = 16f,
     /**
-     * Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
-     * alto que no es smash se considera víbora: el efecto lateral es su seña de
-     * identidad, la bandeja se pega mucho más plana.
+     * Altura del golpeo que separa la bandeja de la víbora.
      *
-     * 4 y no 9: recalibrado con víboras reales de pista (ago 2026), que promediaron
-     * |4.1-5.4| de axial — con el umbral en 9 ninguna llegaba. Las derechas de fondo
-     * (axial 7.9-10.5) no compiten aquí: no pasan el filtro de golpe alto. El riesgo
-     * son las bandejas con algo de efecto; falta su tanda de pista para afinar.
+     * Las dos empiezan igual —brazo arriba, misma preparación— pero **la víbora se
+     * golpea más baja**: es un golpe cortado que sale más plano, mientras la bandeja se
+     * impacta arriba. Con la tanda de ocho tipos (ago 2026) la bandeja picó a +11..+36°
+     * (mediana +25) y la víbora a −71..+17 (mediana +4).
+     *
+     * Antes se intentaba separarlas por el efecto, y no funcionaba porque no puede: la
+     * rotación axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el
+     * mismo número. Una víbora no rota todo el swing, da un latigazo al final, y
+     * promediarlo sobre 200° de arco lo borra.
      */
-    val viboraAxialRadS: Float = 4f,
+    val viboraElevationDeg: Float = 18f,
     /** Ventana previa al impacto sobre la que se promedia la rotación axial. */
     val axialWindowMs: Long = 200,
     /**
@@ -182,7 +185,7 @@ data class DetectorConfig(
         prepOverheadElevationDeg =
             calibracion.prepOverheadElevationDeg ?: prepOverheadElevationDeg,
         smashPeakGyroRadS = calibracion.smashPeakGyroRadS ?: smashPeakGyroRadS,
-        viboraAxialRadS = calibracion.viboraAxialRadS ?: viboraAxialRadS,
+        viboraElevationDeg = calibracion.viboraElevationDeg ?: viboraElevationDeg,
         volleyAxialMaxRadS = calibracion.volleyAxialMaxRadS ?: volleyAxialMaxRadS,
         // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
         // hay que corregir cuando las tandas dicen que este reloj la lee al revés.
