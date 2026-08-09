@@ -66,6 +66,25 @@ class ShotClassifier(
         // mide con el brazo calmado, donde la gravedad es fiable — en pista (ago
         // 2026) los remates reales salían con el pico corrupto (+3°, −41°) y solo la
         // preparación los delataba.
+        // El saque se decide ANTES de preguntar si el golpe fue alto, y a propósito: es
+        // el único golpe que se reconoce sin depender de la elevación, que es la medida
+        // más frágil de todas. En la tanda de pista (ago 2026) tres de los cinco saques
+        // se colaron en la rama alta por culpa de la elevación y ya no había forma de
+        // recuperarlos. La firma del saque —barrido largo con mucha pronación— no la
+        // tiene ningún otro golpe, mire el brazo donde mire.
+        val axialDelSaque = abs(features.axialRotationRadS)
+        if (axialDelSaque >= config.serveAxialRadS &&
+            features.sweptAngleDeg >= config.serveSweptDeg
+        ) {
+            // Base alta a propósito: pasar dos puertas independientes —rotar como un
+            // saque Y barrer como un saque— ya es prueba de sobra. Con la fórmula de
+            // solo márgenes, un saque justo en la frontera salía con 0,16 de confianza
+            // y el detector lo tiraba por dudoso, que es lo contrario de lo que pasaba.
+            val axialMargin = margin(axialDelSaque, config.serveAxialRadS, config.serveAxialRadS * 0.5f)
+            val sweptMargin = margin(features.sweptAngleDeg, config.serveSweptDeg, config.serveSweptDeg * 0.3f)
+            return finalize(ShotType.SERVE, 0.5f + 0.25f * axialMargin + 0.25f * sweptMargin)
+        }
+
         val cima = maxOf(
             features.peakElevationDeg,
             features.prepElevationDeg ?: -90f,
@@ -84,18 +103,6 @@ class ShotClassifier(
 
         val axial = features.axialRotationRadS
         val axialAbs = abs(axial)
-
-        // El saque del pádel: preparación baja (se arma a la cintura, por eso no está
-        // en la rama alta) con un barrido enorme y velocidad de sobra.
-        if (features.sweptAngleDeg > config.serveSweptDeg &&
-            features.peakGyroRadS > config.servePeakGyroRadS
-        ) {
-            val sweptMargin =
-                margin(features.sweptAngleDeg, config.serveSweptDeg, config.serveSweptDeg * 0.5f)
-            val peakMargin =
-                margin(features.peakGyroRadS, config.servePeakGyroRadS, config.servePeakGyroRadS * 0.5f)
-            return finalize(ShotType.SERVE, 0.5f * sweptMargin + 0.5f * peakMargin)
-        }
 
         // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
         // swing medio con la pala quieta — voleas reales con acompañamiento barrían

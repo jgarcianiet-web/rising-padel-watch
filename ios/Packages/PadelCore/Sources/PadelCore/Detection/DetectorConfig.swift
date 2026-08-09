@@ -63,10 +63,25 @@ public struct DetectorConfig: Equatable, Sendable {
     public var volleyAxialMaxRadS: Float
     /// Techo de barrido para esa segunda firma: más allá ya es un swing completo.
     public var volleyMaxSweptDeg: Float
-    /// Ángulo barrido a partir del cual un golpeo alto es un saque y no una bandeja.
+    /// Barrido mínimo del saque: 270°.
+    ///
+    /// Los saques reales barrieron 181-307°, así que 175 los cogería los cinco... y de
+    /// paso las derechas de fondo, que barren ~190 y rotan 7,9-10,5 rad/s — por encima
+    /// del umbral de rotación del saque. Con estos rasgos, un saque flojo y una derecha
+    /// son indistinguibles, y equivocarse hacia "todas las derechas son saques" es mucho
+    /// peor que perder el saque más corto de cada cinco.
     public var serveSweptDeg: Float
-    /// Pico de |gyro| adicional que exige el saque.
-    public var servePeakGyroRadS: Float
+    /// Rotación axial mínima del saque. **Es lo que de verdad lo define.**
+    ///
+    /// El saque del pádel se arma por debajo de la cintura y se pega con pronación: no
+    /// tiene la violencia del saque de tenis, pero sí un giro sobre el eje del antebrazo
+    /// que ningún otro golpe alcanza. En una tanda real (ago 2026) salió entre 6,2 y 8,7
+    /// rad/s, cuando el siguiente golpe más rotado de las otras cinco tandas llegó a 6,9
+    /// (una víbora, con 59° de barrido) y a 5,7 (una volea, con 172°).
+    ///
+    /// El umbral anterior pedía un pico de 18 rad/s, de saque de tenis: los saques reales
+    /// picaron entre 9,5 y 15,3 y no llegaba ninguno.
+    public var serveAxialRadS: Float
     /// Pico de |gyro| a partir del cual un golpeo alto es un smash. Una bandeja ronda
     /// 12-20 rad/s y una víbora 16-25; el remate vive por encima de 25.
     public var smashPeakGyroRadS: Float
@@ -119,8 +134,8 @@ public struct DetectorConfig: Equatable, Sendable {
         volleySweptDeg: Float = 70,
         volleyAxialMaxRadS: Float = 4.5,
         volleyMaxSweptDeg: Float = 190,
-        serveSweptDeg: Float = 220,
-        servePeakGyroRadS: Float = 18,
+        serveSweptDeg: Float = 270,
+        serveAxialRadS: Float = 5.5,
         smashPeakGyroRadS: Float = 16,
         viboraAxialRadS: Float = 4,
         axialWindowMs: Int64 = 200,
@@ -145,7 +160,7 @@ public struct DetectorConfig: Equatable, Sendable {
         self.volleyAxialMaxRadS = volleyAxialMaxRadS
         self.volleyMaxSweptDeg = volleyMaxSweptDeg
         self.serveSweptDeg = serveSweptDeg
-        self.servePeakGyroRadS = servePeakGyroRadS
+        self.serveAxialRadS = serveAxialRadS
         self.smashPeakGyroRadS = smashPeakGyroRadS
         self.viboraAxialRadS = viboraAxialRadS
         self.axialWindowMs = axialWindowMs

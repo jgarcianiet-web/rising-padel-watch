@@ -68,10 +68,30 @@ data class DetectorConfig(
     val volleyAxialMaxRadS: Float = 4.5f,
     /** Techo de barrido para esa segunda firma: más allá ya es un swing completo. */
     val volleyMaxSweptDeg: Float = 190f,
-    /** Ángulo barrido a partir del cual un golpeo alto es un saque y no una bandeja. */
-    val serveSweptDeg: Float = 220f,
-    /** Pico de |gyro| adicional que exige el saque. */
-    val servePeakGyroRadS: Float = 18f,
+    /**
+     * Barrido mínimo del saque: 270°.
+     *
+     * Los saques reales barrieron 181-307°, así que 175 los cogería los cinco... y de
+     * paso las derechas de fondo, que barren ~190 y rotan 7,9-10,5 rad/s — por encima
+     * del umbral de rotación del saque. Con estos rasgos, un saque flojo y una derecha
+     * son indistinguibles, y equivocarse hacia "todas las derechas son saques" es mucho
+     * peor que perder el saque más corto de cada cinco.
+     */
+    val serveSweptDeg: Float = 270f,
+    /**
+     * Rotación axial mínima del saque. **Es lo que de verdad lo define.**
+     *
+     * El saque del pádel se arma por debajo de la cintura y se pega con pronación: no
+     * tiene la violencia del saque de tenis, pero sí un giro sobre el eje del antebrazo
+     * que ningún otro golpe alcanza. En una tanda real de saques salió entre 6,2 y 8,7
+     * rad/s, cuando el siguiente golpe más rotado de las otras cinco tandas llegó a 6,9
+     * (una víbora, con 59° de barrido) y a 5,7 (una volea, con 172°). Exigiendo las dos
+     * cosas —barrido largo y mucha rotación— los saques salen los cinco y no entra nadie.
+     *
+     * El umbral anterior pedía un pico de 18 rad/s, de saque de tenis: los saques reales
+     * picaron entre 9,5 y 15,3 y no llegaba ninguno.
+     */
+    val serveAxialRadS: Float = 5.5f,
     /**
      * Pico de |gyro| a partir del cual un golpeo alto es un smash.
      *
