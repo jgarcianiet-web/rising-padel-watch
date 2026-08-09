@@ -44,6 +44,15 @@ class TrainingRecorder(
     var playerLevel: Int? = null
 
     val capturedCount: Int get() = captured
+
+    /**
+     * Los swings que el detector vio y tiró durante la tanda, con el motivo.
+     *
+     * Es la mitad que faltaba: la tanda guardaba lo que acertaba a detectar, y lo que se
+     * le escapaba no dejaba rastro. Con esto, "no me coge la mitad de las bandejas" deja
+     * de ser una impresión y pasa a ser un número con el umbral culpable al lado.
+     */
+    val descartes get() = detector.descartes
     val isRecording: Boolean get() = recording
 
     fun start(monotonicMs: Long) {

@@ -181,6 +181,13 @@ public struct DetectorConfig: Equatable, Sendable {
         if let valor = calibracion.smashPeakGyroRadS { copy.smashPeakGyroRadS = valor }
         if let valor = calibracion.viboraAxialRadS { copy.viboraAxialRadS = valor }
         if let valor = calibracion.volleyAxialMaxRadS { copy.volleyAxialMaxRadS = valor }
+        // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
+        // hay que corregir cuando las tandas dicen que este reloj la lee al revés.
+        if calibracion.ejeDeElevacionInvertido == true {
+            copy.forearmAxis = Vector3(
+                -copy.forearmAxis.x, -copy.forearmAxis.y, -copy.forearmAxis.z
+            )
+        }
         return copy
     }
 }

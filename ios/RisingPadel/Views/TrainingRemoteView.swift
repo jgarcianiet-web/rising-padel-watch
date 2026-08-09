@@ -102,6 +102,10 @@ struct TrainingRemoteView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
+                    if let descartes = estado?.descartes, descartes.total > 0 {
+                        descartesCard(descartes, capturados: estado?.capturadosEnTanda ?? 0)
+                    }
+
                     Button {
                         model.ordenarTanda(.parar)
                     } label: {
@@ -161,6 +165,52 @@ struct TrainingRemoteView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: Lo que se le escapa
+
+    /// Los swings que el detector vio y tiró, con el motivo.
+    ///
+    /// Es la mitad que faltaba para poder arreglar el detector. Las tandas solo guardan
+    /// lo que sí se detecta, así que un golpe perdido no dejaba rastro en ningún sitio y
+    /// solo quedaba adivinar qué umbral bajar. Cada línea apunta a un umbral concreto.
+    private func descartesCard(_ d: DescartesDelDetector, capturados: Int) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            let vistos = capturados + d.total
+            Text("Ha cogido \(capturados) de \(vistos) movimientos")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .foregroundStyle(capturados * 2 >= vistos ? T.tinta : T.rojo)
+            if d.swingSinImpacto > 0 {
+                lineaDescarte("\(d.swingSinImpacto) swings sin impacto claro",
+                              "el golpe fue demasiado suave para el umbral de impacto")
+            }
+            if d.impactoConSwingCorto > 0 {
+                lineaDescarte("\(d.impactoConSwingCorto) impactos con swing corto",
+                              "poco recorrido o poca velocidad de pala")
+            }
+            if d.amago > 0 {
+                lineaDescarte("\(d.amago) amagos", "el brazo se paró sin llegar a golpear")
+            }
+            if d.enRefractario > 0 {
+                lineaDescarte("\(d.enRefractario) demasiado seguidos",
+                              "llegaron dentro del tiempo muerto del golpe anterior")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(T.borde.opacity(0.35), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func lineaDescarte(_ que: String, _ porque: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(que)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(T.tinta)
+            Text(porque)
+                .font(.system(size: 10, design: .rounded))
+                .foregroundStyle(T.tintaSuave)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

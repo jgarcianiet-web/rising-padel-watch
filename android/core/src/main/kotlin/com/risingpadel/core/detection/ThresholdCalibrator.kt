@@ -22,13 +22,28 @@ data class DetectorCalibration(
     val smashPeakGyroRadS: Float? = null,
     val viboraAxialRadS: Float? = null,
     val volleyAxialMaxRadS: Float? = null,
+    /**
+     * El eje del antebrazo lee la elevación al revés en este reloj.
+     *
+     * Se decide **con tandas etiquetadas** y no en vivo. Antes lo decidía una media
+     * larga de la sesión: si el brazo salía "en alto" un rato, se daba por invertido.
+     * Esa regla no puede distinguir "el sensor está al revés" de "este jugador acaba de
+     * dar treinta bandejas", y una tanda de golpes altos es exactamente el caso que la
+     * dispara en falso — justo cuando la elevación más falta hace. En pista (ago 2026)
+     * el resultado fue que las bandejas medían MENOS elevación que las voleas.
+     *
+     * Aquí no hay ambigüedad: si en las tandas los golpes altos se preparan más abajo
+     * que los bajos, el eje está invertido. Lo dice la etiqueta, no una suposición.
+     */
+    val ejeDeElevacionInvertido: Boolean? = null,
     /** Cuántos golpeos etiquetados la sostienen. */
     val muestras: Int = 0,
     val creadoEpochMs: Long = 0,
 ) {
     val vacia: Boolean
         get() = prepOverheadElevationDeg == null && smashPeakGyroRadS == null &&
-            viboraAxialRadS == null && volleyAxialMaxRadS == null
+            viboraAxialRadS == null && volleyAxialMaxRadS == null &&
+            ejeDeElevacionInvertido == null
 }
 
 /** El resultado de calibrar: los umbrales y cuánto mejoran sobre las propias tandas. */
@@ -62,6 +77,13 @@ object ThresholdCalibrator {
     /** Con menos de esto por familia, el rasgo no se toca. */
     const val MIN_POR_FAMILIA = 5
 
+    /**
+     * Grados que tienen que separar a los altos de los bajos para creerse el signo.
+     * Por debajo, la diferencia puede ser ruido y girar el eje sería peor que no hacer
+     * nada: se rompería un detector que a lo mejor estaba bien.
+     */
+    const val MIN_SEPARACION_EJE_DEG = 15f
+
     private val ALTOS = setOf(ShotType.BANDEJA, ShotType.VIBORA, ShotType.SMASH)
     private val VOLEAS = setOf(ShotType.FOREHAND_VOLLEY, ShotType.BACKHAND_VOLLEY)
     private val FONDO = setOf(ShotType.FOREHAND, ShotType.BACKHAND)
@@ -78,7 +100,17 @@ object ThresholdCalibrator {
             .mapNotNull { it.second.prepElevationDeg }
         val prepBajos = etiquetados.filter { it.first in VOLEAS || it.first in FONDO }
             .mapNotNull { it.second.prepElevationDeg }
-        val prep = frontera(prepBajos, prepAltos, rango = 20f..70f)
+        // ¿Está el eje al revés? Si los golpes altos se **preparan más abajo** que los
+        // bajos, la elevación llega con el signo cambiado. Lo dice la etiqueta del
+        // jugador, que es la única fuente que no se puede confundir con "hoy tocaba
+        // tanda de bandejas".
+        val invertido = ejeInvertido(altos = prepAltos, bajos = prepBajos)
+        // Con el eje corregido, la frontera se calcula sobre los valores ya girados: si
+        // no, se derivaría un umbral para un signo y se aplicaría al contrario.
+        val giro = if (invertido == true) -1f else 1f
+        val prep = frontera(
+            prepBajos.map { it * giro }, prepAltos.map { it * giro }, rango = 20f..70f
+        )
 
         // ── Smash contra el resto de altos: la violencia del pico de giro ──
         val picoSmash = etiquetados.filter { it.first == ShotType.SMASH }
@@ -107,6 +139,7 @@ object ThresholdCalibrator {
             smashPeakGyroRadS = smash,
             viboraAxialRadS = vibora,
             volleyAxialMaxRadS = volea,
+            ejeDeElevacionInvertido = invertido,
             muestras = etiquetados.size,
             creadoEpochMs = ahoraEpochMs,
         )
@@ -117,6 +150,23 @@ object ThresholdCalibrator {
             aciertoDespues = acierto(etiquetados, base.aplicando(calibracion)),
             porTipo = porTipo,
         )
+    }
+
+    /**
+     * ¿Lee este reloj la elevación al revés?
+     *
+     * Un golpe alto se arma con el brazo por encima del hombro y uno de fondo o una
+     * volea, no. Si las medianas dicen lo contrario —y por un margen que no se explica
+     * por ruido— el eje está invertido. Null si no hay material suficiente o si la
+     * separación es pequeña: ante la duda, no se toca nada.
+     */
+    private fun ejeInvertido(altos: List<Float>, bajos: List<Float>): Boolean? {
+        if (altos.size < MIN_POR_FAMILIA || bajos.size < MIN_POR_FAMILIA) return null
+        val medianaAltos = mediana(altos)
+        val medianaBajos = mediana(bajos)
+        val separacion = medianaAltos - medianaBajos
+        if (abs(separacion) < MIN_SEPARACION_EJE_DEG) return null
+        return separacion < 0
     }
 
     /**

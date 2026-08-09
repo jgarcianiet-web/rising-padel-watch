@@ -143,6 +143,13 @@ data class DetectorConfig(
         smashPeakGyroRadS = calibracion.smashPeakGyroRadS ?: smashPeakGyroRadS,
         viboraAxialRadS = calibracion.viboraAxialRadS ?: viboraAxialRadS,
         volleyAxialMaxRadS = calibracion.volleyAxialMaxRadS ?: volleyAxialMaxRadS,
+        // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
+        // hay que corregir cuando las tandas dicen que este reloj la lee al revés.
+        forearmAxis = if (calibracion.ejeDeElevacionInvertido == true) {
+            Vector3(-forearmAxis.x, -forearmAxis.y, -forearmAxis.z)
+        } else {
+            forearmAxis
+        },
     )
 
     companion object {

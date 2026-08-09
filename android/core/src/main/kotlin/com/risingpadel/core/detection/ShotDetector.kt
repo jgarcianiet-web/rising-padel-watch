@@ -18,6 +18,33 @@ import com.risingpadel.core.model.Vector3
  *
  * No es thread-safe: hay que llamarlo desde un único hilo (el del callback de sensores).
  */
+/**
+ * Los swings que el detector vio y tiró, con el motivo.
+ *
+ * Existe porque hasta ahora los golpes que **no** se detectan eran invisibles: las
+ * tandas de entrenamiento solo guardan ventanas alrededor de lo que sí se detectó, así
+ * que un golpe perdido no deja rastro en ningún sitio. Se podía medir cuánto se
+ * equivoca el clasificador, pero no cuánto se le escapa al detector — que es la pérdida
+ * más grande y la que hace que nada converja.
+ *
+ * Cada contador apunta a **un umbral concreto**, así que dejan de hacer falta las
+ * conjeturas: si se acumulan en `swingSinImpacto`, sobra `impactG` para golpes suaves
+ * como la bandeja o la volea; si es `impactoConSwingCorto`, sobran `minSwingMs` o
+ * `minPeakGyroRadS`.
+ */
+data class DescartesDelDetector(
+    /** Hubo impacto pero el swing fue corto o flojo: `minSwingMs` / `minPeakGyroRadS`. */
+    val impactoConSwingCorto: Int = 0,
+    /** El swing duró más de la cuenta sin que se viera impacto: `impactG` demasiado alto. */
+    val swingSinImpacto: Int = 0,
+    /** El giro se apagó sin llegar a impactar: amago o preparación. */
+    val amago: Int = 0,
+    /** Llegó dentro del tiempo muerto del golpe anterior: `refractoryMs`. */
+    val enRefractario: Int = 0,
+) {
+    val total: Int get() = impactoConSwingCorto + swingSinImpacto + amago + enRefractario
+}
+
 class ShotDetector(
     private val config: DetectorConfig = DetectorConfig.DEFAULT,
     profile: PlayerProfile = PlayerProfile(),
@@ -55,10 +82,12 @@ class ShotDetector(
     private var prepElevationDeg: Float? = null
     private var refractoryUntilMs = Long.MIN_VALUE
 
+    /** Lo que se ha tirado desde el último [reset], por motivo. */
+    var descartes = DescartesDelDetector()
+        private set
+
     /** Reinicia el detector y fija el origen de tiempos de la sesión. */
     fun reset(referenceTimestampMs: Long? = null) {
-        elevationEma = 0f
-        elevationSamples = 0
         window.clear()
         referenceMs = referenceTimestampMs
         prevPrev = null
@@ -69,6 +98,7 @@ class ShotDetector(
         sweptAngleRad = 0f
         peakGyroRadS = 0f
         refractoryUntilMs = Long.MIN_VALUE
+        descartes = DescartesDelDetector()
     }
 
     /** Procesa una muestra. Devuelve el golpeo si esta muestra cierra uno. */
@@ -100,9 +130,13 @@ class ShotDetector(
 
     private fun evaluate(before: MotionSample?, s: MotionSample, after: MotionSample): Shot? {
         pushWindow(s)
-        updateElevationStats(s.gravity)
 
         if (s.timestampMs < refractoryUntilMs) {
+            // Solo cuenta como descarte si venía un swing en marcha: el silencio entre
+            // golpes también cae aquí y no es nada que se esté perdiendo.
+            if (state == State.SWINGING) {
+                descartes = descartes.copy(enRefractario = descartes.enRefractario + 1)
+            }
             state = State.IDLE
             onsetCount = 0
             pendingSweptRad = 0f
@@ -122,7 +156,7 @@ class ShotDetector(
             State.SWINGING -> {
                 sweptAngleRad += gyroMag * dt
                 if (gyroMag > peakGyroRadS) peakGyroRadS = gyroMag
-                swingElevations += classifier.elevationDeg(s.gravity) * elevationSign
+                swingElevations += classifier.elevationDeg(s.gravity)
 
                 val duration = s.timestampMs - swingStartMs
                 val isImpact = accelMag > config.impactG &&
@@ -134,19 +168,26 @@ class ShotDetector(
                         emitShot(s, accelMag, duration)
 
                     // Impacto sin swing con energía suficiente: botar la pelota, chocar
-                    // la pala. No es un golpeo.
+                    // la pala. No es un golpeo... o sí lo era y el umbral pide demasiado.
                     isImpact -> {
+                        descartes = descartes.copy(
+                            impactoConSwingCorto = descartes.impactoConSwingCorto + 1
+                        )
                         goIdle()
                         null
                     }
 
                     duration > config.maxSwingMs -> {
+                        descartes = descartes.copy(
+                            swingSinImpacto = descartes.swingSinImpacto + 1
+                        )
                         goIdle()
                         null
                     }
 
                     // El swing se apaga sin llegar a impactar: amago o preparación.
                     gyroMag < config.swingOnsetRadS * 0.5f -> {
+                        descartes = descartes.copy(amago = descartes.amago + 1)
                         goIdle()
                         null
                     }
@@ -156,27 +197,6 @@ class ShotDetector(
             }
         }
     }
-
-    // ─── Autocalibración del signo de la elevación ───
-    //
-    // El brazo pasa la mayor parte del partido colgando o bajo la horizontal, así que
-    // la media larga de la elevación de un partido real es claramente negativa. Si
-    // lleva un rato saliendo claramente "en alto", el eje del antebrazo está invertido
-    // para esta combinación de muñeca y corona — el ajuste manual no puede saberlo — y
-    // el signo se corrige aquí solo. Validado con verdad-terreno de pista: víboras y
-    // smashes reales salían con elevación negativa y las derechas de fondo con +70°.
-    private var elevationEma = 0f
-    private var elevationSamples = 0
-
-    private fun updateElevationStats(gravity: com.risingpadel.core.model.Vector3) {
-        val cruda = classifier.elevationDeg(gravity)
-        elevationEma += (cruda - elevationEma) * ELEVATION_EMA_ALPHA
-        elevationSamples++
-    }
-
-    /** −1 si el eje está invertido; +1 en cuanto hay dudas (mejor no tocar nada). */
-    private val elevationSign: Float
-        get() = if (elevationSamples >= ELEVATION_MIN_SAMPLES && elevationEma > ELEVATION_FLIPPED_DEG) -1f else 1f
 
     private fun trackOnset(s: MotionSample, gyroMag: Float, dt: Float) {
         if (gyroMag <= config.swingOnsetRadS) {
@@ -200,11 +220,11 @@ class ShotDetector(
             // remates reales con pico de elevación medido a +3° o −41°).
             val calmadas = window
                 .filter { it.timestampMs in (candidateStartMs - config.prepWindowMs) until candidateStartMs }
-                .map { classifier.elevationDeg(it.gravity) * elevationSign }
+                .map { classifier.elevationDeg(it.gravity) }
                 .sorted()
             prepElevationDeg = if (calmadas.size >= 3) calmadas[calmadas.size / 2] else null
             swingElevations.clear()
-            swingElevations += classifier.elevationDeg(s.gravity) * elevationSign
+            swingElevations += classifier.elevationDeg(s.gravity)
             // El ángulo barrido arranca en el inicio real del swing, no en la muestra
             // que lo confirma.
             sweptAngleRad = pendingSweptRad
@@ -288,9 +308,3 @@ class ShotDetector(
         return if (dt <= 0f) defaultDt else dt.coerceAtMost(0.1f)
     }
 }
-
-// La autocalibración mira ~10 s de juego antes de decidir, y solo actúa con una media
-// inequívoca: un brazo no se sostiene a +15° de media durante minutos.
-private const val ELEVATION_EMA_ALPHA = 0.002f
-private const val ELEVATION_MIN_SAMPLES = 400
-private const val ELEVATION_FLIPPED_DEG = 15f

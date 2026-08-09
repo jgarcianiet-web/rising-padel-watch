@@ -357,7 +357,8 @@ final class SessionController: ObservableObject {
             alias: playerAlias,
             nivel: playerLevelRaw > 0 ? playerLevelRaw : nil,
             sensoresPuedenPararse: sensorsMayStop,
-            motivo: motivo
+            motivo: motivo,
+            descartes: trainingRecorder?.descartes
         )
     }
 

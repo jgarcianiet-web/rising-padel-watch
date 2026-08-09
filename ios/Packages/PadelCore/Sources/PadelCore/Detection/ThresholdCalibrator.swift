@@ -23,6 +23,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
         smashPeakGyroRadS: Float? = nil,
         viboraAxialRadS: Float? = nil,
         volleyAxialMaxRadS: Float? = nil,
+        ejeDeElevacionInvertido: Bool? = nil,
         muestras: Int = 0,
         creadoEpochMs: Int64 = 0
     ) {
@@ -30,6 +31,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
         self.smashPeakGyroRadS = smashPeakGyroRadS
         self.viboraAxialRadS = viboraAxialRadS
         self.volleyAxialMaxRadS = volleyAxialMaxRadS
+        self.ejeDeElevacionInvertido = ejeDeElevacionInvertido
         self.muestras = muestras
         self.creadoEpochMs = creadoEpochMs
     }
@@ -37,6 +39,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     public var vacia: Bool {
         prepOverheadElevationDeg == nil && smashPeakGyroRadS == nil
             && viboraAxialRadS == nil && volleyAxialMaxRadS == nil
+            && ejeDeElevacionInvertido == nil
     }
 }
 
@@ -63,6 +66,11 @@ public enum ThresholdCalibrator {
     /// Con menos de esto por familia, el rasgo no se toca.
     public static let minPorFamilia = 5
 
+    /// Grados que tienen que separar a los altos de los bajos para creerse el signo.
+    /// Por debajo, la diferencia puede ser ruido y girar el eje sería peor que no hacer
+    /// nada: se rompería un detector que a lo mejor estaba bien.
+    public static let minSeparacionEjeDeg: Float = 15
+
     private static let altos: Set<ShotType> = [.bandeja, .vibora, .smash]
     private static let voleas: Set<ShotType> = [.forehandVolley, .backhandVolley]
     private static let fondo: Set<ShotType> = [.forehand, .backhand]
@@ -80,7 +88,18 @@ public enum ThresholdCalibrator {
             .compactMap { $0.1.prepElevationDeg }
         let prepBajos = etiquetados.filter { voleas.contains($0.0) || fondo.contains($0.0) }
             .compactMap { $0.1.prepElevationDeg }
-        let prep = frontera(bajos: prepBajos, altos: prepAltos, rango: 20...70)
+        // ¿Está el eje al revés? Si los golpes altos se **preparan más abajo** que los
+        // bajos, la elevación llega con el signo cambiado. Lo dice la etiqueta del
+        // jugador, que es la única fuente que no se puede confundir con "hoy tocaba
+        // tanda de bandejas".
+        let invertido = ejeInvertido(altos: prepAltos, bajos: prepBajos)
+        // Con el eje corregido, la frontera se calcula sobre los valores ya girados: si
+        // no, se derivaría un umbral para un signo y se aplicaría al contrario.
+        let giro: Float = invertido == true ? -1 : 1
+        let prep = frontera(
+            bajos: prepBajos.map { $0 * giro }, altos: prepAltos.map { $0 * giro },
+            rango: 20...70
+        )
 
         // Smash contra el resto de altos: la violencia del pico de giro.
         let picoSmash = etiquetados.filter { $0.0 == .smash }.map { $0.1.peakGyroRadS }
@@ -107,6 +126,7 @@ public enum ThresholdCalibrator {
             smashPeakGyroRadS: smash,
             viboraAxialRadS: vibora,
             volleyAxialMaxRadS: volea,
+            ejeDeElevacionInvertido: invertido,
             muestras: etiquetados.count,
             creadoEpochMs: ahoraEpochMs
         )
@@ -117,6 +137,19 @@ public enum ThresholdCalibrator {
             aciertoDespues: acierto(etiquetados, config: base.applying(calibracion)),
             porTipo: porTipo
         )
+    }
+
+    /// ¿Lee este reloj la elevación al revés?
+    ///
+    /// Un golpe alto se arma con el brazo por encima del hombro y uno de fondo o una
+    /// volea, no. Si las medianas dicen lo contrario —y por un margen que no se explica
+    /// por ruido— el eje está invertido. Nil si no hay material suficiente o si la
+    /// separación es pequeña: ante la duda, no se toca nada.
+    private static func ejeInvertido(altos: [Float], bajos: [Float]) -> Bool? {
+        guard altos.count >= minPorFamilia, bajos.count >= minPorFamilia else { return nil }
+        let separacion = mediana(altos) - mediana(bajos)
+        guard abs(separacion) >= minSeparacionEjeDeg else { return nil }
+        return separacion < 0
     }
 
     /// El punto medio entre las medianas de dos familias, o nil si no hay material o

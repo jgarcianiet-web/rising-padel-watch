@@ -112,4 +112,56 @@ class ThresholdCalibratorTest {
             ThresholdCalibrator.calibrar(etiquetados).calibracion.prepOverheadElevationDeg
         )
     }
+
+    // --- el signo del eje, decidido por las etiquetas ---
+
+    @Test
+    fun `si los golpes altos se preparan mas abajo que los bajos, el eje esta invertido`() {
+        // Los números de pista (ago 2026): bandejas preparando a -45 y voleas a -28.
+        // Un golpe alto NO se arma más abajo que una volea; el eje lee al revés.
+        val etiquetados =
+            List(8) { ShotType.BANDEJA to rasgos(axial = 3f, pico = 12f, prep = -45f) } +
+            List(8) { ShotType.BACKHAND_VOLLEY to rasgos(axial = 1f, pico = 8f, prep = -28f) }
+
+        val calibracion = ThresholdCalibrator.calibrar(etiquetados).calibracion
+
+        assertEquals(true, calibracion.ejeDeElevacionInvertido)
+    }
+
+    @Test
+    fun `con el eje bien puesto no se toca nada`() {
+        val etiquetados =
+            List(8) { ShotType.BANDEJA to rasgos(axial = 3f, pico = 12f, prep = 55f) } +
+            List(8) { ShotType.BACKHAND_VOLLEY to rasgos(axial = 1f, pico = 8f, prep = 10f) }
+
+        assertEquals(false, ThresholdCalibrator.calibrar(etiquetados).calibracion.ejeDeElevacionInvertido)
+    }
+
+    @Test
+    fun `una diferencia pequena no basta para girar el eje`() {
+        // Cinco grados entre familias puede ser ruido, y girar el eje por ruido rompería
+        // un detector que a lo mejor estaba bien.
+        val etiquetados =
+            List(8) { ShotType.BANDEJA to rasgos(axial = 3f, pico = 12f, prep = 20f) } +
+            List(8) { ShotType.BACKHAND_VOLLEY to rasgos(axial = 1f, pico = 8f, prep = 25f) }
+
+        assertNull(ThresholdCalibrator.calibrar(etiquetados).calibracion.ejeDeElevacionInvertido)
+    }
+
+    @Test
+    fun `sin tandas suficientes no se decide el signo`() {
+        val etiquetados =
+            List(2) { ShotType.BANDEJA to rasgos(axial = 3f, pico = 12f, prep = -45f) } +
+            List(2) { ShotType.BACKHAND_VOLLEY to rasgos(axial = 1f, pico = 8f, prep = -20f) }
+
+        assertNull(ThresholdCalibrator.calibrar(etiquetados).calibracion.ejeDeElevacionInvertido)
+    }
+
+    @Test
+    fun `el eje invertido gira la elevacion que mide el clasificador`() {
+        val calibracion = DetectorCalibration(ejeDeElevacionInvertido = true)
+        val config = DetectorConfig.DEFAULT.aplicando(calibracion)
+
+        assertEquals(-DetectorConfig.DEFAULT.forearmAxis.y, config.forearmAxis.y, 0.001f)
+    }
 }
