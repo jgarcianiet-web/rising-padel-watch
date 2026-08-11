@@ -53,7 +53,16 @@ jobs:
           if [ "${{ inputs.forzar }}" = "true" ]; then FORZAR="--forzar"; fi
           python3 tools/exportar_modelo.py tandas.jsonl $FORZAR | tee informe.txt
 
-      - name: Comprobar que el core sigue verde con el modelo dentro
+      # El paso que de verdad protege esto, y no es una formalidad.
+      #
+      # Los tests del core llevan dentro las tandas de pista como fixtures, con sus
+      # suelos de acierto. Un modelo que saca un 96% en su propia validación pero
+      # empeora los golpes reales los pone rojos y no llega a abrir el pull request.
+      #
+      # Pasó en la primera prueba de esta cañería: con datos sintéticos salió un modelo
+      # de 96,4% que bajaba la tanda real de 30/42 a 24/42 y ponía diecisiete tests en
+      # rojo. Sin este paso, ese modelo se habría fusionado con muy buena cara.
+      - name: Comprobar que el modelo no empeora los golpes reales
         working-directory: android/core
         run: gradle test --console=plain
 

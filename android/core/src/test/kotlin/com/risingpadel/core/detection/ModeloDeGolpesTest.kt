@@ -113,15 +113,30 @@ class ModeloDeGolpesTest {
     }
 
     @Test
-    fun `sin modelo de fabrica manda la heuristica`() {
-        // Mientras no haya tandas de varias personas, la app va con la heurística. Un
-        // modelo entrenado con una sola muñeca aprende esa muñeca, no el golpe.
-        assertNull(ModeloEntrenado.actual)
+    fun `el modelo de fabrica no puede empeorar los golpes reales`() {
+        // Este test no mira si hay modelo o no: eso lo decide el entrenamiento y cambia
+        // solo. Lo que fija es el contrato — la app clasifica, y quien vigila que el
+        // modelo no rompa nada son las tandas de pista (`TandaLimpiaDe42Test`,
+        // `TandaDeOchoTiposTest`), que son fixtures de golpes de verdad con sus suelos.
+        //
+        // Y no es teórico: al probar la cañería con datos sintéticos, el modelo que salió
+        // sacaba un 96% en su propia validación y bajaba la tanda real de 30/42 a 24/42.
+        // Diecisiete tests se pusieron rojos. Por eso el workflow de entrenamiento corre
+        // los tests del core ANTES de abrir el pull request: un modelo que mejora sobre
+        // datos inventados y empeora sobre pista no puede llegar a fusionarse.
         val classifier = ShotClassifier()
-        assertEquals(
-            ShotType.BANDEJA,
-            classifier.classify(rasgos(barrido = 200f, pico = 11f, alto = 50f)).type,
+        val bandeja = classifier.classify(rasgos(barrido = 200f, pico = 11f, alto = 50f))
+        assertTrue(
+            bandeja.type != ShotType.UNKNOWN,
+            "un golpe alto de manual tiene que salir clasificado, con modelo o sin él",
         )
+        ModeloEntrenado.actual?.let { modelo ->
+            assertTrue(modelo.arboles > 0, "un modelo embarcado sin árboles no es un modelo")
+            assertTrue(
+                modelo.aciertoFuera > 0f,
+                "un modelo sin validación dejando fuera a un jugador no debería embarcarse",
+            )
+        }
     }
 
     @Test

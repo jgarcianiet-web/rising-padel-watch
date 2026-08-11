@@ -257,6 +257,20 @@ mismos números en los dos— y el informe de precisión en el cuerpo. Lo lees e
 lo fusionas si te convence. **No exporta si no gana a la heurística**: un modelo que no
 mejora lo que ya hay solo añade una caja negra que no sabe explicarse.
 
+Antes de abrir el pull request, el workflow **corre los tests del core con el modelo ya
+dentro**. Y ese paso no es una formalidad: los tests llevan las tandas de pista como
+fixtures, con sus suelos de acierto, así que un modelo que mejore sobre sus propios datos
+pero empeore los golpes de verdad se queda fuera.
+
+> Pasó en la primera prueba de la cañería, con datos sintéticos. Salió un modelo de
+> **96,4%** en su propia validación que bajaba la tanda real **de 30/42 a 24/42** y ponía
+> diecisiete tests en rojo. Sin ese paso se habría fusionado con muy buena cara: el número
+> que enseñaba era mejor que cualquiera que hayamos visto.
+>
+> La moraleja no es que los datos sintéticos sean malos —eso ya se sabía—, es que **la
+> validación del modelo no puede ser la única puerta**. Las tandas de pista dentro de los
+> tests son la segunda, y es la que mira lo que de verdad importa.
+
 ### Por qué código generado y no Core ML o TFLite
 
 Con dos runtimes distintos, watchOS y Wear pueden dar respuestas distintas al mismo golpe,
