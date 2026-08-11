@@ -4,6 +4,7 @@ import com.risingpadel.core.level.LevelConfig
 import com.risingpadel.core.level.LevelEstimator
 import com.risingpadel.core.level.SessionLevel
 import com.risingpadel.core.score.MatchScore
+import com.risingpadel.core.detection.DescartesDelDetector
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -209,6 +210,17 @@ data class PadelSession(
     val review: SessionReview? = null,
     /** Batería del reloj al empezar y al acabar. Null si el reloj no supo decirla. */
     val battery: BatteryUse? = null,
+    /**
+     * Los movimientos que el detector vio y tiró durante la sesión, con el motivo.
+     *
+     * Estaba solo en las tandas de datos, que las graba una persona de cada cien. En una
+     * sesión normal, un golpe perdido no dejaba rastro en ningún sitio: el jugador nota
+     * que "hubo un rato que no contó" y la app no tiene nada que decirle. Con esto, ese
+     * rato es un número con el umbral culpable al lado.
+     *
+     * Null en sesiones anteriores a que se midiera.
+     */
+    val descartes: DescartesDelDetector? = null,
 ) {
     val durationSeconds: Long get() = ((endedAtEpochMs - startedAtEpochMs) / 1000).coerceAtLeast(0)
 

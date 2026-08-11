@@ -288,6 +288,31 @@ private fun HeadlineStats(session: PadelSession, medias: MediasDelJugador) {
                     modifier = Modifier.padding(top = 10.dp),
                 )
             }
+            // Lo que se le escapó al detector. Va aquí, en la ficha normal y a la vista
+            // de cualquiera: "hubo un rato que no contó" es la queja más común que hay,
+            // y sin este dato la app no tiene nada que contestar.
+            session.descartes?.takeIf { it.total > 0 }?.let { d ->
+                val vistos = session.totalShots + d.total
+                val cogidos = if (vistos == 0) 100 else session.totalShots * 100 / vistos
+                // Un solo renglón con el motivo que más pesa, no la lista entera: en la
+                // ficha lo que hace falta es saber si el número de golpes es de fiar. El
+                // desglose completo vive en el mando de tandas, que es donde se arregla.
+                val peor = maxOf(d.swingSinImpacto, d.impactoConSwingCorto, d.amago, d.enRefractario)
+                val motivo = when (peor) {
+                    d.swingSinImpacto -> "golpes demasiado suaves para el umbral de impacto"
+                    d.impactoConSwingCorto -> "swings cortos o de poca velocidad"
+                    d.amago -> "amagos: el brazo se paró sin llegar a golpear"
+                    else -> "golpes demasiado seguidos, dentro del tiempo muerto del anterior"
+                }
+                Text(
+                    "Contó ${session.totalShots} de $vistos movimientos ($cogidos%). " +
+                        "Lo que más se dejó: $motivo.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (cogidos >= 85) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 10.dp),
+                )
+            }
             if (!session.profile.watchOnRacketArm) {
                 Text(
                     text = "El reloj no estaba en el brazo de la pala: el conteo es orientativo.",

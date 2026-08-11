@@ -206,6 +206,13 @@ struct SessionDetailView: View {
                     .foregroundStyle(T.tintaSuave)
                 }
 
+                // Lo que se le escapó al detector. Va aquí, en la ficha normal y a la
+                // vista de cualquiera: "hubo un rato que no contó" es la queja más
+                // común que hay, y sin este dato la app no tiene nada que contestar.
+                if let d = session.descartes, d.total > 0 {
+                    descartesLinea(d)
+                }
+
                 if !session.profile.watchOnRacketArm {
                     warning("El reloj no estaba en el brazo de la pala: el conteo es orientativo.")
                 }
@@ -236,6 +243,32 @@ struct SessionDetailView: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(T.borde, lineWidth: 1)
         )
+    }
+
+    /// Cuántos movimientos vio el reloj y no contó, y cuál es el motivo que más pesa.
+    ///
+    /// Un solo renglón y el motivo dominante, no la lista entera: en la ficha de una
+    /// sesión normal lo que hace falta es saber si el número de golpes es de fiar. El
+    /// desglose completo vive en el mando de tandas, que es donde se va a arreglar.
+    @ViewBuilder
+    private func descartesLinea(_ d: DescartesDelDetector) -> some View {
+        let vistos = session.totalShots + d.total
+        let cogidos = vistos == 0 ? 100 : session.totalShots * 100 / vistos
+        let motivo: String = {
+            let peor = max(d.swingSinImpacto, max(d.impactoConSwingCorto, max(d.amago, d.enRefractario)))
+            if peor == d.swingSinImpacto { return "golpes demasiado suaves para el umbral de impacto" }
+            if peor == d.impactoConSwingCorto { return "swings cortos o de poca velocidad" }
+            if peor == d.amago { return "amagos: el brazo se paró sin llegar a golpear" }
+            return "golpes demasiado seguidos, dentro del tiempo muerto del anterior"
+        }()
+        Label(
+            "Contó \(session.totalShots) de \(vistos) movimientos (\(cogidos)%). "
+                + "Lo que más se dejó: \(motivo).",
+            systemImage: "questionmark.circle"
+        )
+        .font(.system(size: 11, weight: .medium, design: .rounded))
+        .foregroundStyle(cogidos >= 85 ? T.tintaSuave : T.rojo)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func warning(_ text: String) -> some View {

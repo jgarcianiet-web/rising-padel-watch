@@ -284,6 +284,15 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public var review: SessionReview?
     /// Batería del reloj al empezar y al acabar. Nil si el reloj no supo decirla.
     public var battery: BatteryUse?
+    /// Los movimientos que el detector vio y tiró durante la sesión, con el motivo.
+    ///
+    /// Estaba solo en las tandas de datos, que las graba una persona de cada cien. En una
+    /// sesión normal, un golpe perdido no dejaba rastro en ningún sitio: el jugador nota
+    /// que "hubo un rato que no contó" y la app no tiene nada que decirle. Con esto, ese
+    /// rato es un número con el umbral culpable al lado.
+    ///
+    /// Nil en sesiones anteriores a que se midiera.
+    public var descartes: DescartesDelDetector?
 
     public var id: String { sessionId }
 
@@ -300,7 +309,8 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         matchRef: MatchRef? = nil,
         sync: SyncStatus = SyncStatus(),
         review: SessionReview? = nil,
-        battery: BatteryUse? = nil
+        battery: BatteryUse? = nil,
+        descartes: DescartesDelDetector? = nil
     ) {
         self.sessionId = sessionId
         self.source = source
@@ -315,6 +325,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         self.sync = sync
         self.review = review
         self.battery = battery
+        self.descartes = descartes
     }
 
     /// Versión del esquema que se declara al subir **esta** sesión.

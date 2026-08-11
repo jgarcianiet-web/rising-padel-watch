@@ -60,6 +60,12 @@ public final class SessionRecorder {
 
     public var matchRef: MatchRef?
 
+    /// Los movimientos que el detector vio y tiró en lo que va de sesión.
+    ///
+    /// Se expone en vivo y no solo al acabar porque es lo que hace falta para poder
+    /// enseñarlo en la ficha de la sesión sin esperar a que termine.
+    public var descartes: DescartesDelDetector { detector.descartes }
+
     private var gameRecords: [GameRecord] = []
 
     /// Juegos cerrados hasta ahora.
@@ -209,7 +215,10 @@ public final class SessionRecorder {
             health: shareHealth ? buildHealth() : .empty,
             score: score,
             games: gameRecords,
-            matchRef: matchRef
+            matchRef: matchRef,
+            // Lo que se le escapó. Se guarda aunque sea cero: un cero es información
+            // ("no se dejó nada") y un nulo es "esta sesión es de antes de medirlo".
+            descartes: detector.descartes
         )
         sessionId = nil
         return session
