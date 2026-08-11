@@ -101,6 +101,10 @@ struct SessionListView: View {
                     LevelHistoryChart(sessions: model.sessions)
                 }
 
+                // Y debajo, la constancia: el nivel dice cómo juegas y esto dice cuánto.
+                // Las dos preguntas se hacen seguidas y hasta ahora solo se contestaba una.
+                CalendarioView(sesiones: model.sessions)
+
                 // Agrupado por meses, como la liga: con dos temporadas encima una
                 // lista plana deja de contar la historia. Cada mes lleva su resumen.
                 ForEach(meses, id: \.clave) { mes in

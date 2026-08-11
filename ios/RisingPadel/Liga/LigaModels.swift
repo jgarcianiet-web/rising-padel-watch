@@ -234,6 +234,15 @@ struct LigaTemporada: Codable, Equatable, Identifiable {
     /// yyyy-mm-dd. El rango es [inicio, fin]; fin vacío = temporada en curso.
     var fechaInicio = ""
     var fechaFin = ""
+    /// Cuándo se piensa acabar, si se sabe. Distinto de `fechaFin`, que solo se rellena
+    /// al cerrarla de verdad.
+    ///
+    /// Hacen falta las dos. Si el fin previsto fuera `fechaFin`, la temporada dejaría de
+    /// estar en curso el día que lo pones y los partidos posteriores se quedarían fuera
+    /// de ella — una temporada que se cierra sola en el futuro. Aquí el previsto solo
+    /// sirve para contar los días que quedan y enseñar el rango completo; lo que decide
+    /// qué partido cae dentro sigue siendo `fechaFin`.
+    var fechaFinPrevista = ""
     /// Cuántos partidos se quiere jugar esta temporada. Nil = sin meta de volumen.
     var objetivoPartidos: Int?
 
@@ -243,18 +252,30 @@ struct LigaTemporada: Codable, Equatable, Identifiable {
         nombre = try c.decodeIfPresent(String.self, forKey: .nombre) ?? ""
         fechaInicio = try c.decodeIfPresent(String.self, forKey: .fechaInicio) ?? ""
         fechaFin = try c.decodeIfPresent(String.self, forKey: .fechaFin) ?? ""
+        fechaFinPrevista = try c.decodeIfPresent(String.self, forKey: .fechaFinPrevista) ?? ""
         objetivoPartidos = try c.decodeIfPresent(Int.self, forKey: .objetivoPartidos)
     }
 
-    init(id: Int64, nombre: String, fechaInicio: String, fechaFin: String = "", objetivoPartidos: Int? = nil) {
+    init(
+        id: Int64,
+        nombre: String,
+        fechaInicio: String,
+        fechaFin: String = "",
+        fechaFinPrevista: String = "",
+        objetivoPartidos: Int? = nil
+    ) {
         self.id = id
         self.nombre = nombre
         self.fechaInicio = fechaInicio
         self.fechaFin = fechaFin
+        self.fechaFinPrevista = fechaFinPrevista
         self.objetivoPartidos = objetivoPartidos
     }
 
     var enCurso: Bool { fechaFin.isEmpty }
+
+    /// La fecha de fin que se enseña: la real si ya se cerró, si no la prevista.
+    var fechaDeCierre: String { fechaFin.isEmpty ? fechaFinPrevista : fechaFin }
 
     /// true si el partido cae en el rango de esta temporada. Comparación de strings
     /// yyyy-mm-dd, que ordena igual que las fechas.

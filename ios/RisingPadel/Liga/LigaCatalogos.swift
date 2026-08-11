@@ -65,6 +65,13 @@ enum LigaFechas {
         return formatter.string(from: Date())
     }
 
+    /// `yyyy-mm-dd` de una fecha, para guardar lo que elige un `DatePicker`.
+    static func iso(_ fecha: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: fecha)
+    }
+
     static func fecha(_ iso: String) -> Date? {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
@@ -75,6 +82,13 @@ enum LigaFechas {
     static func corta(_ iso: String) -> String {
         guard let (dia, mes, _) = partes(iso) else { return iso }
         return "\(dia) \(cortos[mes - 1])"
+    }
+
+    /// "12 mar 2026". Con año porque una liga que dura años tiene varias temporadas
+    /// que empiezan en septiembre, y sin él no se distinguen.
+    static func conAnno(_ iso: String) -> String {
+        guard let (dia, mes, anno) = partes(iso) else { return iso }
+        return "\(dia) \(cortos[mes - 1]) \(anno)"
     }
 
     /// "Marzo de 2026"

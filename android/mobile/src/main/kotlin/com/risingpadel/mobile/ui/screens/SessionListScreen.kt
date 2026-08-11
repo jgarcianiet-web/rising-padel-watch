@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.risingpadel.core.model.SyncState
+import com.risingpadel.mobile.ui.CalendarioCard
 import com.risingpadel.mobile.ui.LevelHistoryCard
 import com.risingpadel.mobile.ui.formatDuration
 import com.risingpadel.mobile.ui.formatSessionDate
@@ -117,6 +118,11 @@ fun SessionListScreen(
             // mejorando?", que es lo primero que se viene a mirar.
             item(key = "nivel-historico") {
                 LevelHistoryCard(sessions)
+            }
+            // Y debajo, la constancia: el nivel dice cómo juegas y esto dice cuánto.
+            // Las dos preguntas se hacen seguidas y hasta ahora solo se contestaba una.
+            item(key = "calendario") {
+                CalendarioCard(sessions)
             }
             items(sessions, key = { it.sessionId }) { session ->
                 SessionCard(

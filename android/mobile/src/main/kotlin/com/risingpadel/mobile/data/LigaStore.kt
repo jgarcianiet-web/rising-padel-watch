@@ -54,6 +54,28 @@ class LigaStore(context: Context) {
         return state.copy(temporadas = cerradas + nueva).also(::save)
     }
 
+    /**
+     * Cambia las fechas de la temporada en curso.
+     *
+     * La de inicio era la del día que se pulsó el botón, que no siempre es la buena: la
+     * temporada empezó en septiembre aunque estrenaras la app en noviembre, y con la
+     * fecha mal los partidos de septiembre y octubre se quedan fuera de ella.
+     *
+     * El fin es el **previsto**: no cierra la temporada, solo da el plazo. Cerrarla sigue
+     * siendo empezar la siguiente, que es una decisión explícita.
+     */
+    fun setFechasDeTemporada(inicio: String, finPrevisto: String): LigaState {
+        val state = load()
+        val ultima = state.temporadas.indexOfLast { it.enCurso }
+        if (ultima < 0) return state
+        val temporadas = state.temporadas.toMutableList()
+        temporadas[ultima] = temporadas[ultima].copy(
+            fechaInicio = inicio.ifEmpty { temporadas[ultima].fechaInicio },
+            fechaFinPrevista = finPrevisto,
+        )
+        return state.copy(temporadas = temporadas).also(::save)
+    }
+
     private fun hoyIso(): String =
         java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
             .format(java.util.Date())

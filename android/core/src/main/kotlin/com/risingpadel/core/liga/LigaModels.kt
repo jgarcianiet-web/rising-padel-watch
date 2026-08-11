@@ -113,10 +113,24 @@ data class LigaTemporada(
     /** yyyy-mm-dd. El rango es [inicio, fin]; fin vacío = temporada en curso. */
     val fechaInicio: String = "",
     val fechaFin: String = "",
+    /**
+     * Cuándo se piensa acabar, si se sabe. Distinto de [fechaFin], que solo se rellena al
+     * cerrarla de verdad.
+     *
+     * Hacen falta las dos. Si el fin previsto fuera [fechaFin], la temporada dejaría de
+     * estar en curso el día que lo pones y los partidos posteriores se quedarían fuera de
+     * ella — una temporada que se cierra sola en el futuro. Aquí el previsto solo sirve
+     * para contar los días que quedan y para enseñar el rango completo; lo que decide qué
+     * partido cae dentro sigue siendo [fechaFin].
+     */
+    val fechaFinPrevista: String = "",
     /** Cuántos partidos se quiere jugar esta temporada. Null = sin meta de volumen. */
     val objetivoPartidos: Int? = null,
 ) {
     val enCurso: Boolean get() = fechaFin.isEmpty()
+
+    /** La fecha de fin que se enseña: la real si ya se cerró, si no la prevista. */
+    val fechaDeCierre: String get() = if (fechaFin.isNotEmpty()) fechaFin else fechaFinPrevista
 
     /** true si el partido cae en el rango. Strings yyyy-mm-dd ordenan como fechas. */
     fun contiene(match: LigaMatch): Boolean =

@@ -89,6 +89,21 @@ final class LigaModel: ObservableObject {
         message = "Temporada \(numero) en marcha"
     }
 
+    /// Cambia las fechas de la temporada en curso.
+    ///
+    /// La de inicio era la del día que se pulsó el botón, que no siempre es la buena: la
+    /// temporada empezó en septiembre aunque estrenaras la app en noviembre, y con la
+    /// fecha mal los partidos de septiembre y octubre se quedan fuera.
+    ///
+    /// El fin es el **previsto**: no cierra la temporada, solo da el plazo. Cerrarla es
+    /// empezar la siguiente, y eso sigue siendo una decisión explícita.
+    func setFechasDeTemporada(inicio: String, finPrevisto: String) {
+        guard let index = state.temporadas.lastIndex(where: \.enCurso) else { return }
+        if !inicio.isEmpty { state.temporadas[index].fechaInicio = inicio }
+        state.temporadas[index].fechaFinPrevista = finPrevisto
+        save()
+    }
+
     /// Cambia la meta de partidos de la temporada en curso.
     func setObjetivoPartidos(_ objetivo: Int?) {
         guard let index = state.temporadas.lastIndex(where: \.enCurso) else { return }

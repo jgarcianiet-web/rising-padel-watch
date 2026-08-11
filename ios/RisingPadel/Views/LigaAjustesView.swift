@@ -11,6 +11,11 @@ struct LigaAjustesView: View {
     @State private var objetivos: [String]
     @State private var metaPartidos: String
     @State private var confirmandoTemporada = false
+    /// Las fechas de la temporada en curso, editables. Antes solo se podía saber cuándo
+    /// empezó —el día que le diste al botón— y nunca cuándo pensabas acabarla.
+    @State private var inicioTemporada = Date()
+    @State private var finTemporada = Date()
+    @State private var conFinPrevisto = false
 
     init(liga: LigaModel) {
         _perfil = State(initialValue: liga.state.perfil)
@@ -19,6 +24,16 @@ struct LigaAjustesView: View {
         _objetivos = State(initialValue: textos)
         _metaPartidos = State(
             initialValue: liga.temporadaActual?.objetivoPartidos.map(String.init) ?? ""
+        )
+        let actual = liga.temporadaActual
+        _inicioTemporada = State(
+            initialValue: actual.flatMap { LigaFechas.fecha($0.fechaInicio) } ?? Date()
+        )
+        let previsto = actual.flatMap { LigaFechas.fecha($0.fechaFinPrevista) }
+        _conFinPrevisto = State(initialValue: previsto != nil)
+        // Por defecto, la temporada de pádel de toda la vida: unos nueve meses.
+        _finTemporada = State(
+            initialValue: previsto ?? Calendar.current.date(byAdding: .month, value: 9, to: Date()) ?? Date()
         )
     }
 
@@ -49,8 +64,25 @@ struct LigaAjustesView: View {
         Section {
             if let actual = liga.temporadaActual {
                 LabeledContent(actual.nombre) {
-                    Text("desde el \(LigaFechas.corta(actual.fechaInicio))")
+                    Text(actual.rangoCorto)
                         .foregroundStyle(T.tintaSuave)
+                }
+                // Editable: la fecha de inicio la ponía el botón (el día que lo pulsaste)
+                // y a veces no es la que quieres — la temporada empezó en septiembre
+                // aunque la app la estrenaras en noviembre.
+                DatePicker(
+                    "Empieza",
+                    selection: $inicioTemporada,
+                    displayedComponents: .date
+                )
+                Toggle("Tiene fecha de fin", isOn: $conFinPrevisto)
+                if conFinPrevisto {
+                    DatePicker(
+                        "Acaba",
+                        selection: $finTemporada,
+                        in: inicioTemporada...,
+                        displayedComponents: .date
+                    )
                 }
                 LabeledContent("Meta de partidos") {
                     TextField("20", text: $metaPartidos)
@@ -90,9 +122,12 @@ struct LigaAjustesView: View {
         } header: {
             Text("Temporadas")
         } footer: {
-            Text("Cada temporada agrupa sus partidos por fecha. El entrenador analiza "
-                 + "la temporada en curso y la compara con las anteriores, y el panel "
-                 + "las enfrenta temporada a temporada.")
+            Text("Cada temporada agrupa sus partidos por fecha. La fecha de fin es la "
+                 + "que piensas cerrarla: sirve para la cuenta atrás y para saber si vas "
+                 + "en hora con la meta, y no cierra la temporada por su cuenta — los "
+                 + "partidos posteriores siguen contando hasta que empieces la siguiente. "
+                 + "El entrenador analiza la temporada en curso y la compara con las "
+                 + "anteriores, y el panel las enfrenta temporada a temporada.")
         }
     }
 
@@ -162,6 +197,12 @@ struct LigaAjustesView: View {
         // La meta de la temporada en curso también se guarda desde aquí: cambiarla no
         // exige abrir temporada nueva.
         liga.setObjetivoPartidos(Int(metaPartidos))
+        if liga.temporadaActual != nil {
+            liga.setFechasDeTemporada(
+                inicio: LigaFechas.iso(inicioTemporada),
+                finPrevisto: conFinPrevisto ? LigaFechas.iso(finTemporada) : ""
+            )
+        }
         dismiss()
     }
 }

@@ -125,11 +125,25 @@ struct LigaSeasonView: View {
     /// La cabecera de la temporada: nombre, arranque y el avance hacia su meta de
     /// partidos — el "20 partidos esta temporada" convertido en barra.
     private func seasonHeader(_ temporada: LigaTemporada, jugados: Int) -> some View {
-        PadelCard(title: temporada.nombre, icon: "calendar.badge.clock") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Desde el \(LigaFechas.corta(temporada.fechaInicio)) · \(LigaFechas.mes(temporada.fechaInicio))")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundStyle(T.tintaSuave)
+        let ritmo = RitmoDeTemporada.de(temporada, jugados: jugados, hoyISO: LigaFechas.hoy())
+        return PadelCard(title: temporada.nombre, icon: "calendar.badge.clock") {
+            VStack(alignment: .leading, spacing: 10) {
+                // Las fechas, que estaban guardadas y no se veían en ningún sitio. Un
+                // rango que no se enseña es un rango que nadie recuerda haber puesto.
+                Text(temporada.rangoLargo)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(T.tinta)
+
+                if let ritmo {
+                    Text(cuentaAtras(ritmo))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(ritmo.terminada ? T.tintaSuave : T.pista)
+                } else if temporada.fechaDeCierre.isEmpty {
+                    Text("Sin fecha de fin: la temporada sigue abierta")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                }
+
                 if let objetivo = temporada.objetivoPartidos, objetivo > 0 {
                     PadelBar(
                         label: "Partidos jugados",
@@ -138,8 +152,59 @@ struct LigaSeasonView: View {
                         color: jugados >= objetivo ? T.verde : T.pista
                     )
                 }
+
+                if let ritmo {
+                    // La barra de la meta sola no dice nada: 8 de 20 en octubre va
+                    // sobrado y 8 de 20 en mayo es un problema. Lo que lo decide es
+                    // cuánto calendario ha corrido, así que va justo debajo.
+                    PadelBar(
+                        label: "Temporada transcurrida",
+                        value: "\(Int(ritmo.fraccionDelTiempo * 100))%",
+                        fraction: ritmo.fraccionDelTiempo,
+                        color: T.tintaSuave
+                    )
+                    Text(veredicto(ritmo))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundStyle(colorDelRitmo(ritmo))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
+    }
+
+    private func cuentaAtras(_ ritmo: RitmoDeTemporada) -> String {
+        if ritmo.terminada { return "Temporada terminada" }
+        if ritmo.diasTranscurridos == 0 { return "Todavía no ha empezado" }
+        let semanas = ritmo.diasRestantes / 7
+        if semanas >= 3 { return "Quedan \(ritmo.diasRestantes) días (\(semanas) semanas)" }
+        return "Quedan \(ritmo.diasRestantes) días"
+    }
+
+    /// El número accionable: no "vas al 40%", sino "uno cada quince días".
+    private func veredicto(_ ritmo: RitmoDeTemporada) -> String {
+        if ritmo.cumplida { return "Meta cumplida 🎉" }
+        if ritmo.terminada {
+            return "Se acabó con \(ritmo.partidosQueFaltan) partido(s) por jugar"
+        }
+        guard let cada = ritmo.cadaCuantosDias else { return "" }
+        let ritmoTexto = cada >= 1
+            ? "toca uno cada \(String(format: "%.0f", cada)) días"
+            : "toca más de uno al día"
+        switch ritmo.diferencia {
+        case let d where d > 0:
+            return "Vas \(d) por delante del calendario · \(ritmoTexto)"
+        case let d where d < 0:
+            return "Vas \(-d) por detrás del calendario · \(ritmoTexto)"
+        default:
+            return "Vas justo en hora · \(ritmoTexto)"
+        }
+    }
+
+    private func colorDelRitmo(_ ritmo: RitmoDeTemporada) -> Color {
+        if ritmo.cumplida { return T.verde }
+        if ritmo.terminada { return T.tintaSuave }
+        if ritmo.diferencia < 0 { return T.rojo }
+        return T.verde
     }
 
     /// Todas las temporadas frente a frente: la comparación que pide una liga que dura
@@ -164,11 +229,12 @@ struct LigaSeasonView: View {
                     .foregroundStyle(T.tintaSuave)
 
                     if !previos.isEmpty {
-                        seasonRow("Antes", matches: previos, destacada: false)
+                        seasonRow("Antes", rango: nil, matches: previos, destacada: false)
                     }
                     ForEach(temporadas) { temporada in
                         seasonRow(
                             temporada.nombre,
+                            rango: temporada.rangoCorto,
                             matches: liga.matches(de: temporada),
                             destacada: temporada.enCurso
                         )
@@ -178,15 +244,27 @@ struct LigaSeasonView: View {
         }
     }
 
-    private func seasonRow(_ nombre: String, matches: [LigaMatch], destacada: Bool) -> some View {
+    private func seasonRow(
+        _ nombre: String, rango: String?, matches: [LigaMatch], destacada: Bool
+    ) -> some View {
         let bien = matches.isEmpty ? nil : matches.filter(\.bienJugado).count * 100 / matches.count
         let niveles = matches.compactMap(LigaMetrics.nivelDeSesion)
         return HStack {
-            Text(nombre)
-                .font(.system(size: 13, weight: destacada ? .bold : .medium, design: .rounded))
-                .foregroundStyle(destacada ? T.tinta : T.tintaSuave)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // El nombre suele ser "2025/26" y no dice qué días abarca. Con varias
+            // temporadas encima, la fecha es lo que las distingue de verdad.
+            VStack(alignment: .leading, spacing: 1) {
+                Text(nombre)
+                    .font(.system(size: 13, weight: destacada ? .bold : .medium, design: .rounded))
+                    .foregroundStyle(destacada ? T.tinta : T.tintaSuave)
+                    .lineLimit(1)
+                if let rango {
+                    Text(rango)
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
             Text("\(matches.count)").frame(width: 36)
             Text(matches.isEmpty ? "–" : "\(LigaMetrics.pctVictorias(matches))%")
                 .foregroundStyle(T.verde)
