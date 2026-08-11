@@ -448,6 +448,25 @@ final class AppModel: ObservableObject {
     /// segundos y el usuario se quedaría con un botón que parece roto.
     @Published private(set) var avisoTanda: String?
 
+    /// La última orden que cambia algo, guardada hasta que el estado del reloj la
+    /// confirme.
+    ///
+    /// Existe porque el mando era fire-and-forget y en pista eso es un botón que a veces
+    /// no hace nada: un "parar" que se pierde por el enlace —o cuya respuesta llega
+    /// ilegible— no lo reintentaba nadie, y el latido de cada dos segundos seguía
+    /// refrescando el "grabando" como si el botón no se hubiera pulsado. Un mando sobre
+    /// un enlace que pierde mensajes no puede fiarse del envío: o reconcilia contra el
+    /// estado que vuelve, o falla en silencio justo cuando más se usa.
+    private struct OrdenSinConfirmar {
+        let accion: AccionDeTanda
+        let etiqueta: ShotType?
+        let creadaEn: Date
+        var reintentos: Int
+        var ultimoEnvio: Date
+    }
+
+    private var ordenSinConfirmar: OrdenSinConfirmar?
+
     /// Manda una orden al reloj y guarda el estado que devuelva.
     ///
     /// Todas las órdenes pasan por aquí, incluida la de solo preguntar: así el estado que
@@ -464,6 +483,21 @@ final class AppModel: ObservableObject {
             etiqueta: etiqueta,
             creadoEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
         )
+        // Iniciar y parar se apuntan como pendientes hasta que el estado del reloj diga
+        // que surtieron efecto. Preguntar no se apunta (no cambia nada), y enviar
+        // tampoco: no deja rastro en el estado contra el que reconciliar.
+        if accion == .iniciar || accion == .parar {
+            ordenSinConfirmar = OrdenSinConfirmar(
+                accion: accion,
+                etiqueta: etiqueta,
+                creadaEn: Date(),
+                reintentos: 0,
+                ultimoEnvio: Date()
+            )
+            // El botón enseña la espera desde el toque, no desde la primera respuesta:
+            // el hueco entre pulsar y confirmar es justo donde antes parecía roto.
+            ordenEsperando = true
+        }
         // Preguntar el estado no encola: se sondea cada dos segundos y despertar el
         // reloj (o llenarle la cola de preguntas viejas) por eso no compensa. Las
         // órdenes que cambian algo sí esperan a que despierte.
@@ -473,14 +507,13 @@ final class AppModel: ObservableObject {
                 switch envio {
                 case .directa(let estado):
                     self.conexionDelMando = .directa
-                    self.ordenEsperando = false
                     self.aplicarEstadoDeTanda(estado, deOrden: accion)
                 case .encolada:
                     // El estado anterior se queda: el reloj sigue como estaba, solo que
                     // todavía no lo ha confirmado. Borrarlo dejaría la pantalla en
                     // blanco cada vez que la muñeca se baja, que es siempre.
                     self.conexionDelMando = .enCola
-                    self.ordenEsperando = true
+                    self.ordenEsperando = self.ordenSinConfirmar != nil
                 case .dormido:
                     self.conexionDelMando = .enCola
                 case .imposible:
@@ -494,17 +527,72 @@ final class AppModel: ObservableObject {
     fileprivate func aplicarEstadoDeTanda(_ estado: EstadoDeTanda, deOrden accion: AccionDeTanda?) {
         estadoTanda = estado
         conexionDelMando = .directa
-        ordenEsperando = false
         if let motivo = estado.motivo {
             avisoTanda = motivo
         } else if let accion, accion != .estado {
             // Una orden nueva que sí funcionó limpia el aviso de la anterior.
             avisoTanda = nil
         }
+        reconciliar(con: estado)
+        // "Esperando" mientras haya una orden sin confirmar: es lo que pone el spinner
+        // en el botón y lo que le dice al usuario que el mando sigue en ello.
+        ordenEsperando = ordenSinConfirmar != nil
         // Lo que el reloj mande llega como fichero y actualiza el contador solo, pero
         // refrescar aquí hace que el número del móvil no se quede viejo si el envío ya
         // había terminado antes de abrir la pantalla.
         refreshTrainingData()
+    }
+
+    /// Compara el estado que llega con la última orden pendiente y reenvía si hace falta.
+    ///
+    /// El latido de cada dos segundos es quien mueve esto: cada estado que llega o
+    /// confirma la orden (y la borra) o demuestra que no surtió efecto (y la reenvía,
+    /// con tope). Parar dos veces es parar, así que reintentar es seguro.
+    private func reconciliar(con estado: EstadoDeTanda) {
+        guard var pendiente = ordenSinConfirmar else { return }
+
+        let cumplida: Bool
+        switch pendiente.accion {
+        case .iniciar: cumplida = estado.grabando
+        case .parar: cumplida = !estado.grabando
+        case .estado, .enviar: cumplida = true
+        }
+        if cumplida {
+            ordenSinConfirmar = nil
+            return
+        }
+        // Con motivo, el reloj la rechazó a propósito ("hay un partido en marcha"):
+        // insistir sería pelearse con una decisión, no con el enlace.
+        if estado.motivo != nil {
+            ordenSinConfirmar = nil
+            return
+        }
+        // Caducidad y tope. Si tras varios reenvíos el reloj sigue en sus trece, se
+        // dice en voz alta en vez de reintentar para siempre en silencio.
+        guard Date().timeIntervalSince(pendiente.creadaEn) < 60, pendiente.reintentos < 6 else {
+            ordenSinConfirmar = nil
+            avisoTanda = "El reloj no confirma la orden. Acércate o ábrele la app y vuelve a intentarlo."
+            return
+        }
+        // Espaciado: el latido llega cada 2 s y no hace falta reenviar en cada uno.
+        guard Date().timeIntervalSince(pendiente.ultimoEnvio) > 1.5 else { return }
+        pendiente.reintentos += 1
+        pendiente.ultimoEnvio = Date()
+        ordenSinConfirmar = pendiente
+
+        let orden = OrdenDeTanda(
+            accion: pendiente.accion,
+            etiqueta: pendiente.etiqueta,
+            creadoEpochMs: Int64(Date().timeIntervalSince1970 * 1000)
+        )
+        receiver?.enviarOrden(orden, encolarSiDuerme: true) { [weak self] envio in
+            Task { @MainActor in
+                guard let self else { return }
+                if case .directa(let estado) = envio {
+                    self.aplicarEstadoDeTanda(estado, deOrden: pendiente.accion)
+                }
+            }
+        }
     }
 
     func refreshTrainingData() {

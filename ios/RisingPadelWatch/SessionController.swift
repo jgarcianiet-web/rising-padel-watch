@@ -153,6 +153,10 @@ final class SessionController: ObservableObject {
         return config
     }
 
+    /// Los descartes de la última tanda cerrada. Sin esto, el resumen de "cogió X de Y"
+    /// desaparecía en el instante de parar — justo cuando se quiere leer.
+    private var ultimosDescartes: DescartesDelDetector?
+
     /// La calibración replicada desde el iPhone. Se guarda serializada porque
     /// `@AppStorage` no entiende de structs.
     @AppStorage("detectorCalibration") private var calibrationJSON = ""
@@ -258,11 +262,21 @@ final class SessionController: ObservableObject {
         trainingRecorder = recorder
         trainingRecording = true
         trainingCapturedInBatch = 0
+        ultimosDescartes = nil
 
         // Igual que en un partido: sin workout, watchOS suspende la app al apagarse la
         // pantalla y la tanda se queda en los primeros golpes. Sin métricas: una tanda
         // de datos no es un entrenamiento que haya que guardar en Salud.
         await startWorkoutRuntime(collectMetrics: false)
+
+        // Un "parar" del mando puede colarse mientras el workout arrancaba (el arranque
+        // tiene un await). Si pasó, aquí no hay tanda que continuar: se apaga el workout
+        // recién creado y no se toca ningún sensor — sin esta guardia quedaba un workout
+        // huérfano y una captura fantasma con la grabación ya "parada".
+        guard trainingRecording, trainingRecorder === recorder else {
+            await workoutManager.end()
+            return
+        }
 
         motionRecorder.start(sampleRateHz: DetectorConfig.default.sampleRateHz) { [weak self] sample in
             // Se escribe cada golpeo en cuanto está listo, no al final de la tanda: si
@@ -297,13 +311,20 @@ final class SessionController: ObservableObject {
     func stopTraining() async {
         guard let recorder = trainingRecorder else { return }
         motionRecorder.stop()
-        await workoutManager.end()
+        // El estado se voltea ANTES de desmontar el workout, no después. La respuesta al
+        // mando sale de este estado, y con el orden antiguo cualquier lentitud del
+        // desmontaje retrasaba la confirmación — y un latido que se colara mientras
+        // tanto seguía contestando "grabando" a un mando que acababa de pedir parar.
         trainingStore.appendAll(recorder.stop())
         trainingCapturedInBatch = recorder.capturedCount
+        // El resumen de descartes se lee justo al parar, que es cuando decide si la
+        // tanda valió; con el recorder ya soltado no habría nada que enseñar.
+        ultimosDescartes = recorder.descartes
         trainingRecorder = nil
         trainingRecording = false
         refreshTrainingCounts()
 
+        await workoutManager.end()
         // Se envía solo al acabar la tanda. Depender de que el usuario se acuerde de
         // pulsar un botón es cómo los golpeos se quedaban en el reloj: la transferencia
         // va en cola del sistema, así que si el iPhone no está cerca sale cuando vuelva.
@@ -382,7 +403,7 @@ final class SessionController: ObservableObject {
             nivel: playerLevelRaw > 0 ? playerLevelRaw : nil,
             sensoresPuedenPararse: sensorsMayStop,
             motivo: motivo,
-            descartes: trainingRecorder?.descartes
+            descartes: trainingRecorder?.descartes ?? ultimosDescartes
         )
     }
 

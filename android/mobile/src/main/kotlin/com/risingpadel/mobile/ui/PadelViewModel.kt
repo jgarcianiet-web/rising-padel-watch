@@ -236,6 +236,26 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
     val avisoTanda: StateFlow<String?> = _avisoTanda.asStateFlow()
 
     /**
+     * La última orden que cambia algo, guardada hasta que el estado del reloj la
+     * confirme.
+     *
+     * Existe porque el mando era fire-and-forget y en pista eso es un botón que a veces
+     * no hace nada: un "parar" que se pierde por el enlace no lo reintentaba nadie, y el
+     * latido de cada dos segundos seguía refrescando el "grabando" como si el botón no
+     * se hubiera pulsado. Un mando sobre un enlace que pierde mensajes no puede fiarse
+     * del envío: o reconcilia contra el estado que vuelve, o falla en silencio.
+     */
+    private data class OrdenSinConfirmar(
+        val accion: AccionDeTanda,
+        val etiqueta: ShotType?,
+        val creadaEnMs: Long,
+        var reintentos: Int,
+        var ultimoEnvioMs: Long,
+    )
+
+    private var ordenSinConfirmar: OrdenSinConfirmar? = null
+
+    /**
      * Manda una orden al reloj.
      *
      * El aviso se limpia al mandar y se vuelve a poner con lo que conteste el reloj: si
@@ -244,11 +264,17 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun ordenarTanda(accion: AccionDeTanda, etiqueta: ShotType? = null) {
         viewModelScope.launch {
-            _avisoTanda.value = null
-            _ordenEsperando.value = true
+            // Iniciar y parar quedan pendientes hasta que el estado del reloj diga que
+            // surtieron efecto; preguntar no cambia nada y enviar no deja rastro en el
+            // estado contra el que reconciliar.
+            if (accion == AccionDeTanda.INICIAR || accion == AccionDeTanda.PARAR) {
+                val ahora = System.currentTimeMillis()
+                ordenSinConfirmar = OrdenSinConfirmar(accion, etiqueta, ahora, 0, ahora)
+                _avisoTanda.value = null
+                _ordenEsperando.value = true
+            }
             val entregada = container.tandaRemote.ordenar(accion, etiqueta)
-            if (!entregada) {
-                _ordenEsperando.value = false
+            if (!entregada && accion != AccionDeTanda.ESTADO) {
                 _avisoTanda.value = "No se pudo conectar con el reloj"
             }
         }
@@ -267,9 +293,49 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
     private fun escucharAlReloj() {
         viewModelScope.launch {
             BuzonDeTanda.estado.filterNotNull().collect { estado ->
-                _ordenEsperando.value = false
                 estado.motivo?.let { _avisoTanda.value = it }
+                reconciliar(estado)
+                _ordenEsperando.value = ordenSinConfirmar != null
             }
+        }
+    }
+
+    /**
+     * Compara el estado que llega con la última orden pendiente y reenvía si hace falta.
+     *
+     * El latido de cada dos segundos es quien mueve esto: cada estado que llega o
+     * confirma la orden (y la borra) o demuestra que no surtió efecto (y la reenvía,
+     * con tope). Parar dos veces es parar, así que reintentar es seguro.
+     */
+    private fun reconciliar(estado: EstadoDeTanda) {
+        val pendiente = ordenSinConfirmar ?: return
+        val cumplida = when (pendiente.accion) {
+            AccionDeTanda.INICIAR -> estado.grabando
+            AccionDeTanda.PARAR -> !estado.grabando
+            else -> true
+        }
+        if (cumplida) {
+            ordenSinConfirmar = null
+            return
+        }
+        // Con motivo, el reloj la rechazó a propósito: insistir sería pelearse con una
+        // decisión, no con el enlace.
+        if (estado.motivo != null) {
+            ordenSinConfirmar = null
+            return
+        }
+        val ahora = System.currentTimeMillis()
+        if (ahora - pendiente.creadaEnMs > 60_000 || pendiente.reintentos >= 6) {
+            ordenSinConfirmar = null
+            _avisoTanda.value =
+                "El reloj no confirma la orden. Acércate o ábrele la app y vuelve a intentarlo."
+            return
+        }
+        if (ahora - pendiente.ultimoEnvioMs < 1_500) return
+        pendiente.reintentos++
+        pendiente.ultimoEnvioMs = ahora
+        viewModelScope.launch {
+            container.tandaRemote.ordenar(pendiente.accion, pendiente.etiqueta)
         }
     }
 

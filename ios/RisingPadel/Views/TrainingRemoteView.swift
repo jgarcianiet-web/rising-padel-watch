@@ -109,13 +109,36 @@ struct TrainingRemoteView: View {
                     Button {
                         model.ordenarTanda(.parar)
                     } label: {
-                        Label("Parar tanda", systemImage: "stop.fill")
+                        // El hueco entre pulsar y confirmar es donde el botón parecía
+                        // roto: ahora se ve que el mando está en ello, y por detrás la
+                        // orden se reenvía sola hasta que el reloj la confirme.
+                        if model.ordenEsperando {
+                            HStack(spacing: 8) {
+                                ProgressView().controlSize(.small)
+                                Text("Parando…")
+                            }
                             .frame(maxWidth: .infinity)
+                        } else {
+                            Label("Parar tanda", systemImage: "stop.fill")
+                                .frame(maxWidth: .infinity)
+                        }
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(T.rojo)
                     .controlSize(.large)
                 } else {
+                    // El resumen de la última tanda se queda a la vista al parar: es
+                    // justo el momento en que decides si la tanda valió o se repite.
+                    if let descartes = estado?.descartes, descartes.total > 0 {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("La última tanda")
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .foregroundStyle(T.tintaSuave)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            descartesCard(descartes, capturados: estado?.capturadosEnTanda ?? 0)
+                        }
+                    }
+
                     Text("Qué le pides")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(T.tintaSuave)

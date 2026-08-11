@@ -108,13 +108,21 @@ final class WatchSessionReceiver: NSObject {
         WCSession.default.sendMessage(
             [OrdenDeTanda.clave: data],
             replyHandler: { payload in
-                guard let data = payload[OrdenDeTanda.clave] as? Data,
-                      let estado = try? JSONDecoder().decode(EstadoDeTanda.self, from: data)
-                else {
+                if let cuerpo = payload[OrdenDeTanda.clave] as? Data,
+                   let estado = try? JSONDecoder().decode(EstadoDeTanda.self, from: cuerpo) {
+                    respuesta(.directa(estado))
+                    return
+                }
+                // Respuesta ilegible. Para una orden que cambia algo no se puede dar por
+                // "dormida" y ya: eso la descartaba en silencio, y un "parar" descartado
+                // en silencio es un botón que no hace nada. Se reenvía por la cola, que
+                // es idempotente — parar dos veces es parar.
+                guard encolarSiDuerme else {
                     respuesta(.dormido)
                     return
                 }
-                respuesta(.directa(estado))
+                WCSession.default.transferUserInfo([OrdenDeTanda.clave: data])
+                respuesta(.encolada)
             },
             // Si el mensaje directo falla (el reloj se durmió entre el `isReachable` y
             // el envío, que pasa constantemente), se reintenta por la cola en vez de
