@@ -88,12 +88,18 @@ class TandaLimpiaDe42Test {
         Golpe(30, ShotType.BACKHAND, -28f, -47f, 6.5f, 119f, 11.4f),
         Golpe(31, ShotType.BACKHAND, -28f, -48f, 5.1f, 113f, 11.8f),
         Golpe(32, ShotType.BACKHAND, -44f, -28f, -5.0f, 69f, 7.5f),
-        // 33-37 derecha
+        // 33-35 derecha (36 y 37 resultaron ser saques, ver abajo)
         Golpe(33, ShotType.FOREHAND, -45f, -39f, -6.2f, 79f, 14.7f),
         Golpe(34, ShotType.FOREHAND, -33f, -32f, -4.9f, 91f, 9.5f),
         Golpe(35, ShotType.FOREHAND, 26f, -37f, -8.1f, 211f, 19.5f),
-        Golpe(36, ShotType.FOREHAND, -4f, -19f, -9.7f, 361f, 17.7f),
-        Golpe(37, ShotType.FOREHAND, 53f, 14f, -9.7f, 304f, 15.3f),
+        // 36 y 37 los etiquetó el jugador como derechas y luego confirmó que eran
+        // saques: el reloj se dejó golpes a mitad de tanda y le corrió la cuenta. Sus
+        // números no dejaban lugar a dudas —361° y 304° de barrido con 9,7 de
+        // pronación, los mismos que el saque 39— y es exactamente para esto para lo que
+        // están los contadores de descarte: sin ellos, un golpe perdido no deja rastro
+        // y descoloca las etiquetas de todo lo que viene detrás.
+        Golpe(36, ShotType.SERVE, -4f, -19f, -9.7f, 361f, 17.7f),
+        Golpe(37, ShotType.SERVE, 53f, 14f, -9.7f, 304f, 15.3f),
         // 38-42 saque
         Golpe(38, ShotType.SERVE, 5f, -10f, -0.7f, 128f, 8.4f),
         Golpe(39, ShotType.SERVE, 46f, 8f, -9.4f, 336f, 18.6f),
@@ -180,22 +186,34 @@ class TandaLimpiaDe42Test {
     }
 
     @Test
-    fun `un golpe que barre como un saque no se distingue de un saque`() {
-        // Documentado, no arreglado. Los golpes 36 y 37 los etiquetó el jugador como
-        // derechas y llevan la firma exacta de un saque: 361° y 304° de barrido con 9,7
-        // de pronación, los mismos números que el saque 39. Con la señal de la muñeca no
-        // hay forma de separarlos, y forzarlo rompería los saques de verdad.
-        val comoSaques = tanda.filter { it.n == 36 || it.n == 37 || it.n == 39 }
+    fun `los saques con barrido de saque salen todos`() {
+        // El detector tenía razón y la etiqueta estaba corrida: los golpes 36 y 37 se
+        // apuntaron como derechas y eran saques. Los tres con firma de saque —barrido
+        // por encima de 300° con 9,4-9,7 de pronación— salen los tres.
+        val conFirma = tanda.filter { it.n == 36 || it.n == 37 || it.n == 39 }
         assertTrue(
-            comoSaques.all { classifier.classify(it.rasgos()).type == ShotType.SERVE },
-            "los tres se parecen tanto que o salen los tres o no sale ninguno",
+            conFirma.all { classifier.classify(it.rasgos()).type == ShotType.SERVE },
+            "los saques con la firma completa no pueden fallar",
         )
     }
 
     @Test
+    fun `los saques flojos siguen sin reconocerse, y consta`() {
+        // El límite de verdad, y no es de umbral: los saques 38, 40, 41 y 42 no llevan
+        // la firma. El 38 barrió 128° con 0,7 de pronación —es un saque puesto, sin
+        // muñeca— y el 40, 41 y 42 se golpearon a +36, +26 y +53° de elevación, o sea
+        // por encima de la cabeza, que es donde un saque de pádel no puede estar.
+        //
+        // Bajar el umbral del saque para pescarlos convertiría en saque medio partido.
+        // Esto lo arregla un modelo entrenado con la señal cruda, no otra constante.
+        val flojos = tanda.filter { it.n in listOf(38, 40, 41, 42) }
+        assertTrue(aciertos(flojos) == 0, "si alguno sale, revisa por qué antes de celebrarlo")
+    }
+
+    @Test
     fun `el acierto global no baja de donde está`() {
-        // 28 de 42 con los ocho tipos. Antes de esta tanda eran 16.
-        assertTrue(aciertos(tanda) >= 28, "acierto global: ${aciertos(tanda)}/42")
+        // 30 de 42 con los ocho tipos. Antes de esta tanda eran 16.
+        assertTrue(aciertos(tanda) >= 30, "acierto global: ${aciertos(tanda)}/42")
     }
 
     @Test
@@ -211,6 +229,6 @@ class TandaLimpiaDe42Test {
         val buenas = tanda.count {
             familia(classifier.classify(it.rasgos()).type) == familia(it.real)
         }
-        assertTrue(buenas >= 34, "por familias: $buenas/42")
+        assertTrue(buenas >= 37, "por familias: $buenas/42")
     }
 }
