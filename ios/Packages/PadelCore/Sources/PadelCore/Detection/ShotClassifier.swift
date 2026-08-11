@@ -58,12 +58,36 @@ public struct ShotClassifier: Sendable {
         // mide con el brazo calmado, donde la gravedad es fiable — en pista (ago
         // 2026) los remates reales salían con el pico corrupto (+3°, −41°) y solo la
         // preparación los delataba.
-        // El saque se decide ANTES de preguntar si el golpe fue alto, y a propósito: es
-        // el único golpe que se reconoce sin depender de la elevación, que es la medida
-        // más frágil de todas. En la tanda de pista (ago 2026) tres de los cinco saques
-        // se colaron en la rama alta por culpa de la elevación y ya no había forma de
-        // recuperarlos. La firma del saque —barrido largo con mucha pronación— no la
-        // tiene ningún otro golpe, mire el brazo donde mire.
+        let isOverhead = features.peakElevationDeg > config.overheadElevationDeg
+            || (features.prepElevationDeg ?? -90) > config.prepOverheadElevationDeg
+        // El margen se mide sobre el MISMO rasgo que decide, el pico. Antes se medía
+        // sobre el máximo de pico y preparación, y eso mezclaba dos escalas: la
+        // preparación se compara contra su propio umbral, no contra el del pico. Con la
+        // puerta en la horizontal el error se volvió visible — una volea de revés se
+        // arma a +20° de preparación, así que su "margen" salía cero y el golpe acababa
+        // sin clasificar por dudoso cuando de dudoso no tenía nada.
+        let elevationMargin = margin(
+            value: features.peakElevationDeg,
+            threshold: config.overheadElevationDeg,
+            scale: 15
+        )
+
+        if isOverhead {
+            return classifyOverhead(features, elevationMargin: elevationMargin)
+        }
+
+        // El saque se decide DESPUÉS de descartar el golpe alto, y a propósito.
+        //
+        // Estuvo antes durante una tanda, cuando la elevación llegaba con el eje girado
+        // y no se podía confiar en ella: entonces adelantar el saque salvaba tres de
+        // cinco. Con el eje ya bien, la elevación es el rasgo más limpio que hay —los
+        // altos y los bajos no se solapan ni en un grado— y adelantar el saque cuesta
+        // más de lo que da: el saque del pádel se golpea **a la cintura**, así que un
+        // golpe que pica a +33° no puede serlo por mucho que barra. En la tanda limpia
+        // (ago 2026) la regla del saque se estaba llevando una víbora que barrió 348°.
+        //
+        // La firma sigue siendo la misma —barrido largo con mucha pronación—, solo que
+        // ahora se le pide además no haber pasado por encima de la cabeza.
         let axialDelSaque = abs(features.axialRotationRadS)
         if axialDelSaque >= config.serveAxialRadS,
            features.sweptAngleDeg >= config.serveSweptDeg {
@@ -82,19 +106,6 @@ public struct ShotClassifier: Sendable {
                 scale: config.serveSweptDeg * 0.3
             )
             return finalize(.serve, 0.5 + 0.25 * axialMargin + 0.25 * sweptMargin)
-        }
-
-        let cima = max(features.peakElevationDeg, features.prepElevationDeg ?? -90)
-        let isOverhead = features.peakElevationDeg > config.overheadElevationDeg
-            || (features.prepElevationDeg ?? -90) > config.prepOverheadElevationDeg
-        let elevationMargin = margin(
-            value: cima,
-            threshold: config.overheadElevationDeg,
-            scale: 15
-        )
-
-        if isOverhead {
-            return classifyOverhead(features, elevationMargin: elevationMargin)
         }
 
         let axial = features.axialRotationRadS
@@ -120,7 +131,13 @@ public struct ShotClassifier: Sendable {
                 scale: config.volleyMaxSweptDeg
             )
             let quietMargin = 1 - min(max(axialAbs / config.volleyAxialMaxRadS, 0), 1)
-            confidence = 0.4 * compactMargin + 0.3 * quietMargin + 0.3 * elevationMargin
+            // Base alta, como en el saque y por el mismo motivo: haber pasado la puerta
+            // de la volea —compacta o con la pala quieta— y no ser un golpe alto ya son
+            // dos pruebas independientes. Sin base, una volea con acompañamiento salía a
+            // 0,38 y el detector la tiraba por dudosa; y una volea con acompañamiento es
+            // una volea de manual, no una duda.
+            confidence = 0.5 + 0.2 * compactMargin + 0.15 * quietMargin
+                + 0.15 * elevationMargin
         } else {
             let sweptMargin = margin(
                 value: features.sweptAngleDeg,
@@ -186,7 +203,11 @@ public struct ShotClassifier: Sendable {
         }
         // Dos rasgos y ya: el que decidió el tipo, y la certeza de que fue golpe alto.
         let decisionMargin = type == .smash ? peakMargin : alturaMargin
-        return finalize(type, 0.5 * decisionMargin + 0.5 * elevationMargin)
+        // Misma base que la volea: si el golpe pasó la puerta de altura, es uno de los
+        // tres altos con seguridad; lo único que queda por decidir es cuál. Reportarlo
+        // como "sin clasificar" tiraría un golpe del que se sabe casi todo — una víbora
+        // justo en la frontera (+15°) salía a 0,36 y desaparecía.
+        return finalize(type, 0.5 + 0.25 * decisionMargin + 0.25 * elevationMargin)
     }
 
     /// Un golpeo poco fiable se reporta como `.unknown`, pero conserva su confianza:

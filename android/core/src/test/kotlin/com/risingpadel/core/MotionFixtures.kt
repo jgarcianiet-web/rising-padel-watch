@@ -169,11 +169,14 @@ object MotionFixtures {
     /** Bandeja: golpe alto de control, plano y sin violencia. */
     fun bandeja(startMs: Long) = swing(
         startMs = startMs,
-        peakGyroRadS = 15f,
+        // Los números de la tanda limpia de 42 (ago 2026): las bandejas reales picaron
+        // 9.3-13.6 rad/s y se golpearon a +39..+56° de elevación. El 15 anterior está
+        // por encima del umbral del remate y convertía la bandeja de prueba en un smash.
+        peakGyroRadS = 11f,
         swingDurationMs = 250,
         impactG = 6f,
         axialFraction = 0.2f,
-        elevationDeg = 20f,
+        elevationDeg = 50f,
     )
 
     /**
@@ -183,11 +186,13 @@ object MotionFixtures {
      */
     fun vibora(startMs: Long) = swing(
         startMs = startMs,
-        peakGyroRadS = 13f,
+        // Tanda limpia de 42: las víboras picaron 11.0-11.8 y se golpearon a +15..+44°,
+        // por debajo de la bandeja. Lo que las separa es la altura, no el efecto.
+        peakGyroRadS = 11.5f,
         swingDurationMs = 240,
         impactG = 8f,
         axialFraction = 0.5f,
-        elevationDeg = 15f,
+        elevationDeg = 30f,
     )
 
     /** Smash: el remate — violento y corto, con el pico de giro por encima de todo. */
@@ -197,7 +202,8 @@ object MotionFixtures {
         swingDurationMs = 170,
         impactG = 10f,
         axialFraction = 0.3f,
-        elevationDeg = 25f,
+        // Los remates reales se golpearon a +37..+50°, bien por encima de la horizontal.
+        elevationDeg = 45f,
     )
 
     /** Saque: BAJO como el del pádel — se arma a la cintura — con un barrido enorme. */

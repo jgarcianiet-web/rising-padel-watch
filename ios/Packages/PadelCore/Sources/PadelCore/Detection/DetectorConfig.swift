@@ -50,9 +50,17 @@ public struct DetectorConfig: Equatable, Sendable {
     /// (`ShotFeatures.peakElevationDeg`) para que el golpeo sea por encima de la cabeza.
     ///
     /// Se compara contra el recorrido del swing y no contra la postura en el impacto:
-    /// medida sobre el impacto, la elevación de una tanda de derechas (+41..+77 en
-    /// pista, ago 2026) y la de una tanda de víboras (−20..+56) se solapaban por
-    /// completo, así que ningún umbral sobre ese valor podía separarlas.
+    /// medida sobre el impacto, la elevación de una tanda de derechas y la de una de
+    /// víboras se solapaban por completo.
+    ///
+    /// **+14, medido con una tanda limpia de 42 golpes** (ago 2026), grabada ya con el
+    /// eje de elevación corregido. La separación no deja lugar a dudas: los diecisiete
+    /// golpes altos picaron entre +15° y +56° y los veinticinco de fondo y volea entre
+    /// −82° y +14°. No se solapa ni un golpe.
+    ///
+    /// El −5 anterior salió de una tanda con las elevaciones contaminadas: con él las
+    /// voleas se colaban en la rama alta —una volea de revés pica a +2°— y de ahí venía
+    /// la mitad de los fallos, tres voleas seguidas clasificadas como smash.
     public var overheadElevationDeg: Float
     /// Por debajo de este ángulo barrido el golpeo es una volea.
     public var volleySweptDeg: Float
@@ -82,8 +90,12 @@ public struct DetectorConfig: Equatable, Sendable {
     /// El umbral anterior pedía un pico de 18 rad/s, de saque de tenis: los saques reales
     /// picaron entre 9,5 y 15,3 y no llegaba ninguno.
     public var serveAxialRadS: Float
-    /// Pico de |gyro| a partir del cual un golpeo alto es un smash. Una bandeja ronda
-    /// 12-20 rad/s y una víbora 16-25; el remate vive por encima de 25.
+    /// Pico de |gyro| a partir del cual un golpeo alto es un smash.
+    ///
+    /// 14, de la tanda limpia de 42 golpes (ago 2026): los seis remates picaron
+    /// 14.5-18.7 y ninguna bandeja ni víbora pasó de 13.6. La frontera cae justo en el
+    /// hueco. Tres tandas reales han dado tres fronteras distintas, así que este umbral
+    /// es de los que más gana con la calibración por jugador.
     public var smashPeakGyroRadS: Float
     /// Rotación axial media (rad/s, en valor absoluto) a partir de la cual un golpeo
     /// alto que no es smash se considera víbora: el efecto lateral es su seña de
@@ -97,8 +109,14 @@ public struct DetectorConfig: Equatable, Sendable {
     ///
     /// Las dos empiezan igual —brazo arriba, misma preparación— pero **la víbora se
     /// golpea más baja**: es un golpe cortado que sale más plano, mientras la bandeja se
-    /// impacta arriba. Con la tanda de ocho tipos (ago 2026) la bandeja picó a +11..+36°
-    /// (mediana +25) y la víbora a −71..+17 (mediana +4).
+    /// impacta arriba. Con la tanda limpia de 42 golpes (ago 2026) la bandeja picó a
+    /// +39..+56° (mediana +50) y la víbora a +15..+44° (mediana +38); el punto medio de
+    /// las medianas cae en +44.
+    ///
+    /// Es la frontera más floja de las tres: las dos familias se rozan (una bandeja a
+    /// +39 y una víbora a +44), así que de once golpes altos se colocan bien nueve. Se
+    /// queda así en vez de forzarla, porque quien la puede afinar de verdad es el
+    /// calibrador con las tandas de cada jugador.
     ///
     /// Antes se intentaba separarlas por el efecto, y no funcionaba porque no puede: la
     /// rotación axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el
@@ -140,14 +158,14 @@ public struct DetectorConfig: Equatable, Sendable {
         refractoryMs: Int64 = 320,
         maxSwingMs: Int64 = 900,
         minSwingMs: Int64 = 80,
-        overheadElevationDeg: Float = -5,
+        overheadElevationDeg: Float = 14,
         volleySweptDeg: Float = 50,
         volleyAxialMaxRadS: Float = 4,
         volleyMaxSweptDeg: Float = 210,
         serveSweptDeg: Float = 270,
         serveAxialRadS: Float = 5.5,
-        smashPeakGyroRadS: Float = 16,
-        viboraElevationDeg: Float = 18,
+        smashPeakGyroRadS: Float = 14,
+        viboraElevationDeg: Float = 44,
         axialWindowMs: Int64 = 200,
         prepWindowMs: Int64 = 400,
         prepOverheadElevationDeg: Float = 90,

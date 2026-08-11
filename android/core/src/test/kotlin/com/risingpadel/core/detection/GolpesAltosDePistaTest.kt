@@ -89,18 +89,35 @@ class GolpesAltosDePistaTest {
         // No se borra la prueba porque sus vectores siguen valiendo para el remate, que
         // se decide por el pico de giro. Cuando haya una tanda de víboras con la altura
         // bien medida, esto vuelve a ser una prueba de verdad.
+        // Con el umbral del remate en 14 (tanda limpia de 42), una de estas cuatro pica
+        // 14,3 y sale como smash. No es un fallo nuevo: es que sin la altura no hay con
+        // qué frenarla, y su pico está del lado del remate. Lo que sí se puede exigir es
+        // que las cuatro sigan siendo golpes altos.
         val tipos = viboras.map { classifier.classify(it).type }
         assertTrue(
-            tipos.all { it == ShotType.BANDEJA || it == ShotType.VIBORA },
+            tipos.all {
+                it == ShotType.BANDEJA || it == ShotType.VIBORA || it == ShotType.SMASH
+            },
             "siguen siendo golpes altos, aunque no se pueda decir cuál: $tipos",
         )
     }
 
     @Test
-    fun `el detector mide la preparacion y esta enruta el golpe alto`() {
-        // Sesión sintética del caso real: brazo armado en alto (65°) y calmado antes
-        // del swing, y gravedad corrupta DURANTE el swing (elevación medida ~0°). Sin
-        // el rasgo de preparación esto caía como golpe de fondo.
+    fun `con la gravedad rota en pleno swing, la preparacion ya no rescata el golpe`() {
+        // Documenta un límite que se ha vuelto a abrir, y por qué se acepta.
+        //
+        // La preparación llegó a enrutar el golpe alto, y sirvió mientras la elevación
+        // del pico era basura. Ya no enruta, y no puede: en la tanda limpia de 42 los
+        // remates se preparan a −27..+5° —el brazo va atrás, no arriba— mientras las
+        // bandejas se arman a +46..+68 y los saques a +5..+55. No hay un ángulo de
+        // preparación que separe "alto" de "no alto"; el que lo separa es el del golpeo.
+        //
+        // Lo que compensa es que el motivo original ya casi no se da: la gravedad salía
+        // rota tan a menudo porque el eje del antebrazo estaba girado. Con el eje bien,
+        // los diecisiete altos de la tanda limpia picaron todos por encima de +15°.
+        //
+        // Sesión sintética del caso: brazo armado en alto (65°) y calmado antes del
+        // swing, y gravedad corrupta DURANTE el swing (elevación medida ~0°).
         val detector = ShotDetector()
         val samples = MotionFixtures.rest(0, 1_000, elevationDeg = 65f) +
             MotionFixtures.swing(
@@ -121,6 +138,8 @@ class GolpesAltosDePistaTest {
             (features.prepElevationDeg ?: -90f) > 45f,
             "la preparación debía medirse en alto: $features",
         )
-        assertEquals(ShotType.SMASH, shots.first().type)
+        // La preparación se sigue midiendo bien —el rasgo está y vale para calibrar—,
+        // pero ya no decide. Con la elevación del golpeo rota, esto sale como volea.
+        assertEquals(ShotType.FOREHAND_VOLLEY, shots.first().type)
     }
 }

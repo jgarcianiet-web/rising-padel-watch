@@ -124,13 +124,13 @@ class TandaDeSeisTiposTest {
 
     @Test
     fun `el pico separa remate de bandeja en esta tanda, pero no en todas`() {
-        // Aquí los remates picaron 14,4-23,2 y las bandejas 11,0-16,4: un umbral en 14
-        // los separaría. Pero en la tanda de agosto los remates bajaban a 10,6 y alguna
-        // víbora pasaba de 14, así que 14 rompía aquello.
+        // Aquí los remates picaron 14,4-23,2 y las bandejas 11,0-16,4. En la tanda de
+        // agosto los remates bajaban a 10,6, y en la tanda limpia de 42 subían a 14,5.
+        // Tres tandas reales, tres fronteras distintas.
         //
-        // Dos tandas reales que no se ponen de acuerdo es exactamente lo que una
-        // constante global no puede resolver y la calibración por jugador sí: el umbral
-        // de fábrica se queda en 16 y son las tandas de cada uno las que lo mueven.
+        // Es exactamente lo que una constante global no puede resolver y la calibración
+        // por jugador sí: el umbral de fábrica sale de la tanda mejor medida y son las
+        // tandas de cada uno las que lo mueven — arriba o abajo, según su muñeca.
         val minRemate = remates.minOf { it.peakGyroRadS }
         val medianaBandeja = bandejas.map { it.peakGyroRadS }.sorted()[2]
         assertTrue(minRemate > medianaBandeja, "el remate más flojo ya pega más que la bandeja típica")
@@ -139,9 +139,13 @@ class TandaDeSeisTiposTest {
             remates.map { ShotType.SMASH to it } + bandejas.map { ShotType.BANDEJA to it } +
                 viboras.map { ShotType.VIBORA to it }
         ).calibracion
+        val umbral = calibrado.smashPeakGyroRadS
+        assertTrue(umbral != null, "con seis remates y seis bandejas hay de sobra para calibrar")
+        // Hacia arriba: este jugador remata más fuerte que el de la tanda de fábrica, y
+        // con el umbral de serie alguna de sus bandejas se le colaría como remate.
         assertTrue(
-            (calibrado.smashPeakGyroRadS ?: 99f) < DetectorConfig.DEFAULT.smashPeakGyroRadS,
-            "las tandas de este jugador tienen que bajarle el umbral del remate",
+            umbral!! > DetectorConfig.DEFAULT.smashPeakGyroRadS,
+            "las tandas de este jugador tienen que subirle el umbral del remate: $umbral",
         )
     }
 

@@ -53,16 +53,20 @@ data class DetectorConfig(
      *
      * Se compara contra el recorrido del swing y no contra la postura en el impacto.
      *
-     * **−5 y no 50**, medido con cuarenta golpes etiquetados de pista (ago 2026), ocho
-     * tipos de cinco. Con el eje del antebrazo ya bien orientado, los golpes altos
-     * —remate, bandeja, víbora— picaron entre −2° y +36°, y los de fondo y las voleas
-     * entre −3° y −75°. Es decir: la frontera real está en la horizontal, no a 50° sobre
-     * ella. Con este umbral la puerta acierta 38 de 40; con 50 no pasaba ni uno.
+     * **+14, medido con una tanda limpia de 42 golpes** (ago 2026), grabada ya con el
+     * eje de elevación corregido. La separación es de las que no dejan lugar a dudas:
+     * los diecisiete golpes altos —remate, bandeja, víbora— picaron entre +15° y +56°, y
+     * los veinte de fondo y volea entre −82° y +14°. No se solapa ni un golpe.
      *
-     * Tiene sentido físico: un golpe alto de pádel es cualquiera en el que la pala
-     * cruza por encima de la horizontal. No hace falta que el brazo suba 50°.
+     * El −5 anterior salió de la tanda anterior, que se grabó con el eje aún girándose y
+     * llevaba las elevaciones contaminadas. Con −5 las voleas se colaban en la rama alta
+     * —una volea de revés pica a +2° y ya pasaba por remate— y de ahí venía la mitad de
+     * los fallos: tres voleas de revés seguidas clasificadas como smash.
+     *
+     * Sigue teniendo sentido físico: un golpe alto de pádel es aquel en el que la pala
+     * pasa claramente por encima de la horizontal, no el que la roza.
      */
-    val overheadElevationDeg: Float = -5f,
+    val overheadElevationDeg: Float = 14f,
     /** Por debajo de este ángulo barrido el golpeo es una volea. */
     val volleySweptDeg: Float = 50f,
     /**
@@ -105,25 +109,36 @@ data class DetectorConfig(
     /**
      * Pico de |gyro| a partir del cual un golpeo alto es un smash.
      *
-     * 16 y no 24: recalibrado con remates reales de pista (ago 2026), que picaron
-     * 10.6-21.4 rad/s — con el umbral en 24 casi ningún remate de nivel amateur
-     * llegaba. Las víboras reales de la misma tanda picaron 9.2-14.3.
+     * 14, de la tanda limpia de 42 golpes (ago 2026): los seis remates picaron
+     * 14.5-18.7 y ninguna bandeja ni víbora pasó de 13.6. La frontera cae justo en el
+     * hueco, y en 16 se quedaba fuera el remate más flojo de los seis.
+     *
+     * El valor anterior (16) venía de una tanda con la elevación corrupta, donde el
+     * reparto de golpes entre las ramas era otro. Dos tandas reales han dado picos de
+     * remate distintos (10.6-21.4 la primera, 14.5-18.7 esta), así que este umbral es de
+     * los que más gana con la calibración por jugador.
      */
-    val smashPeakGyroRadS: Float = 16f,
+    val smashPeakGyroRadS: Float = 14f,
     /**
      * Altura del golpeo que separa la bandeja de la víbora.
      *
      * Las dos empiezan igual —brazo arriba, misma preparación— pero **la víbora se
      * golpea más baja**: es un golpe cortado que sale más plano, mientras la bandeja se
-     * impacta arriba. Con la tanda de ocho tipos (ago 2026) la bandeja picó a +11..+36°
-     * (mediana +25) y la víbora a −71..+17 (mediana +4).
+     * impacta arriba. Con la tanda limpia de 42 golpes (ago 2026) la bandeja picó a
+     * +39..+56° (mediana +50) y la víbora a +15..+44° (mediana +38); el punto medio de
+     * las medianas cae en +44.
+     *
+     * Es la frontera más floja de las tres: las dos familias se rozan (una bandeja a
+     * +39 y una víbora a +44), así que de once golpes altos se colocan bien nueve. Se
+     * queda como está en vez de forzarla, porque el que la puede afinar de verdad es el
+     * calibrador con las tandas de cada jugador.
      *
      * Antes se intentaba separarlas por el efecto, y no funcionaba porque no puede: la
      * rotación axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el
      * mismo número. Una víbora no rota todo el swing, da un latigazo al final, y
      * promediarlo sobre 200° de arco lo borra.
      */
-    val viboraElevationDeg: Float = 18f,
+    val viboraElevationDeg: Float = 44f,
     /** Ventana previa al impacto sobre la que se promedia la rotación axial. */
     val axialWindowMs: Long = 200,
     /**

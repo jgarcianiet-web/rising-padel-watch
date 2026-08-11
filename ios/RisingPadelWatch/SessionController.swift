@@ -130,6 +130,21 @@ final class SessionController: ObservableObject {
             Sensitivity(rawValue: sensitivityRaw) ?? .medium
         )
         config.forearmAxis = profile.watchWrist == .right ? Vector3(0, 1, 0) : Vector3(0, -1, 0)
+        // Girar el eje del antebrazo arregló la elevación y **rompió el lado**.
+        //
+        // Es la misma cuenta: la rotación axial se mide proyectando el giro sobre ese
+        // eje, así que darle la vuelta al eje le da la vuelta al signo. Al arreglar la
+        // elevación se invirtió sin querer el convenio "positivo = derecha", y desde
+        // entonces todas las derechas salían como revés y al revés.
+        //
+        // Lo dice una tanda etiquetada (ago 2026) sin margen de duda: los cinco reveses
+        // reales midieron entre +3,5 y +6,5 de rotación axial y las cinco derechas entre
+        // −4,9 y −9,7. Exactamente al contrario de lo que espera el clasificador.
+        //
+        // Se corrige aquí y no en el core porque es de este reloj: en Wear OS el eje no
+        // se ha tocado, y girarle el signo por simetría sería repetir el error que esto
+        // arregla. Allí lo detectará la calibración por tandas cuando las haya.
+        config.invertAxialSign = true
         // Los umbrales del jugador, sacados de sus tandas etiquetadas: la calibración
         // se calcula en el móvil (que tiene el fichero) y viaja con los ajustes.
         if let calibration = storedCalibration {
