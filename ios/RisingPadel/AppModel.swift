@@ -534,7 +534,8 @@ final class AppModel: ObservableObject {
             return "Necesitas cuenta de comunidad para subirlas."
         }
         let kb = datos.count / 1024
-        return await ComunidadModel.subirTanda(datos)
+        let subida = await ComunidadModel.subirTanda(datos)
+        return subida
             ? "Subidos \(kb) KB. Ya se pueden entrenar desde Actions."
             : "No se pudo subir. Revisa la conexión y vuelve a intentarlo."
     }

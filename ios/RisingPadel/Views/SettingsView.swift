@@ -11,6 +11,8 @@ struct SettingsView: View {
     @State private var resultadoCalibracion: ResultadoCalibracion?
     @State private var referencias: [ReferenciaNivel] = []
     @State private var mandoAbierto = false
+    @State private var subiendoTanda = false
+    @State private var resultadoSubida: String?
     @Environment(\.dismiss) private var dismiss
 
     @State private var token = ""
