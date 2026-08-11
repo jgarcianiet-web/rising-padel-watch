@@ -207,3 +207,74 @@ Es a propósito: interesa entrenar el clasificador con lo que el detector realme
 pista, no con una selección ideal. Si el detector se deja golpeos, eso es un problema
 del **detector** y se arregla ahí —bajando umbrales, ajustando la sensibilidad— no
 maquillando el conjunto de entrenamiento.
+
+
+## Entrenar el modelo sin ordenador
+
+El clasificador de hoy son umbrales escritos a mano. El de mañana es un bosque entrenado
+con estas tandas, y todo el camino de una cosa a la otra pasa por el móvil.
+
+### 1. Recoger
+
+Con el **mando de tandas**: le pones el reloj a alguien, eliges el golpe desde el móvil y
+que pegue treinta seguidos. Una hora de pista con dos personas son unos 500 golpes.
+
+Cuánto hace falta, según el propio entrenador: **4-5 jugadores distintos**, unos
+**2.000-3.000 golpeos** y **300+ de cada tipo**. Con una sola muñeca el modelo aprende esa
+muñeca, no el golpe: daría números preciosos en el ordenador y se caería con el primer
+usuario nuevo. Por eso el exportador se **niega a exportar** si solo hay un jugador.
+
+### 2. Subir
+
+Ajustes → Datos de entrenamiento → **Subir tandas para entrenar**. Va al bucket R2 del
+servidor con tu token de comunidad, cada subida en su propio fichero.
+
+> Es el único sitio de toda la app por el que sale señal cruda de sensores, y sale porque
+> le das a un botón que te lo dice con esas palabras. El resto de la app manda recuentos.
+> **Nunca es automático.**
+
+### 3. Entrenar
+
+Actions → **Entrenar el clasificador** → Run workflow. El runner instala scikit-learn,
+descarga el conjunto entero, entrena y valida **dejando fuera a un jugador completo** — la
+única cifra que predice cómo se portará con alguien nuevo.
+
+Necesita dos secretos en el repositorio:
+
+| Secreto | Qué es |
+|---|---|
+| `SERVIDOR_TANDAS` | La URL del Worker, sin barra final |
+| `TANDAS_TOKEN` | Un secreto inventado por ti, puesto también en el Worker con `wrangler secret put TANDAS_TOKEN` |
+
+El token de descarga es **suyo y no el de un usuario**: quien entrena necesita las tandas
+de todos, y ese permiso no puede colgar de la cuenta de nadie. Sin el secreto configurado
+en el Worker, el endpoint de descarga no existe.
+
+### 4. Fusionar
+
+El workflow abre un pull request con `ModeloEntrenado.kt` y `ModeloEntrenado.swift` —los
+mismos números en los dos— y el informe de precisión en el cuerpo. Lo lees en el móvil y
+lo fusionas si te convence. **No exporta si no gana a la heurística**: un modelo que no
+mejora lo que ya hay solo añade una caja negra que no sabe explicarse.
+
+### Por qué código generado y no Core ML o TFLite
+
+Con dos runtimes distintos, watchOS y Wear pueden dar respuestas distintas al mismo golpe,
+y eso no hay quien lo depure sin los dos relojes delante. Con tablas de números la
+aritmética son cuatro líneas por lenguaje, los números son literalmente los mismos, se
+prueba en Kotlin como todo lo demás y no añade peso de runtime a dos apps que ya pesan.
+
+### Por qué el modelo solo come nueve rasgos
+
+Come exactamente los `ShotFeatures` que el reloj ya calcula para cada golpe. Comer la
+ventana cruda daría más señal, pero obligaría a reimplementar la extracción en Kotlin, en
+Swift y en Python **sin poder comprobar que las tres dan lo mismo** — y una discrepancia
+ahí no se ve: no rompe nada, solo empeora los números sin decir por qué. Se empieza por lo
+que no puede desincronizarse, y se amplía cuando haya datos para notar la diferencia.
+
+### Mientras tanto: la calibración por jugador
+
+Ya está hecha y necesita **5 golpes de cada familia**, no 300. Ajustes → Datos de
+entrenamiento → **Calibrar con las tandas**. Deriva tus umbrales de tus propias tandas y
+los replica al reloj. No sustituye al modelo, pero mueve tus números hoy — sobre todo la
+frontera bandeja/víbora, que es la más floja de las tres.

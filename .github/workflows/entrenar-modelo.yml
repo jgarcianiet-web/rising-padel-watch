@@ -1,0 +1,69 @@
+name: Entrenar el clasificador
+
+# Se lanza a mano desde el móvil: Actions → «Entrenar el clasificador» → Run workflow.
+#
+# Existe porque el dueño de esta app trabaja desde el teléfono y no tiene ordenador
+# delante. Entrenar un modelo pide numpy, scikit-learn y unos minutos de CPU, y eso es
+# exactamente lo que un runner de GitHub regala gratis. El resultado no es un binario
+# opaco: son dos ficheros de código —uno Kotlin y otro Swift, con los mismos números—
+# que llegan en un pull request para que se puedan leer y comparar antes de fusionar.
+on:
+  workflow_dispatch:
+    inputs:
+      forzar:
+        description: "Exportar aunque no gane a la heurística (solo para probar la cañería)"
+        type: boolean
+        default: false
+
+jobs:
+  entrenar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: pip install numpy scikit-learn
+
+      - name: Descargar las tandas del servidor
+        env:
+          SERVIDOR: ${{ secrets.SERVIDOR_TANDAS }}
+          TOKEN: ${{ secrets.TANDAS_TOKEN }}
+        run: |
+          if [ -z "$SERVIDOR" ] || [ -z "$TOKEN" ]; then
+            echo "::error::Faltan los secretos SERVIDOR_TANDAS y TANDAS_TOKEN. Ver docs/training-data.md."
+            exit 1
+          fi
+          # -f para que un 401 o un 404 corten aquí y no sigan con un fichero de error
+          # dentro que el entrenador leería como "cero muestras utilizables".
+          curl -fsS -H "Authorization: Bearer $TOKEN" \
+            "$SERVIDOR/v1/tandas/export" -o tandas.jsonl
+          echo "Descargadas $(wc -l < tandas.jsonl) líneas."
+
+      - name: Entrenar y generar el código
+        id: entrenar
+        run: |
+          FORZAR=""
+          if [ "${{ inputs.forzar }}" = "true" ]; then FORZAR="--forzar"; fi
+          python3 tools/exportar_modelo.py tandas.jsonl $FORZAR | tee informe.txt
+
+      - name: Comprobar que el core sigue verde con el modelo dentro
+        working-directory: android/core
+        run: gradle test --console=plain
+
+      - name: Abrir el pull request con el modelo nuevo
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: modelo-entrenado
+          commit-message: "Modelo de golpes reentrenado con las tandas de pista"
+          title: "Modelo de golpes reentrenado"
+          body-path: informe.txt
+          add-paths: |
+            android/core/src/main/kotlin/com/risingpadel/core/detection/ModeloEntrenado.kt
+            ios/Packages/PadelCore/Sources/PadelCore/Detection/ModeloEntrenado.swift

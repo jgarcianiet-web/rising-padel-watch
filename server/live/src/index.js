@@ -140,6 +140,48 @@ export default {
       });
     }
 
+    // La descarga del conjunto de entrenamiento entero, para el workflow que entrena
+    // el clasificador. Va con su propio secreto (`TANDAS_TOKEN`) y no con el token de
+    // un usuario: quien entrena necesita las tandas de TODOS, y ese permiso no puede
+    // colgar de la cuenta de nadie.
+    //
+    // Sin el secreto configurado el endpoint no existe, en vez de existir con un token
+    // vacío que cualquiera acierta mandando `Bearer undefined`.
+    if (path === "/v1/tandas/export" && request.method === "GET") {
+      if (!env.TANDAS_TOKEN) return texto(404, "Nada por aquí");
+      if (request.headers.get("authorization") !== `Bearer ${env.TANDAS_TOKEN}`) {
+        return texto(401, "Token inválido");
+      }
+      if (!env.FOTOS) return texto(500, "El servidor no tiene R2 configurado");
+
+      // Se concatenan los JSONL en uno: es el formato que espera el entrenador y el
+      // que digieren pandas y jq sin ceremonia. En streaming para no cargar en
+      // memoria del Worker un dataset que puede pesar cientos de megas.
+      const listado = await env.FOTOS.list({ prefix: "tandas/" });
+      const { readable, writable } = new TransformStream();
+      (async () => {
+        const writer = writable.getWriter();
+        try {
+          for (const objeto of listado.objects) {
+            const cuerpo = await env.FOTOS.get(objeto.key);
+            if (!cuerpo) continue;
+            await writer.write(new Uint8Array(await cuerpo.arrayBuffer()));
+            // Cada fichero puede no acabar en salto de línea, y sin él la última
+            // muestra de uno y la primera del siguiente se pegarían en una sola.
+            await writer.write(new TextEncoder().encode("\n"));
+          }
+        } finally {
+          await writer.close();
+        }
+      })();
+      return new Response(readable, {
+        headers: {
+          "content-type": "application/x-ndjson; charset=utf-8",
+          "x-tandas-ficheros": String(listado.objects.length),
+        },
+      });
+    }
+
     return texto(404, "Nada por aquí");
   },
 };

@@ -186,6 +186,37 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Sube el fichero de tandas al servidor para entrenar el clasificador.
+     *
+     * Explícito y con su aviso al lado: es la única vía por la que sale del móvil señal
+     * cruda de sensores. El resto de la app manda recuentos.
+     */
+    fun subirTandasParaEntrenar(onResultado: (String) -> Unit) {
+        viewModelScope.launch {
+            val fichero = trainingDataFile()
+            if (fichero == null || fichero.length() == 0L) {
+                onResultado("No hay tandas guardadas todavía.")
+                return@launch
+            }
+            val api = com.risingpadel.mobile.data.ComunidadApi(getApplication()) {
+                com.risingpadel.mobile.data.ComunidadApi.SERVIDOR_OFICIAL
+            }
+            if (!api.tieneCuenta) {
+                onResultado("Necesitas cuenta de comunidad para subirlas.")
+                return@launch
+            }
+            val kb = fichero.length() / 1024
+            onResultado(
+                if (api.subirTanda(fichero)) {
+                    "Subidos $kb KB. Ya se pueden entrenar desde Actions."
+                } else {
+                    "No se pudo subir. Revisa la conexión y vuelve a intentarlo."
+                }
+            )
+        }
+    }
+
     fun borrarCalibracion() {
         viewModelScope.launch { container.settings.setCalibration(null) }
     }

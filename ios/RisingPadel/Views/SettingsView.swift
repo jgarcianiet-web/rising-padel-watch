@@ -271,6 +271,33 @@ struct SettingsView: View {
                         .font(.caption)
                     }
 
+                    // Subir al servidor para entrenar el clasificador. Es explícito y
+                    // dice con todas las letras qué sale del móvil: es señal cruda de
+                    // sensores, el único dato de la app que no es un recuento.
+                    Button {
+                        Task {
+                            subiendoTanda = true
+                            resultadoSubida = await model.subirTandasParaEntrenar()
+                            subiendoTanda = false
+                        }
+                    } label: {
+                        Label(
+                            subiendoTanda ? "Subiendo…" : "Subir tandas para entrenar",
+                            systemImage: "icloud.and.arrow.up"
+                        )
+                    }
+                    .disabled(subiendoTanda)
+                    if let resultadoSubida {
+                        Text(resultadoSubida)
+                            .font(.caption)
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                    Text("Sube la señal cruda de tus golpes al servidor para entrenar el "
+                         + "clasificador. Va con tu alias y tu nivel; no sale nada más y "
+                         + "no se sube nunca sola.")
+                        .font(.caption2)
+                        .foregroundStyle(T.tintaSuave)
+
                     // ShareLink en vez de subir a ningún sitio: el fichero solo sale del
                     // móvil si el usuario lo comparte a mano.
                     ShareLink(item: url) {

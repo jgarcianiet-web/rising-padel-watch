@@ -247,6 +247,40 @@ final class ComunidadModel: ObservableObject {
         return true
     }
 
+    /// Sube una tanda etiquetada al conjunto de entrenamiento.
+    ///
+    /// Es el **único** sitio de toda la app por el que sale señal cruda de sensores, y
+    /// sale porque el usuario le da a un botón que se lo dice con esas palabras. El
+    /// resto de la app manda recuentos y nunca series.
+    ///
+    /// Cada subida es un fichero nuevo y no machaca la anterior: dos tandas del mismo
+    /// día son dos tandas, y perder una por subir la siguiente sería tirar el trabajo
+    /// de una tarde de pista.
+    /// Estática y no de instancia porque quien la llama es la pantalla de ajustes, que
+    /// no tiene el modelo de comunidad a mano — y crear uno de usar y tirar dejaría sus
+    /// observadores de notificaciones registrados para siempre. Todo lo que hace falta
+    /// (la URL y el token) vive fuera del objeto: en los ajustes y en el Llavero.
+    static func subirTanda(_ data: Data) async -> Bool {
+        var raiz = (UserDefaults.standard.string(forKey: "leagueBaseURL") ?? "")
+            .trimmingCharacters(in: .whitespaces)
+        while raiz.hasSuffix("/") { raiz.removeLast() }
+        guard !raiz.isEmpty,
+              let token = ComunidadCuenta.read("token"),
+              let url = URL(string: raiz + "/v1/comunidad/tandas") else { return false }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        // Una tanda de una tarde puede pesar decenas de megas por una línea de móvil.
+        request.timeoutInterval = 300
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/x-ndjson", forHTTPHeaderField: "Content-Type")
+        request.httpBody = data
+        guard let (_, respuesta) = try? await URLSession.shared.data(for: request),
+              let http = respuesta as? HTTPURLResponse, (200..<300).contains(http.statusCode)
+        else { return false }
+        return true
+    }
+
     func descargarCopia() async -> Data? {
         guard tieneCuenta, let request = peticionCruda("GET", "v1/comunidad/copia") else {
             return nil

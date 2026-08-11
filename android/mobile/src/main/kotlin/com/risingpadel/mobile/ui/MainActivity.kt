@@ -128,6 +128,7 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
     val snackbarHostState = remember { SnackbarHostState() }
     // El resumen de la última calibración, para poder enseñarlo debajo del botón.
     var resumenCalibracion by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    var resumenSubida by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
     LaunchedEffect(message) {
         message?.let {
@@ -296,6 +297,11 @@ private fun PadelApp(viewModel: PadelViewModel = viewModel()) {
                     onExportTrainingData = { shareTrainingData(context, viewModel) },
                     onDeleteTrainingData = viewModel::deleteTrainingData,
                     onOpenMando = { navController.navigate(Routes.TANDA) },
+                    onSubirTandas = {
+                        resumenSubida = "Subiendo…"
+                        viewModel.subirTandasParaEntrenar { resumenSubida = it }
+                    },
+                    resumenSubida = resumenSubida,
                     onCalibrar = {
                         viewModel.calibrarConTandas { resultado ->
                             resumenCalibracion = resultado?.let {

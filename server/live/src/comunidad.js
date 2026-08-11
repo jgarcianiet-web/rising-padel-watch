@@ -251,6 +251,29 @@ export async function comunidad(request, env, path) {
     });
     return json(200, { guardada: true, bytes: cuerpo.byteLength });
   }
+  // Las tandas etiquetadas para entrenar el clasificador.
+  //
+  // Es el único sitio de toda la app por el que sale señal cruda de sensores, y sale
+  // porque el usuario le da a un botón que se lo dice con esas palabras. Nunca es
+  // automático: el resto de la app manda recuentos y nunca series.
+  //
+  // Cada subida es un objeto nuevo con su marca de tiempo, no un fichero que se
+  // machaca: dos tandas del mismo día son dos tandas, y perder una por subir la
+  // siguiente sería tirar el trabajo de una tarde de pista.
+  if (ruta === "/tandas" && metodo === "POST") {
+    if (!env.FOTOS) return error(500, "sin_r2", "El servidor no tiene R2 configurado");
+    const cuerpo = await request.arrayBuffer();
+    if (cuerpo.byteLength === 0) return error(400, "vacio", "No hay nada que subir");
+    if (cuerpo.byteLength > 50 * 1024 * 1024) {
+      return error(413, "muy_grande", "La tanda supera los 50 MB");
+    }
+    const nombre = `tandas/${yo.id}-${Date.now()}.jsonl`;
+    await env.FOTOS.put(nombre, cuerpo, {
+      httpMetadata: { contentType: "application/x-ndjson" },
+    });
+    return json(200, { guardada: true, bytes: cuerpo.byteLength, nombre });
+  }
+
   if (ruta === "/copia" && metodo === "GET") {
     if (!env.FOTOS) return error(404, "sin_r2", "Sin copias");
     const objeto = await env.FOTOS.get(`copias/${yo.id}.json`);

@@ -57,7 +57,9 @@ fun SettingsScreen(
     onOpenMando: () -> Unit,
     onCalibrar: () -> Unit,
     onBorrarCalibracion: () -> Unit,
+    onSubirTandas: () -> Unit,
     resumenCalibracion: String? = null,
+    resumenSubida: String? = null,
     onVersionTapped: () -> Unit,
 ) {
     Scaffold(
@@ -97,6 +99,8 @@ fun SettingsScreen(
                     onExport = onExportTrainingData,
                     onDelete = onDeleteTrainingData,
                     onOpenMando = onOpenMando,
+                    onSubirTandas = onSubirTandas,
+                    resumenSubida = resumenSubida,
                     onCalibrar = onCalibrar,
                     onBorrarCalibracion = onBorrarCalibracion,
                     resumenCalibracion = resumenCalibracion,
@@ -277,6 +281,8 @@ private fun TrainingDataCard(
     onExport: () -> Unit,
     onDelete: () -> Unit,
     onOpenMando: () -> Unit,
+    onSubirTandas: () -> Unit,
+    resumenSubida: String?,
     onCalibrar: () -> Unit,
     onBorrarCalibracion: () -> Unit,
     resumenCalibracion: String?,
@@ -370,6 +376,26 @@ private fun TrainingDataCard(
                         Text("Volver a los umbrales de fábrica")
                     }
                 }
+                // Subir al servidor para entrenar el clasificador. Es explícito y dice
+                // con todas las letras qué sale del móvil: señal cruda de sensores, el
+                // único dato de la app que no es un recuento.
+                Button(onClick = onSubirTandas, modifier = Modifier.fillMaxWidth()) {
+                    Text("Subir tandas para entrenar")
+                }
+                resumenSubida?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+                Text(
+                    "Sube la señal cruda de tus golpes al servidor para entrenar el " +
+                        "clasificador. Va con tu alias y tu nivel; no sale nada más y no " +
+                        "se sube nunca sola.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Button(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
                     Text("Exportar")
                 }

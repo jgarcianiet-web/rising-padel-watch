@@ -41,6 +41,12 @@ class ShotClassifier(
     private val axialSign: Float = handSign * (if (config.invertAxialSign) -1f else 1f)
 
     /**
+     * El bosque entrenado, si esta versión lleva uno. Inyectable para poder probarlo
+     * sin esperar a que exista el de fábrica.
+     */
+    private val modelo: ModeloDeGolpes? = ModeloEntrenado.actual
+
+    /**
      * Elevación del antebrazo sobre la horizontal, en grados.
      * +90 = antebrazo vertical hacia arriba, 0 = horizontal, -90 = hacia abajo.
      */
@@ -58,6 +64,15 @@ class ShotClassifier(
     fun axialRotation(meanGyro: Vector3): Float = meanGyro.dot(forearmAxis) * axialSign
 
     fun classify(features: ShotFeatures): Classification {
+        // El modelo entrenado manda cuando lo hay y cuando está seguro; si no, la
+        // heurística, que además es la que sabe decir por qué. Ver `ModeloDeGolpes`.
+        modelo?.clasificar(features)?.let {
+            if (it.confidence >= ModeloEntrenado.MIN_VOTOS) return it
+        }
+        return porHeuristica(features)
+    }
+
+    private fun porHeuristica(features: ShotFeatures): Classification {
         // La pregunta que separa un golpe alto de uno de fondo es "¿pasó la mano por
         // encima del hombro?", y esa la responde el recorrido del swing, no la postura
         // en el instante del impacto. Ver el comentario de `peakElevationDeg`.

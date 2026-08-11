@@ -522,6 +522,23 @@ final class AppModel: ObservableObject {
         recalcularTandas()
     }
 
+    /// Sube el fichero de tandas al servidor para entrenar el clasificador.
+    ///
+    /// Explícito y con su aviso al lado: es la única vía por la que sale del móvil señal
+    /// cruda de sensores. El resto de la app manda recuentos.
+    func subirTandasParaEntrenar() async -> String {
+        guard let url = trainingDataURL, let datos = try? Data(contentsOf: url) else {
+            return "No hay tandas guardadas todavía."
+        }
+        guard ComunidadCuenta.read("token") != nil else {
+            return "Necesitas cuenta de comunidad para subirlas."
+        }
+        let kb = datos.count / 1024
+        return await ComunidadModel.subirTanda(datos)
+            ? "Subidos \(kb) KB. Ya se pueden entrenar desde Actions."
+            : "No se pudo subir. Revisa la conexión y vuelve a intentarlo."
+    }
+
     func deleteTrainingData() {
         try? FileManager.default.removeItem(at: Self.trainingDataDestination())
         refreshTrainingData()

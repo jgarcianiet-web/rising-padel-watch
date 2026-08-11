@@ -26,6 +26,9 @@ public struct ShotClassifier: Sendable {
     /// invierte el signo de la rotación sobre el eje del antebrazo.
     private let axialSign: Float
 
+    /// El bosque entrenado, si esta versión lleva uno.
+    private let modelo: ModeloDeGolpes? = ModeloEntrenado.actual
+
     public init(config: DetectorConfig = .default, profile: PlayerProfile = PlayerProfile()) {
         self.config = config
         self.forearmAxis = (profile.watchWrist == .right ? config.forearmAxis : -config.forearmAxis)
@@ -50,6 +53,16 @@ public struct ShotClassifier: Sendable {
     }
 
     public func classify(_ features: ShotFeatures) -> Classification {
+        // El modelo entrenado manda cuando lo hay y cuando está seguro; si no, la
+        // heurística, que además es la que sabe decir por qué. Ver `ModeloDeGolpes`.
+        if let delModelo = modelo?.clasificar(features),
+           delModelo.confidence >= ModeloEntrenado.minVotos {
+            return delModelo
+        }
+        return porHeuristica(features)
+    }
+
+    private func porHeuristica(_ features: ShotFeatures) -> Classification {
         // La pregunta que separa un golpe alto de uno de fondo es "¿pasó la mano por
         // encima del hombro?", y esa la responde el recorrido del swing, no la postura
         // en el instante del impacto. Ver el comentario de `peakElevationDeg`.

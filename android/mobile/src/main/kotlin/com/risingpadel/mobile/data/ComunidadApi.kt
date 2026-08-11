@@ -123,6 +123,37 @@ class ComunidadApi(context: Context, private val baseUrl: () -> String) {
         }.getOrDefault(false)
     }
 
+    /**
+     * Sube una tanda etiquetada al conjunto de entrenamiento.
+     *
+     * Es el **único** sitio de toda la app por el que sale señal cruda de sensores, y
+     * sale porque el usuario le da a un botón que se lo dice con esas palabras. El resto
+     * de la app manda recuentos y nunca series.
+     *
+     * Cada subida es un fichero nuevo y no machaca la anterior: dos tandas del mismo día
+     * son dos tandas, y perder una por subir la siguiente sería tirar el trabajo de una
+     * tarde de pista.
+     */
+    suspend fun subirTanda(fichero: java.io.File): Boolean = withContext(Dispatchers.IO) {
+        val portador = token ?: return@withContext false
+        if (!fichero.exists() || fichero.length() == 0L) return@withContext false
+        runCatching {
+            val conexion = URL("${raiz()}/v1/comunidad/tandas").openConnection() as HttpURLConnection
+            conexion.requestMethod = "POST"
+            conexion.connectTimeout = 15_000
+            // Una tanda de una tarde puede pesar decenas de megas por una línea de móvil.
+            conexion.readTimeout = 300_000
+            conexion.setRequestProperty("Authorization", "Bearer $portador")
+            conexion.setRequestProperty("Content-Type", "application/x-ndjson")
+            conexion.doOutput = true
+            // En streaming y no cargando el fichero en memoria: son decenas de megas y
+            // un móvil modesto se queda sin sitio antes de acabar de leerlo.
+            conexion.setFixedLengthStreamingMode(fichero.length())
+            conexion.outputStream.use { salida -> fichero.inputStream().use { it.copyTo(salida) } }
+            conexion.responseCode in 200..299
+        }.getOrDefault(false)
+    }
+
     suspend fun descargarCopia(): String? = withContext(Dispatchers.IO) {
         val portador = token ?: return@withContext null
         runCatching {
