@@ -296,6 +296,24 @@ final class SessionController: ObservableObject {
         }
     }
 
+    /// Arranca el workout que mantiene vivos los sensores y avisa si no se pudo.
+    ///
+    /// Que falle no aborta la sesión —se siguen contando los golpeos que lleguen— pero
+    /// el usuario tiene que saberlo: sin workout la captura se corta al apagarse la
+    /// pantalla, y un conteo silenciosamente incompleto es peor que un aviso.
+    private func startWorkoutRuntime(collectMetrics: Bool) async {
+        sensorsMayStop = true
+        guard WorkoutManager.isSupported,
+              await workoutManager.requestAuthorization(includeMetrics: collectMetrics)
+        else { return }
+        do {
+            try workoutManager.start(collectMetrics: collectMetrics)
+            sensorsMayStop = false
+        } catch {
+            sensorsMayStop = true
+        }
+    }
+
     func stopTraining() async {
         guard let grabador = grabadorDeTanda else { return }
         motionRecorder.stop()
