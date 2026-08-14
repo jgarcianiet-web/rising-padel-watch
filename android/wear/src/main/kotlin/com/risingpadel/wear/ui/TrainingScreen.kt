@@ -48,8 +48,10 @@ fun TrainingScreen(
         verticalArrangement = Arrangement.Center,
     ) {
         if (state.recording) {
+            // El número grande es el TIEMPO: mientras corre, se está guardando, vea el
+            // detector lo que vea. Los golpes vistos van debajo como información.
             Text(
-                text = "${state.capturedInBatch}",
+                text = "%d:%02d".format(state.segundos / 60, state.segundos % 60),
                 style = MaterialTheme.typography.display1,
             )
             Text(
@@ -59,7 +61,7 @@ fun TrainingScreen(
                 textAlign = TextAlign.Center,
             )
             Text(
-                text = "Da 30-40 golpes solo de este tipo",
+                text = "${state.capturedInBatch} golpes vistos",
                 style = MaterialTheme.typography.caption3,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colors.onSurfaceVariant,
@@ -87,7 +89,7 @@ fun TrainingScreen(
                     .padding(top = 6.dp),
             )
             Text(
-                text = "${state.totalStored} guardados · ${state.storedBytes / 1024} KB",
+                text = "${state.totalStored} tandas · ${state.storedBytes / 1024} KB",
                 style = MaterialTheme.typography.caption3,
                 color = MaterialTheme.colors.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp),

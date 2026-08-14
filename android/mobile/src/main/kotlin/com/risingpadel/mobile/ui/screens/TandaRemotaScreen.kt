@@ -154,7 +154,7 @@ fun TandaRemotaScreen(
                         ) {
                             Text(
                                 text = estado?.let {
-                                    "${it.guardadosEnTotal} golpes guardados en el reloj · ${it.kilobytes} KB"
+                                    "${it.guardadosEnTotal} tanda(s) guardadas en el reloj · ${it.kilobytes} KB"
                                 } ?: "El reloj todavía no ha dicho qué tiene guardado",
                                 style = MaterialTheme.typography.bodySmall,
                                 modifier = Modifier.weight(1f),
@@ -185,14 +185,22 @@ private fun GrabandoContent(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // El número grande es el TIEMPO: la tanda se graba en crudo y mientras el
+        // cronómetro corre se está guardando, vea el detector lo que vea.
+        val segundos = estado.segundosDeTanda ?: 0
         Text(
-            text = "${estado.capturadosEnTanda}",
+            text = "%d:%02d".format(segundos / 60, segundos % 60),
             style = MaterialTheme.typography.displayLarge,
             color = MaterialTheme.colorScheme.primary,
         )
         Text(
-            text = "golpes de ${estado.etiqueta.label().lowercase()} en esta tanda",
+            text = "grabando ${estado.etiqueta.label().lowercase()}",
             style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "${estado.capturadosEnTanda} golpes vistos por el detector",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         // Sin permiso de sensores el servicio se corta al apagarse la pantalla y la tanda
         // se queda a medias. Mejor decirlo que devolver 10 golpes de 50 como si fueran

@@ -175,6 +175,7 @@ class TandaCommandService : WearableListenerService() {
             sensoresPuedenPararse = sensoresPuedenPararse(),
             motivo = motivo,
             descartes = container.trainingSession.descartes,
+            segundosDeTanda = if (sesion.recording) sesion.segundos else null,
         )
 
         Wearable.getMessageClient(this)

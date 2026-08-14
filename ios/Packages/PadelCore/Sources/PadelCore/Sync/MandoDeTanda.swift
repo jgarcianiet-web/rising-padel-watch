@@ -83,6 +83,9 @@ public struct EstadoDeTanda: Codable, Sendable, Equatable {
     /// Los swings que el detector tiró en esta tanda, con el motivo. Es lo que convierte
     /// "no me coge la mitad de las bandejas" en un número con su umbral culpable al lado.
     public let descartes: DescartesDelDetector?
+    /// Segundos de tanda grabados, si hay una en marcha. Es el contador que siempre
+    /// avanza: la prueba de que se está guardando algo, vea el detector lo que vea.
+    public let segundosDeTanda: Int?
 
     /// La clave con la que el reloj devuelve su estado cuando la orden vino encolada y
     /// no había a quién contestar en el momento.
@@ -98,7 +101,8 @@ public struct EstadoDeTanda: Codable, Sendable, Equatable {
         nivel: Int?,
         sensoresPuedenPararse: Bool,
         motivo: String? = nil,
-        descartes: DescartesDelDetector? = nil
+        descartes: DescartesDelDetector? = nil,
+        segundosDeTanda: Int? = nil
     ) {
         self.grabando = grabando
         self.etiqueta = etiqueta
@@ -110,5 +114,6 @@ public struct EstadoDeTanda: Codable, Sendable, Equatable {
         self.sensoresPuedenPararse = sensoresPuedenPararse
         self.motivo = motivo
         self.descartes = descartes
+        self.segundosDeTanda = segundosDeTanda
     }
 }

@@ -87,11 +87,15 @@ final class SessionController: ObservableObject {
         url: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("training/muestras.jsonl")
     )
-    private var trainingRecorder: TrainingRecorder?
+    private var grabadorDeTanda: GrabadorDeTanda?
 
     @Published var trainingLabel: ShotType = .forehand
     @Published private(set) var trainingRecording = false
+    /// Golpes que el detector cree haber visto. Contador informativo, no puerta.
     @Published private(set) var trainingCapturedInBatch = 0
+    /// Segundos de tanda grabados. Es el contador que SIEMPRE avanza: la prueba de que
+    /// se está guardando algo, vea el detector lo que vea.
+    @Published private(set) var trainingSegundos = 0
     @Published private(set) var trainingTotalStored = 0
     @Published private(set) var trainingStoredKB = 0
 
@@ -246,7 +250,12 @@ final class SessionController: ObservableObject {
     func startTraining() async {
         guard motionRecorder.isAvailable, !trainingRecording else { return }
 
-        let recorder = TrainingRecorder(
+        // La tanda se graba ENTERA y en crudo: cada muestra que entra se guarda, y el
+        // detector corre de comentarista (contador de golpes y descartes), sin poder
+        // vetar nada. Es la respuesta a un fallo de pista: la captura por ventanas
+        // dependía de que el detector viera impactos, y una tanda de derechas se quedó
+        // en cero sin explicación posible.
+        let grabador = GrabadorDeTanda(
             source: SourceInfo(
                 platform: .watchos,
                 device: WKInterfaceDevice.current().model,
@@ -255,79 +264,56 @@ final class SessionController: ObservableObject {
             profile: profile,
             config: detectorConfig()
         )
-        recorder.label = trainingLabel
-        recorder.playerAlias = playerAlias
-        recorder.playerLevel = playerLevelRaw > 0 ? playerLevelRaw : nil
-        recorder.start(monotonicMs: Self.monotonicMs())
-        trainingRecorder = recorder
+        grabador.label = trainingLabel
+        grabador.playerAlias = playerAlias
+        grabador.playerLevel = playerLevelRaw > 0 ? playerLevelRaw : nil
+        grabador.start(monotonicMs: Self.monotonicMs())
+        grabadorDeTanda = grabador
         trainingRecording = true
         trainingCapturedInBatch = 0
+        trainingSegundos = 0
         ultimosDescartes = nil
 
-        // Igual que en un partido: sin workout, watchOS suspende la app al apagarse la
-        // pantalla y la tanda se queda en los primeros golpes. Sin métricas: una tanda
-        // de datos no es un entrenamiento que haya que guardar en Salud.
-        await startWorkoutRuntime(collectMetrics: false)
-
-        // Un "parar" del mando puede colarse mientras el workout arrancaba (el arranque
-        // tiene un await). Si pasó, aquí no hay tanda que continuar: se apaga el workout
-        // recién creado y no se toca ningún sensor — sin esta guardia quedaba un workout
-        // huérfano y una captura fantasma con la grabación ya "parada".
-        guard trainingRecording, trainingRecorder === recorder else {
-            await workoutManager.end()
-            return
-        }
-
+        // Los sensores arrancan YA, antes que el workout: el workout solo hace falta
+        // para que la captura sobreviva a la pantalla apagada, y esperarlo retrasaba el
+        // primer dato — con la autorización de por medio, a veces lo retrasaba todo.
         motionRecorder.start(sampleRateHz: DetectorConfig.default.sampleRateHz) { [weak self] sample in
-            // Se escribe cada golpeo en cuanto está listo, no al final de la tanda: si
-            // el reloj se queda sin batería a mitad, se pierde como mucho el último.
-            let captured = recorder.onMotion(sample)
-            guard !captured.isEmpty else { return }
+            let shot = grabador.onMotion(sample)
+            let segundos = grabador.segundos
             Task { @MainActor in
-                self?.trainingStore.appendAll(captured)
-                self?.trainingCapturedInBatch = recorder.capturedCount
+                guard let self, self.grabadorDeTanda === grabador else { return }
+                if self.trainingSegundos != segundos { self.trainingSegundos = segundos }
+                if shot != nil { self.trainingCapturedInBatch = grabador.golpes }
             }
         }
-    }
 
-    /// Arranca el workout que mantiene vivos los sensores y avisa si no se pudo.
-    ///
-    /// Que falle no aborta la sesión —se siguen contando los golpeos que lleguen— pero
-    /// el usuario tiene que saberlo: sin workout la captura se corta al apagarse la
-    /// pantalla, y un conteo silenciosamente incompleto es peor que un aviso.
-    private func startWorkoutRuntime(collectMetrics: Bool) async {
-        sensorsMayStop = true
-        guard WorkoutManager.isSupported,
-              await workoutManager.requestAuthorization(includeMetrics: collectMetrics)
-        else { return }
-        do {
-            try workoutManager.start(collectMetrics: collectMetrics)
-            sensorsMayStop = false
-        } catch {
-            sensorsMayStop = true
+        // El workout, en paralelo. Si mientras arrancaba alguien paró la tanda, se
+        // apaga lo recién encendido: sin esta guardia quedaba un workout huérfano.
+        Task { [weak self] in
+            await self?.startWorkoutRuntime(collectMetrics: false)
+            guard let self else { return }
+            if !self.trainingRecording { await self.workoutManager.end() }
         }
     }
 
     func stopTraining() async {
-        guard let recorder = trainingRecorder else { return }
+        guard let grabador = grabadorDeTanda else { return }
         motionRecorder.stop()
-        // El estado se voltea ANTES de desmontar el workout, no después. La respuesta al
-        // mando sale de este estado, y con el orden antiguo cualquier lentitud del
-        // desmontaje retrasaba la confirmación — y un latido que se colara mientras
-        // tanto seguía contestando "grabando" a un mando que acababa de pedir parar.
-        trainingStore.appendAll(recorder.stop())
-        trainingCapturedInBatch = recorder.capturedCount
-        // El resumen de descartes se lee justo al parar, que es cuando decide si la
-        // tanda valió; con el recorder ya soltado no habría nada que enseñar.
-        ultimosDescartes = recorder.descartes
-        trainingRecorder = nil
+        // Estado primero, desmontaje después: la respuesta al mando sale de aquí y no
+        // puede esperar al workout.
+        if let tanda = grabador.stop() {
+            trainingStore.appendTanda(tanda)
+        }
+        trainingCapturedInBatch = grabador.golpes
+        trainingSegundos = grabador.segundos
+        ultimosDescartes = grabador.descartes
+        grabadorDeTanda = nil
         trainingRecording = false
         refreshTrainingCounts()
 
         await workoutManager.end()
         // Se envía solo al acabar la tanda. Depender de que el usuario se acuerde de
-        // pulsar un botón es cómo los golpeos se quedaban en el reloj: la transferencia
-        // va en cola del sistema, así que si el iPhone no está cerca sale cuando vuelva.
+        // pulsar un botón es cómo los golpeos se quedaban en el reloj.
         _ = sendTrainingDataToPhone()
     }
 
@@ -403,7 +389,8 @@ final class SessionController: ObservableObject {
             nivel: playerLevelRaw > 0 ? playerLevelRaw : nil,
             sensoresPuedenPararse: sensorsMayStop,
             motivo: motivo,
-            descartes: trainingRecorder?.descartes ?? ultimosDescartes
+            descartes: grabadorDeTanda?.descartes ?? ultimosDescartes,
+            segundosDeTanda: trainingRecording ? trainingSegundos : nil
         )
     }
 

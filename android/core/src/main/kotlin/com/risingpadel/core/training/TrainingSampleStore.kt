@@ -1,5 +1,6 @@
 package com.risingpadel.core.training
 
+import com.risingpadel.core.model.ShotType
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -36,6 +37,39 @@ class TrainingSampleStore(
             json.encodeToString(TrainingSample.serializer(), it) + "\n"
         }
         file.appendText(text)
+    }
+
+    /**
+     * Añade una tanda cruda (formato 2) al mismo fichero.
+     *
+     * Mismo fichero a propósito: las tandas viejas (una línea por golpe) y las nuevas
+     * (una línea por tanda) conviven, se exportan juntas y se suben juntas. Quien lee
+     * distingue el formato por línea.
+     */
+    fun appendTanda(tanda: TandaCruda) {
+        file.appendText(json.encodeToString(TandaCruda.serializer(), tanda) + "\n")
+    }
+
+    /**
+     * Los pares (etiqueta, rasgos del golpe) de todo el fichero, vengan del formato que
+     * vengan. Es lo que comen la calibración y el panel de precisión.
+     */
+    fun paresEtiquetados(): List<Pair<ShotType, com.risingpadel.core.model.ShotFeatures>> {
+        if (!file.exists()) return emptyList()
+        return file.useLines { lines ->
+            lines.filter { it.isNotBlank() }.flatMap { linea ->
+                // Primero el formato nuevo; si no cuela, el viejo. Una línea corrupta
+                // no tira el fichero.
+                runCatching { json.decodeFromString(TandaCruda.serializer(), linea) }
+                    .getOrNull()
+                    ?.takeIf { it.formato >= 2 }
+                    ?.let { tanda -> return@flatMap tanda.golpes.map { tanda.label to it.features }.asSequence() }
+                runCatching { json.decodeFromString(TrainingSample.serializer(), linea) }
+                    .getOrNull()
+                    ?.let { sequenceOf(it.label to it.heuristicFeatures) }
+                    ?: emptySequence()
+            }.toList()
+        }
     }
 
     /** Cuenta líneas sin parsear: es lo que se enseña en la UI mientras se graba. */

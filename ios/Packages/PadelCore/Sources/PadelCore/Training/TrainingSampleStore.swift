@@ -53,6 +53,43 @@ public final class TrainingSampleStore {
         }
     }
 
+    /// Añade una tanda cruda (formato 2) al mismo fichero.
+    ///
+    /// Mismo fichero a propósito: las tandas viejas (una línea por golpe) y las nuevas
+    /// (una línea por tanda) conviven, se exportan juntas y se suben juntas. Quien lee
+    /// distingue el formato por línea.
+    public func appendTanda(_ tanda: TandaCruda) {
+        guard let data = try? encoder.encode(tanda),
+              let linea = String(data: data, encoding: .utf8),
+              let bytes = (linea + "\n").data(using: .utf8) else { return }
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: bytes)
+        } else {
+            try? bytes.write(to: url, options: .atomic)
+        }
+    }
+
+    /// Los pares (etiqueta, rasgos del golpe) de todo el fichero, vengan del formato que
+    /// vengan. Es lo que comen la calibración y el panel de precisión.
+    public func paresEtiquetados() -> [(ShotType, ShotFeatures)] {
+        guard exists, let texto = try? String(contentsOf: url, encoding: .utf8) else { return [] }
+        let decoder = JSONDecoder()
+        var pares: [(ShotType, ShotFeatures)] = []
+        for linea in texto.split(separator: "\n") where !linea.isEmpty {
+            guard let data = linea.data(using: .utf8) else { continue }
+            // Primero el formato nuevo; si no cuela, el viejo. Una línea corrupta no
+            // tira el fichero.
+            if let tanda = try? decoder.decode(TandaCruda.self, from: data), tanda.formato >= 2 {
+                pares.append(contentsOf: tanda.golpes.map { (tanda.label, $0.features) })
+            } else if let muestra = try? decoder.decode(TrainingSample.self, from: data) {
+                pares.append((muestra.label, muestra.heuristicFeatures))
+            }
+        }
+        return pares
+    }
+
     /// Cuenta líneas sin parsear: es lo que se enseña en la UI mientras se graba.
     public func count() -> Int {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return 0 }

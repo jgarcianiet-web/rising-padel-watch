@@ -87,12 +87,37 @@ PROFUNDIDAD = 6
 MIN_HOJA = 5
 
 
+# El JSONL de Wear serializa los tipos con el nombre del enum Kotlin ("FOREHAND",
+# "FOREHAND_VOLLEY") y el de watchOS con el nombre de cable ("forehand",
+# "forehandVolley"). Se normaliza aquí para que las tandas de las dos plataformas
+# entrenen juntas — sin esto, las de Wear se saltaban en silencio.
+_ETIQUETAS = {clave.lower().replace("_", ""): clave for clave in WIRE_A_KOTLIN}
+
+
+def _normalizar_etiqueta(cruda) -> str | None:
+    if not isinstance(cruda, str):
+        return None
+    return _ETIQUETAS.get(cruda.lower().replace("_", ""))
+
+
 def cargar(path: Path) -> tuple[list[list[float]], list[str], list[str], list[str]]:
-    """Devuelve (vectores, etiquetas, jugadores, predicción de la heurística)."""
+    """Devuelve (vectores, etiquetas, jugadores, predicción de la heurística).
+
+    Acepta los dos formatos del fichero: la tanda cruda (formato 2, una línea por
+    tanda con sus golpes detectados como metadatos) y la muestra vieja (una línea por
+    golpe). El modelo come los mismos nueve rasgos vengan de donde vengan.
+    """
     vectores: list[list[float]] = []
     etiquetas: list[str] = []
     jugadores: list[str] = []
     heuristica: list[str] = []
+
+    def añadir(rasgos: dict, etiqueta: str, alias: str, dicho) -> None:
+        # Los ausentes entran como 0, igual que en el reloj: `ModeloDeGolpes.vectorDe`.
+        vectores.append([float(rasgos.get(nombre) or 0.0) for nombre in RASGOS])
+        etiquetas.append(etiqueta)
+        jugadores.append(alias)
+        heuristica.append(_normalizar_etiqueta(dicho) or "unknown")
 
     for linea in path.read_text(encoding="utf-8").splitlines():
         linea = linea.strip()
@@ -100,17 +125,24 @@ def cargar(path: Path) -> tuple[list[list[float]], list[str], list[str], list[st
             continue
         try:
             registro = json.loads(linea)
-            rasgos = registro["heuristicFeatures"]
-        except (json.JSONDecodeError, KeyError, TypeError):
+        except json.JSONDecodeError:
             continue
-        etiqueta = registro.get("label")
-        if etiqueta not in WIRE_A_KOTLIN:
+        etiqueta = _normalizar_etiqueta(registro.get("label"))
+        if etiqueta is None:
             continue
-        # Los ausentes entran como 0, igual que en el reloj: `ModeloDeGolpes.vectorDe`.
-        vectores.append([float(rasgos.get(nombre) or 0.0) for nombre in RASGOS])
-        etiquetas.append(etiqueta)
-        jugadores.append(registro.get("playerAlias") or "anon")
-        heuristica.append(registro.get("heuristicPrediction") or "unknown")
+        alias = registro.get("playerAlias") or "anon"
+
+        if registro.get("formato", 0) >= 2:
+            # Tanda cruda: un vector por golpe que el detector anotó. La señal completa
+            # queda para cuando el modelo coma ventanas; hoy come rasgos.
+            for golpe in registro.get("golpes") or []:
+                rasgos = golpe.get("features")
+                if isinstance(rasgos, dict):
+                    añadir(rasgos, etiqueta, alias, golpe.get("tipo"))
+        else:
+            rasgos = registro.get("heuristicFeatures")
+            if isinstance(rasgos, dict):
+                añadir(rasgos, etiqueta, alias, registro.get("heuristicPrediction"))
 
     return vectores, etiquetas, jugadores, heuristica
 

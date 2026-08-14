@@ -199,19 +199,41 @@ final class AppModel: ObservableObject {
     /// Es lo que le da sentido al modo de datos sin necesidad de ordenador: la etiqueta
     /// la puso el jugador antes de dar el golpe, así que cada tanda es verdad-terreno
     /// suya, y de ahí salen sus fronteras — no las de una técnica media.
-    func calibrarConTandas() -> ResultadoCalibracion? {
-        guard let url = trainingDataURL,
-              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+    /// Un golpe etiquetado del fichero de tandas, venga del formato que venga.
+    private struct GolpeEtiquetado {
+        let label: ShotType
+        let features: ShotFeatures
+        let playerLevel: Int?
+    }
 
+    /// Lee el fichero entero aceptando los dos formatos: tandas crudas (una línea por
+    /// tanda, formato 2) y muestras viejas (una línea por golpe). Una línea corrupta se
+    /// salta; el resto sigue valiendo. Todo lo que consume tandas pasa por aquí para
+    /// que un cambio de formato no vuelva a romper tres sitios a la vez.
+    private func golpesEtiquetados() -> [GolpeEtiquetado] {
+        guard let url = trainingDataURL,
+              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         let decoder = JSONDecoder()
-        let etiquetados: [(ShotType, ShotFeatures)] = contenido
-            .split(separator: "\n")
-            .compactMap { linea in
-                guard let data = linea.data(using: .utf8),
-                      let muestra = try? decoder.decode(TrainingSample.self, from: data)
-                else { return nil }
-                return (muestra.label, muestra.heuristicFeatures)
+        var salida: [GolpeEtiquetado] = []
+        for linea in contenido.split(separator: "\n") where !linea.isEmpty {
+            guard let data = linea.data(using: .utf8) else { continue }
+            if let tanda = try? decoder.decode(TandaCruda.self, from: data), tanda.formato >= 2 {
+                salida.append(contentsOf: tanda.golpes.map {
+                    GolpeEtiquetado(label: tanda.label, features: $0.features, playerLevel: tanda.playerLevel)
+                })
+            } else if let muestra = try? decoder.decode(TrainingSample.self, from: data) {
+                salida.append(GolpeEtiquetado(
+                    label: muestra.label,
+                    features: muestra.heuristicFeatures,
+                    playerLevel: muestra.playerLevel
+                ))
             }
+        }
+        return salida
+    }
+
+    func calibrarConTandas() -> ResultadoCalibracion? {
+        let etiquetados = golpesEtiquetados().map { ($0.label, $0.features) }
         guard !etiquetados.isEmpty else { return nil }
 
         let resultado = ThresholdCalibrator.calibrar(
@@ -271,20 +293,10 @@ final class AppModel: ObservableObject {
     /// el reloj dijo el día de la grabación: lo que interesa saber es cómo de bien
     /// acierta el detector que llevas hoy, no el que llevabas entonces.
     private func paresDeTandas() -> [(ShotType, ShotType)] {
-        guard let url = trainingDataURL,
-              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-
         var config = DetectorConfig.default
         if let calibration { config = config.applying(calibration) }
         let clasificador = ShotClassifier(config: config)
-        let decoder = JSONDecoder()
-
-        return contenido.split(separator: "\n").compactMap { linea in
-            guard let data = linea.data(using: .utf8),
-                  let muestra = try? decoder.decode(TrainingSample.self, from: data)
-            else { return nil }
-            return (muestra.label, clasificador.classify(muestra.heuristicFeatures).type)
-        }
+        return golpesEtiquetados().map { ($0.label, clasificador.classify($0.features).type) }
     }
 
     // MARK: La escala de nivel, anclada a jugadores de nivel técnico conocido
@@ -307,23 +319,17 @@ final class AppModel: ObservableObject {
     /// un 3 competitivo, y mezclarlos haría que la medición no significara nada.
     @discardableResult
     func recalcularEscalaDeNivel() -> [ReferenciaNivel] {
-        guard let url = trainingDataURL,
-              let contenido = try? String(contentsOf: url, encoding: .utf8) else { return [] }
-
-        let decoder = JSONDecoder()
         // nivel técnico → tipo de golpe → velocidades de pala medidas
         var porNivel: [Float: [String: [Float]]] = [:]
         var golpesPorNivel: [Float: Int] = [:]
         let palanca = DetectorConfig.default.armLeverM
 
-        for linea in contenido.split(separator: "\n") {
-            guard let data = linea.data(using: .utf8),
-                  let muestra = try? decoder.decode(TrainingSample.self, from: data),
-                  let nivel = muestra.playerLevel, nivel > 0 else { continue }
+        for golpe in golpesEtiquetados() {
+            guard let nivel = golpe.playerLevel, nivel > 0 else { continue }
             // La misma fórmula que usa el detector para la velocidad de pala.
-            let velocidad = muestra.heuristicFeatures.peakGyroRadS * palanca * 3.6
+            let velocidad = golpe.features.peakGyroRadS * palanca * 3.6
             let clave = Float(nivel)
-            porNivel[clave, default: [:]][muestra.label.wireName, default: []].append(velocidad)
+            porNivel[clave, default: [:]][golpe.label.wireName, default: []].append(velocidad)
             golpesPorNivel[clave, default: 0] += 1
         }
 

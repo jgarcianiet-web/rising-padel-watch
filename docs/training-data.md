@@ -106,11 +106,20 @@ El script avisa si alguna de estas condiciones no se cumple, antes de entrenar.
 
 En el reloj: **Enviar al móvil**. En el móvil: Ajustes → **Exportar**.
 
-Sale un `.jsonl`: una muestra por línea, con la ventana de ±1 s alrededor del impacto
-(unas 100 muestras a 50 Hz de acelerómetro, giróscopo y gravedad), la etiqueta, el alias
-y lo que dijo la heurística.
+Sale un `.jsonl` con **una línea por tanda** (formato 2): la señal completa de la tanda
+—acelerómetro, giróscopo y gravedad a 50 Hz, del "grabar" al "parar"— con la etiqueta,
+el alias, el nivel y los golpes que el detector creyó ver como metadatos.
 
-Unos 7 KB por golpeo: 3.000 golpeos son ~21 MB.
+> **Por qué se graba la tanda entera y no ventanas por golpe.** El formato anterior solo
+> guardaba una ventana alrededor de cada impacto que el detector encontraba, y eso salió
+> caro en pista dos veces: una tanda de derechas se quedó en **cero** porque el detector
+> no vio impactos (sin explicación posible), y dos saques acabaron etiquetados como
+> derechas porque el reloj se dejó golpes y corrió la cuenta. Con la tanda entera, el
+> cronómetro siempre avanza —si corre, se está guardando—, un golpe que el detector se
+> deja sigue estando en la señal, y la etiqueta es del bloque, así que no hay cuenta que
+> correr. Las herramientas leen los dos formatos; los datos viejos siguen valiendo.
+
+Una tanda de dos minutos pesa ~1,5 MB. El tope por tanda son 5 minutos.
 
 ## 3. Entrenar
 

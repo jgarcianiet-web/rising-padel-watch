@@ -6,7 +6,7 @@ import com.risingpadel.core.model.MotionSample
 import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.model.SourceInfo
-import com.risingpadel.core.training.TrainingRecorder
+import com.risingpadel.core.training.GrabadorDeTanda
 import com.risingpadel.core.training.TrainingSampleStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +17,14 @@ import java.util.UUID
 data class TrainingUiState(
     val recording: Boolean = false,
     val label: ShotType = ShotType.FOREHAND,
-    /** Capturados en la tanda en curso. */
+    /** Golpes que el detector cree haber visto. Informativo, no puerta. */
     val capturedInBatch: Int = 0,
-    /** Total acumulado en el reloj, de todas las tandas. */
+    /**
+     * Segundos de tanda grabados. Es el contador que SIEMPRE avanza: la prueba de que
+     * se está guardando algo, vea el detector lo que vea.
+     */
+    val segundos: Int = 0,
+    /** Tandas acumuladas en el reloj. */
     val totalStored: Int = 0,
     val storedBytes: Long = 0,
 )
@@ -38,7 +43,7 @@ class TrainingSession(context: Context) {
 
     val store = TrainingSampleStore(File(context.filesDir, "training/muestras.jsonl"))
 
-    private var recorder: TrainingRecorder? = null
+    private var grabador: GrabadorDeTanda? = null
 
     private val _state = MutableStateFlow(TrainingUiState())
     val state: StateFlow<TrainingUiState> = _state.asStateFlow()
@@ -50,7 +55,7 @@ class TrainingSession(context: Context) {
      * justo cuando el móvil pregunta cómo ha ido. Null antes de la primera tanda.
      */
     val descartes: com.risingpadel.core.detection.DescartesDelDetector?
-        get() = recorder?.descartes ?: descartesDeLaUltima
+        get() = grabador?.descartes ?: descartesDeLaUltima
 
     private var descartesDeLaUltima: com.risingpadel.core.detection.DescartesDelDetector? = null
 
@@ -71,42 +76,46 @@ class TrainingSession(context: Context) {
         playerLevel: Int?,
         monotonicMs: Long,
     ) {
-        val newRecorder = TrainingRecorder(
+        // La tanda se graba ENTERA y en crudo: cada muestra se guarda y el detector solo
+        // comenta. Es la respuesta a un fallo de pista: la captura por ventanas dependía
+        // de que el detector viera impactos, y una tanda de derechas se quedó en cero.
+        val nuevo = GrabadorDeTanda(
             source = source,
             profile = profile,
             config = config,
-            sampleIdProvider = { UUID.randomUUID().toString() },
+            tandaIdProvider = { UUID.randomUUID().toString() },
             nowEpochMs = { System.currentTimeMillis() },
         ).apply {
             label = _state.value.label
             this.playerAlias = playerAlias
             this.playerLevel = playerLevel
         }
-        newRecorder.start(monotonicMs)
-        recorder = newRecorder
+        nuevo.start(monotonicMs)
+        grabador = nuevo
         descartesDeLaUltima = null
-        _state.value = _state.value.copy(recording = true, capturedInBatch = 0)
+        _state.value = _state.value.copy(recording = true, capturedInBatch = 0, segundos = 0)
     }
 
-    /**
-     * Se escribe cada golpeo en cuanto está listo, no al final de la tanda: si el reloj
-     * se queda sin batería a mitad, se pierde como mucho el último.
-     */
     fun onMotion(sample: MotionSample) {
-        val current = recorder ?: return
-        val captured = current.onMotion(sample)
-        if (captured.isEmpty()) return
-        store.appendAll(captured)
-        _state.value = _state.value.copy(capturedInBatch = current.capturedCount)
+        val actual = grabador ?: return
+        val golpe = actual.onMotion(sample)
+        val segundos = actual.segundos
+        if (golpe != null || segundos != _state.value.segundos) {
+            _state.value = _state.value.copy(
+                capturedInBatch = actual.golpes,
+                segundos = segundos,
+            )
+        }
     }
 
     fun stop() {
-        val current = recorder ?: return
-        store.appendAll(current.stop())
-        val captured = current.capturedCount
-        descartesDeLaUltima = current.descartes
-        recorder = null
-        _state.value = _state.value.copy(recording = false, capturedInBatch = captured)
+        val actual = grabador ?: return
+        // La tanda entera se escribe al parar. Si el reloj muere a mitad se pierde esa
+        // tanda y solo esa: son dos o tres minutos, no una tarde.
+        actual.stop()?.let { store.appendTanda(it) }
+        descartesDeLaUltima = actual.descartes
+        grabador = null
+        _state.value = _state.value.copy(recording = false, capturedInBatch = actual.golpes)
         refreshStoredCounts()
     }
 

@@ -1,106 +1,97 @@
 import PadelCore
 import SwiftUI
 
-/// Modo de recogida de datos para entrenar el clasificador.
+/// Modo de recogida de datos: elige el tipo, graba la tanda entera y para.
 ///
-/// La pantalla es deliberadamente aburrida: elige tipo, dale a grabar, pega treinta
-/// golpes de ese tipo y para. Lo que la hace útil es que **la etiqueta se pone antes de
-/// golpear**, no después mirando gráficas — que es donde fracasa el enfoque de "grábalo
-/// todo y ya lo etiquetaremos".
+/// El número grande es el TIEMPO, no los golpes, y es una decisión de confianza: la
+/// tanda se graba en crudo y el reloj siempre está guardando mientras el cronómetro
+/// corre. Los golpes que el detector cree ver salen debajo, como información — si no ve
+/// ninguno, la tanda vale igual.
 struct TrainingView: View {
     @EnvironmentObject private var controller: SessionController
     @Environment(\.dismiss) private var dismiss
-    @State private var sendResult: String?
+
+    private var grabables: [ShotType] { ShotType.allCases.filter { $0 != .unknown } }
 
     var body: some View {
-        // Con varios botones la columna no cabe en un reloj de 40 mm; sin scroll, lo de
-        // abajo queda directamente inalcanzable.
         ScrollView {
-            content
-                .padding(.horizontal, 8)
-        }
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        VStack(spacing: 6) {
-            if controller.trainingRecording {
-                Text("\(controller.trainingCapturedInBatch)")
-                    .font(.system(size: 44, weight: .bold, design: .rounded))
-                    .monospacedDigit()
-                Text(controller.trainingLabel.label)
-                    .font(.caption)
-                    .foregroundStyle(.tint)
-                Text("Da 30-40 golpes solo de este tipo")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                if controller.sensorsMayStop {
-                    // Sin workout la app se suspende al apagarse la pantalla y la tanda
-                    // se queda a medias: mejor decirlo que devolver 10 de 50 golpes.
-                    Text("Sin permiso de entreno: la grabación puede pararse al apagarse la pantalla")
-                        .font(.system(size: 9))
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                }
-                Button("Parar tanda") { Task { await controller.stopTraining() } }
-                    .buttonStyle(.bordered)
-            } else {
-                Text("Datos de entrenamiento")
-                    .font(.caption)
-                    .bold()
-                    .multilineTextAlignment(.center)
-                // Toque = siguiente tipo. Se recorre la lista de golpes de la misma
-                // forma que se graban: uno detrás de otro.
-                Button {
-                    controller.trainingLabel = controller.trainingLabel.nextRecordable()
-                } label: {
-                    VStack(spacing: 0) {
-                        Text(controller.trainingLabel.label).font(.caption2)
-                        Text("Tipo a grabar").font(.system(size: 9)).foregroundStyle(.secondary)
-                    }
-                }
-                .buttonStyle(.bordered)
-
-                Text("\(controller.trainingTotalStored) guardados · \(controller.trainingStoredKB) KB")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-
-                Button("Grabar") { Task { await controller.startTraining() } }
-                    .buttonStyle(.borderedProminent)
-
-                // Sin este botón los golpeos se quedan en el reloj para siempre: el
-                // móvil no puede ir a buscarlos. Al parar una tanda se envían solos,
-                // pero si el iPhone estaba lejos hace falta poder reintentar a mano.
-                if controller.trainingTotalStored > 0 {
-                    Button("Enviar al móvil") {
-                        sendResult = controller.sendTrainingDataToPhone()
-                            ? "Enviando al móvil…"
-                            : "No se pudo enviar"
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.bordered)
-                }
-                if let sendResult {
-                    Text(sendResult)
-                        .font(.system(size: 10))
+            VStack(spacing: 8) {
+                if controller.trainingRecording {
+                    Text(tiempo(controller.trainingSegundos))
+                        .font(.system(size: 40, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                    Text(etiqueta(controller.trainingLabel))
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.tint)
+                    Text("\(controller.trainingCapturedInBatch) golpes vistos")
+                        .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
+                    if controller.sensorsMayStop {
+                        Text("Sin permiso de entreno: no apagues la pantalla")
+                            .font(.system(size: 10, design: .rounded))
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
+                    Button("Parar tanda") {
+                        Task { await controller.stopTraining() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                } else {
+                    Text("Datos de entrenamiento")
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    // Toque = siguiente tipo, en el mismo orden en que se graban.
+                    Button {
+                        controller.trainingLabel = siguiente(controller.trainingLabel)
+                    } label: {
+                        VStack(spacing: 1) {
+                            Text(etiqueta(controller.trainingLabel))
+                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            Text("Tipo a grabar")
+                                .font(.system(size: 9, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    Text("\(controller.trainingTotalStored) tandas · \(controller.trainingStoredKB) KB")
+                        .font(.system(size: 10, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Button("Grabar") {
+                        Task { await controller.startTraining() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    if controller.trainingTotalStored > 0 {
+                        Button("Enviar al móvil") {
+                            _ = controller.sendTrainingDataToPhone()
+                        }
+                    }
+                    Button("Salir") { dismiss() }
                 }
-
-                Button("Salir") { dismiss() }
-                    .buttonStyle(.bordered)
             }
+            .padding(.horizontal, 4)
         }
     }
-}
 
-extension ShotType {
-    /// Siguiente tipo de golpe, saltándose `.unknown`: no es algo que se pueda grabar
-    /// a propósito.
-    func nextRecordable() -> ShotType {
-        let recordable = ShotType.allCases.filter { $0 != .unknown }
-        let index = recordable.firstIndex(of: self) ?? 0
-        return recordable[(index + 1) % recordable.count]
+    private func tiempo(_ segundos: Int) -> String {
+        String(format: "%d:%02d", segundos / 60, segundos % 60)
+    }
+
+    private func siguiente(_ tipo: ShotType) -> ShotType {
+        let index = grabables.firstIndex(of: tipo) ?? 0
+        return grabables[(index + 1) % grabables.count]
+    }
+
+    private func etiqueta(_ tipo: ShotType) -> String {
+        switch tipo {
+        case .forehand: return "Derecha"
+        case .backhand: return "Revés"
+        case .forehandVolley: return "Volea de derecha"
+        case .backhandVolley: return "Volea de revés"
+        case .bandeja: return "Bandeja"
+        case .vibora: return "Víbora"
+        case .smash: return "Smash"
+        case .serve: return "Saque"
+        case .unknown: return "Sin clasificar"
+        }
     }
 }

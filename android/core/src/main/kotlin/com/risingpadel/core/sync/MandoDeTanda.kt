@@ -104,6 +104,11 @@ data class EstadoDeTanda(
      * "no me coge la mitad de las bandejas" en un número con su umbral culpable al lado.
      */
     val descartes: DescartesDelDetector? = null,
+    /**
+     * Segundos de tanda grabados, si hay una en marcha. Es el contador que siempre
+     * avanza: la prueba de que se está guardando algo, vea el detector lo que vea.
+     */
+    val segundosDeTanda: Int? = null,
 ) {
     fun encode(): String = JSON.encodeToString(serializer(), this)
 

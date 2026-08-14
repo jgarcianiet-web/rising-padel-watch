@@ -80,16 +80,22 @@ struct TrainingRemoteView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 if estado?.grabando == true {
-                    Text("\(estado?.capturadosEnTanda ?? 0)")
+                    // El número grande es el TIEMPO: la tanda se graba en crudo y
+                    // mientras el cronómetro corre se está guardando, vea el detector
+                    // lo que vea. Los golpes vistos van debajo, como información.
+                    Text(tiempo(estado?.segundosDeTanda ?? 0))
                         .font(.padelDisplay(64))
                         .monospacedDigit()
                         .foregroundStyle(T.lima)
                         .contentTransition(.numericText())
-                        .animation(.snappy, value: estado?.capturadosEnTanda ?? 0)
-                    Text("golpes de \(etiquetaLarga(estado?.etiqueta ?? etiqueta)) en esta tanda")
+                        .animation(.snappy, value: estado?.segundosDeTanda ?? 0)
+                    Text("grabando \(etiquetaLarga(estado?.etiqueta ?? etiqueta).lowercased())")
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(T.tintaSuave)
                         .multilineTextAlignment(.center)
+                    Text("\(estado?.capturadosEnTanda ?? 0) golpes vistos por el detector")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(T.tintaSuave)
 
                     if estado?.sensoresPuedenPararse == true {
                         // Sin permiso de entreno la app se suspende al apagarse la
@@ -176,7 +182,7 @@ struct TrainingRemoteView: View {
 
                     HStack {
                         Text(estado.map {
-                            "\($0.guardadosEnTotal) golpes guardados en el reloj · \($0.kilobytes) KB"
+                            "\($0.guardadosEnTotal) tanda(s) guardadas en el reloj · \($0.kilobytes) KB"
                         } ?? "El reloj todavía no ha dicho qué tiene guardado")
                             .font(.system(size: 11, design: .rounded))
                             .foregroundStyle(T.tintaSuave)
@@ -346,6 +352,10 @@ struct TrainingRemoteView: View {
                 .foregroundStyle(T.tintaSuave)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func tiempo(_ segundos: Int) -> String {
+        String(format: "%d:%02d", segundos / 60, segundos % 60)
     }
 
     private func etiquetaLarga(_ tipo: ShotType) -> String {

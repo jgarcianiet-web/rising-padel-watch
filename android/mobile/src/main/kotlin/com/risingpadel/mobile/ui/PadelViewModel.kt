@@ -143,18 +143,8 @@ class PadelViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun paresDeTandas(): List<Pair<ShotType, ShotFeatures>> {
         val fichero = trainingDataFile() ?: return emptyList()
-        var config = DetectorConfig.DEFAULT
-        preferences.value.calibration?.let { config = config.aplicando(it) }
-        val clasificador = ShotClassifier(config)
-        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-        return fichero.useLines { lineas ->
-            lineas.mapNotNull { linea ->
-                val muestra = runCatching {
-                    json.decodeFromString<TrainingSample>(linea)
-                }.getOrNull() ?: return@mapNotNull null
-                muestra.label to muestra.heuristicFeatures
-            }.toList()
-        }
+        // El store del core lee los dos formatos: tandas crudas y muestras viejas.
+        return com.risingpadel.core.training.TrainingSampleStore(fichero).paresEtiquetados()
     }
 
     /** El informe de acierto del reloj, la pregunta de la que depende todo lo demás. */
