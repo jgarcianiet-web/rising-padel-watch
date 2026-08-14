@@ -121,11 +121,20 @@ el alias, el nivel y los golpes que el detector creyó ver como metadatos.
 
 Una tanda de dos minutos pesa ~1,5 MB. El tope por tanda son 5 minutos.
 
+> **La derecha es la derecha, no el bloque entero.** Al dataset no entra el bloque tal
+> cual: `tools/segmentar_tandas.py` encuentra los impactos en la señal (umbral relativo
+> al ruido de esa tanda, no los umbrales del detector) y saca una ventana de ±1 s por
+> golpe. Los pasos, la colocación y la recogida de bolas se quedan fuera; solo los
+> golpes viajan con la etiqueta. Y como la señal completa se conserva, si el criterio de
+> corte mejora mañana se re-segmenta todo el histórico: un golpe no se pierde nunca por
+> una decisión tomada en tiempo real.
+
 ## 3. Entrenar
 
 ```bash
 pip install numpy scikit-learn
-python3 tools/train_classifier.py muestras.jsonl
+python3 tools/segmentar_tandas.py muestras.jsonl ventanas.jsonl
+python3 tools/train_classifier.py ventanas.jsonl
 ```
 
 Antes de pisar la pista puedes probar la tubería entera con datos falsos:
