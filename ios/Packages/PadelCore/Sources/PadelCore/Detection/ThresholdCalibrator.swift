@@ -10,9 +10,21 @@ import Foundation
 /// Los campos nil se quedan con el valor de fábrica: se calibra solo lo que las tandas
 /// pueden sostener. Espejo del core Kotlin, con tests allí.
 public struct DetectorCalibration: Codable, Equatable, Sendable {
+    /// La puerta de golpe alto de ESTE jugador. La de fábrica (+14) sale de una tanda
+    /// donde altos y bajos no se rozaban; en la tanda de 40 en bloques (ago 2026) el
+    /// mismo jugador impactó sus golpes altos entre +4 y +31 — cuatro de ellos por
+    /// debajo de la puerta de fábrica, perdidos como voleas. Se fija en el punto medio
+    /// del HUECO entre el bajo más alto y el alto más bajo (no entre medianas: es una
+    /// puerta, y una puerta que deja un golpe al otro lado ya está mal puesta), y solo
+    /// si el hueco existe.
+    public var overheadElevationDeg: Float?
     public var prepOverheadElevationDeg: Float?
     public var smashPeakGyroRadS: Float?
     public var viboraElevationDeg: Float?
+    /// Frontera bandeja/víbora por pronación (con signo) en vez de por altura, para los
+    /// jugadores cuyas tandas demuestran que a ellos las separa el efecto. Ver
+    /// `DetectorConfig.viboraAxialRadS`.
+    public var viboraAxialRadS: Float?
     public var volleyAxialMaxRadS: Float?
     /// El eje del antebrazo lee la elevación al revés en este reloj.
     ///
@@ -32,17 +44,21 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     public var creadoEpochMs: Int64
 
     public init(
+        overheadElevationDeg: Float? = nil,
         prepOverheadElevationDeg: Float? = nil,
         smashPeakGyroRadS: Float? = nil,
         viboraElevationDeg: Float? = nil,
+        viboraAxialRadS: Float? = nil,
         volleyAxialMaxRadS: Float? = nil,
         ejeDeElevacionInvertido: Bool? = nil,
         muestras: Int = 0,
         creadoEpochMs: Int64 = 0
     ) {
+        self.overheadElevationDeg = overheadElevationDeg
         self.prepOverheadElevationDeg = prepOverheadElevationDeg
         self.smashPeakGyroRadS = smashPeakGyroRadS
         self.viboraElevationDeg = viboraElevationDeg
+        self.viboraAxialRadS = viboraAxialRadS
         self.volleyAxialMaxRadS = volleyAxialMaxRadS
         self.ejeDeElevacionInvertido = ejeDeElevacionInvertido
         self.muestras = muestras
@@ -50,8 +66,9 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     }
 
     public var vacia: Bool {
-        prepOverheadElevationDeg == nil && smashPeakGyroRadS == nil
-            && viboraElevationDeg == nil && volleyAxialMaxRadS == nil
+        overheadElevationDeg == nil && prepOverheadElevationDeg == nil
+            && smashPeakGyroRadS == nil && viboraElevationDeg == nil
+            && viboraAxialRadS == nil && volleyAxialMaxRadS == nil
             && ejeDeElevacionInvertido == nil
     }
 }
@@ -137,15 +154,45 @@ public enum ThresholdCalibrator {
             .map { abs($0.1.axialRotationRadS) }
         let volea = frontera(bajos: axialVoleas, altos: axialFondo, rango: 1.5...8)
 
-        let calibracion = DetectorCalibration(
+        // La puerta de golpe alto: el pico de elevación de los altos contra TODO lo
+        // demás, saques incluidos. Los saques no son ni voleas ni fondo, pero viven
+        // debajo de la puerta: si se calibrara sin contarlos, una puerta baja los
+        // mandaría a la rama alta y los mataría a todos. Y es una PUERTA, no una
+        // frontera de medianas: se pone en el punto medio del hueco real, porque un
+        // solo golpe al otro lado ya es un golpe mal clasificado.
+        let alturaAltos = etiquetados.filter { altos.contains($0.0) }
+            .map { $0.1.peakElevationDeg * giro }
+        let alturaBajos = etiquetados.filter { !altos.contains($0.0) }
+            .map { $0.1.peakElevationDeg * giro }
+        let puerta = hueco(bajos: alturaBajos, altos: alturaAltos, rango: 0...40)
+
+        // Víbora contra bandeja por pronación, la frontera alternativa. Con signo: la
+        // víbora se corta con pronación de derecha; el valor absoluto mezclaría un
+        // corte con su contrario. Solo sobrevivirá (ver la validación de abajo) si en
+        // las tandas de ESTE jugador separa mejor que la altura.
+        let viboraPorAxial = frontera(
+            bajos: etiquetados.filter { $0.0 == .bandeja }.map { $0.1.axialRotationRadS },
+            altos: etiquetados.filter { $0.0 == .vibora }.map { $0.1.axialRotationRadS },
+            rango: 1...6
+        )
+
+        let candidata = DetectorCalibration(
+            overheadElevationDeg: puerta,
             prepOverheadElevationDeg: prep,
             smashPeakGyroRadS: smash,
             viboraElevationDeg: vibora,
+            viboraAxialRadS: viboraPorAxial,
             volleyAxialMaxRadS: volea,
             ejeDeElevacionInvertido: invertido,
             muestras: etiquetados.count,
             creadoEpochMs: ahoraEpochMs
         )
+
+        // Cada umbral se queda solo si NO EMPEORA las tandas del jugador. Esto no es
+        // adorno: en la tanda de 40 en bloques, la elevación de preparación calibraba a
+        // +20° (el punto medio entre familias, acotado al rango) y a +20° se preparan
+        // los saques de ese jugador — tres saques muertos por un umbral "bien" derivado.
+        let calibracion = validada(candidata, etiquetados: etiquetados, base: base)
 
         return ResultadoCalibracion(
             calibracion: calibracion,
@@ -153,6 +200,60 @@ public enum ThresholdCalibrator {
             aciertoDespues: acierto(etiquetados, config: base.applying(calibracion)),
             porTipo: porTipo
         )
+    }
+
+    /// Deja en nil todo umbral candidato que empeore el acierto sobre las propias
+    /// tandas. Se evalúan uno a uno, en orden fijo y de forma acumulada: cada umbral se
+    /// juzga con los ya aceptados puestos. Empate = se queda (personalizado no es peor
+    /// que de fábrica). El eje invertido no se valida por acierto: es una corrección de
+    /// signo, y sin él puestos los umbrales de elevación no significan nada.
+    private static func validada(
+        _ candidata: DetectorCalibration,
+        etiquetados: [(ShotType, ShotFeatures)],
+        base: DetectorConfig
+    ) -> DetectorCalibration {
+        var aceptada = DetectorCalibration(
+            ejeDeElevacionInvertido: candidata.ejeDeElevacionInvertido,
+            muestras: candidata.muestras,
+            creadoEpochMs: candidata.creadoEpochMs
+        )
+        var mejorAcierto = acierto(etiquetados, config: base.applying(aceptada))
+
+        let pasos: [(inout DetectorCalibration) -> Void] = [
+            { $0.overheadElevationDeg = candidata.overheadElevationDeg },
+            { $0.prepOverheadElevationDeg = candidata.prepOverheadElevationDeg },
+            { $0.smashPeakGyroRadS = candidata.smashPeakGyroRadS },
+            { $0.viboraElevationDeg = candidata.viboraElevationDeg },
+            { $0.viboraAxialRadS = candidata.viboraAxialRadS },
+            { $0.volleyAxialMaxRadS = candidata.volleyAxialMaxRadS },
+        ]
+        for aplicar in pasos {
+            var prueba = aceptada
+            aplicar(&prueba)
+            guard prueba != aceptada else { continue }
+            let conEste = acierto(etiquetados, config: base.applying(prueba))
+            if conEste >= mejorAcierto {
+                aceptada = prueba
+                mejorAcierto = conEste
+            }
+        }
+        return aceptada
+    }
+
+    /// El punto medio del **hueco** entre dos familias: entre el mayor de los bajos y
+    /// el menor de los altos. Para una puerta —donde un solo golpe al otro lado ya
+    /// cuenta como error— el hueco es lo que importa, no las medianas. Nil si no hay
+    /// material o si las familias se pisan.
+    private static func hueco(
+        bajos: [Float], altos: [Float], rango: ClosedRange<Float>
+    ) -> Float? {
+        guard bajos.count >= minPorFamilia, altos.count >= minPorFamilia,
+              let techoBajos = bajos.max(), let sueloAltos = altos.min(),
+              sueloAltos > techoBajos
+        else { return nil }
+        let punto = (techoBajos + sueloAltos) / 2
+        guard rango.contains(punto) else { return nil }
+        return punto
     }
 
     /// ¿Lee este reloj la elevación al revés?

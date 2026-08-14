@@ -121,6 +121,28 @@ public struct ShotClassifier: Sendable {
             return finalize(.serve, 0.5 + 0.25 * axialMargin + 0.25 * sweptMargin)
         }
 
+        // La segunda firma del saque: el brazo ARMADO EN ALTO antes de golpear, con
+        // impacto a la cintura y pronación del lado de derecha. Ver `DetectorConfig
+        // .serveArmedPrepDeg`: en la tanda de 40 en bloques la primera firma pescaba un
+        // saque de cinco, y los cuatro perdidos compartían exactamente este gesto.
+        // La pronación va CON SIGNO: el saque se pega con pronación de derecha, y así
+        // un revés cortado con la preparación alta no puede colarse.
+        if let prepDelSaque = features.prepElevationDeg,
+           prepDelSaque >= config.serveArmedPrepDeg,
+           features.axialRotationRadS >= config.serveArmedAxialRadS,
+           features.peakElevationDeg >= config.serveArmedImpactFloorDeg,
+           features.sweptAngleDeg >= config.serveArmedSweptDeg {
+            let prepMargin = margin(
+                value: prepDelSaque, threshold: config.serveArmedPrepDeg, scale: 15
+            )
+            let axialMargin = margin(
+                value: features.axialRotationRadS,
+                threshold: config.serveArmedAxialRadS,
+                scale: config.serveArmedAxialRadS * 0.5
+            )
+            return finalize(.serve, 0.5 + 0.25 * prepMargin + 0.25 * axialMargin)
+        }
+
         let axial = features.axialRotationRadS
         let axialAbs = abs(axial)
 
@@ -195,11 +217,23 @@ public struct ShotClassifier: Sendable {
         // axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el mismo
         // número. Una víbora no rota todo el swing, da un latigazo al final, y
         // promediarlo sobre 200° de arco lo borra.
-        let alturaMargin = margin(
-            value: features.peakElevationDeg,
-            threshold: config.viboraElevationDeg,
-            scale: config.viboraElevationDeg
-        )
+        // Si el calibrador fijó `DetectorConfig.viboraAxialRadS`, la frontera
+        // bandeja/víbora es la pronación y no la altura: hay jugadores (tanda de 40 en
+        // bloques, ago 2026) cuyas bandejas y víboras se mezclan por completo en altura
+        // pero se parten limpio por el efecto — bandeja plana, víbora cortada.
+        let viboraAxial = config.viboraAxialRadS
+        let alturaMargin: Float
+        if let viboraAxial {
+            alturaMargin = margin(
+                value: features.axialRotationRadS, threshold: viboraAxial, scale: viboraAxial
+            )
+        } else {
+            alturaMargin = margin(
+                value: features.peakElevationDeg,
+                threshold: config.viboraElevationDeg,
+                scale: config.viboraElevationDeg
+            )
+        }
         let peakMargin = margin(
             value: features.peakGyroRadS,
             threshold: config.smashPeakGyroRadS,
@@ -209,6 +243,8 @@ public struct ShotClassifier: Sendable {
         let type: ShotType
         if features.peakGyroRadS > config.smashPeakGyroRadS {
             type = .smash
+        } else if let viboraAxial {
+            type = features.axialRotationRadS >= viboraAxial ? .vibora : .bandeja
         } else if features.peakElevationDeg >= config.viboraElevationDeg {
             type = .bandeja
         } else {

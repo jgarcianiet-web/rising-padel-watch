@@ -124,6 +124,25 @@ class ShotClassifier(
             return finalize(ShotType.SERVE, 0.5f + 0.25f * axialMargin + 0.25f * sweptMargin)
         }
 
+        // La segunda firma del saque: el brazo ARMADO EN ALTO antes de golpear, con
+        // impacto a la cintura y pronación del lado de derecha. Ver [DetectorConfig
+        // .serveArmedPrepDeg]: en la tanda de 40 en bloques la primera firma pescaba un
+        // saque de cinco, y los cuatro perdidos compartían exactamente este gesto.
+        // La pronación va CON SIGNO: el saque se pega con pronación de derecha, y así
+        // un revés cortado con la preparación alta no puede colarse.
+        val prepDelSaque = features.prepElevationDeg
+        if (prepDelSaque != null &&
+            prepDelSaque >= config.serveArmedPrepDeg &&
+            features.axialRotationRadS >= config.serveArmedAxialRadS &&
+            features.peakElevationDeg >= config.serveArmedImpactFloorDeg &&
+            features.sweptAngleDeg >= config.serveArmedSweptDeg
+        ) {
+            val prepMargin = margin(prepDelSaque, config.serveArmedPrepDeg, 15f)
+            val axialMargin =
+                margin(features.axialRotationRadS, config.serveArmedAxialRadS, config.serveArmedAxialRadS * 0.5f)
+            return finalize(ShotType.SERVE, 0.5f + 0.25f * prepMargin + 0.25f * axialMargin)
+        }
+
         val axial = features.axialRotationRadS
         val axialAbs = abs(axial)
 
@@ -194,14 +213,23 @@ class ShotClassifier(
         // promediarlo sobre 200° de arco lo borra. Por eso se mide ahora el pico de
         // rotación ([ShotFeatures.peakAxialRotationRadS]), que aún no tiene tanda con
         // la que fijar su umbral.
-        val alturaMargin = margin(
-            features.peakElevationDeg, config.viboraElevationDeg, config.viboraElevationDeg
-        )
+        // Si el calibrador fijó [DetectorConfig.viboraAxialRadS], la frontera
+        // bandeja/víbora es la pronación y no la altura: hay jugadores (tanda de 40 en
+        // bloques, ago 2026) cuyas bandejas y víboras se mezclan por completo en altura
+        // pero se parten limpio por el efecto — bandeja plana, víbora cortada.
+        val viboraAxial = config.viboraAxialRadS
+        val alturaMargin = if (viboraAxial != null) {
+            margin(features.axialRotationRadS, viboraAxial, viboraAxial)
+        } else {
+            margin(features.peakElevationDeg, config.viboraElevationDeg, config.viboraElevationDeg)
+        }
         val peakMargin =
             margin(features.peakGyroRadS, config.smashPeakGyroRadS, config.smashPeakGyroRadS * 0.35f)
 
         val type = when {
             features.peakGyroRadS > config.smashPeakGyroRadS -> ShotType.SMASH
+            viboraAxial != null ->
+                if (features.axialRotationRadS >= viboraAxial) ShotType.VIBORA else ShotType.BANDEJA
             features.peakElevationDeg >= config.viboraElevationDeg -> ShotType.BANDEJA
             else -> ShotType.VIBORA
         }

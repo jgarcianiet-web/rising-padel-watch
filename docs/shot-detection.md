@@ -80,17 +80,31 @@ rotación se invierte si el reloj va en la muñeca contraria a la que empuña.
 | `axialRotation` | Componente de `gyro` sobre el eje longitudinal del antebrazo, con signo, promediada en los 200 ms previos al impacto |
 | `peakGyro` | Máximo de `|gyro|` en el swing |
 
-Árbol de decisión:
+Árbol de decisión (umbrales de fábrica; los números vivos están en `DetectorConfig`):
 
 ```
-peakElevation > 50°  ──► sweptAngle > 220° y peakGyro > 18 rad/s ──► serve
-                     ├─► peakGyro > 24 rad/s                      ──► smash
-                     ├─► |axialRotation| > 9 rad/s                ──► vibora
-                     └─► resto                                    ──► bandeja
+peakElevation > 14°  ──► peakGyro > 14 rad/s ──► smash
+                     ├─► peakElevation ≥ 44° ──► bandeja      (o, calibrado por jugador,
+                     └─► resto               ──► vibora        axial ≥ X ► vibora)
 
-peakElevation ≤ 50°  ──► sweptAngle < 70°  ──► axialRotation > 0 ? forehandVolley : backhandVolley
-                     └─► sweptAngle ≥ 70°  ──► axialRotation > 0 ? forehand       : backhand
+peakElevation ≤ 14°  ──► |axial| ≥ 5.5 y sweptAngle ≥ 270°            ──► serve
+                     ├─► prep ≥ +8°, axial ≥ +3.5 e impacto ≥ −20°    ──► serve (armado)
+                     ├─► sweptAngle < 50°, o < 310° con |axial| < 4   ──► volea (lado por signo)
+                     └─► resto                                        ──► fondo (lado por signo)
 ```
+
+La segunda firma del saque —**el brazo armado en alto con el impacto a la cintura**—
+salió de la tanda de 40 en bloques (ago 2026): la firma clásica (mucha pronación, barrido
+completo) solo pescaba uno de cinco saques reales; el gesto de armar (+10..+27° de
+preparación) los compartían los cinco y ningún otro golpe bajo de las dos tandas limpias.
+
+Esa misma tanda enseñó que **las fronteras de elevación son del jugador, no del
+deporte**: sus golpes altos picaron +4..+31° cuando la tanda anterior daba +15..+56, y
+sus bandejas iban POR DEBAJO de sus víboras en altura pero limpiamente separadas por
+pronación (planas contra cortadas). Por eso la puerta de golpe alto
+(`overheadElevationDeg`) y la frontera bandeja/víbora por axial (`viboraAxialRadS`) son
+calibrables por jugador, y el calibrador solo se queda cada umbral si **no empeora** el
+acierto sobre las tandas etiquetadas del propio jugador (`ThresholdCalibrator`).
 
 ### Por qué la elevación se mide sobre el swing entero
 

@@ -70,6 +70,11 @@ public struct DetectorConfig: Equatable, Sendable {
     /// promediaban 7.9-10.5: el efecto separa lo que el barrido solapa.
     public var volleyAxialMaxRadS: Float
     /// Techo de barrido para esa segunda firma: más allá ya es un swing completo.
+    ///
+    /// 310, subido desde 210 con la tanda de 40 en bloques (ago 2026): una volea de
+    /// revés real barrió 301° con la pala quieta (3,1 de axial) — una volea con mucho
+    /// acompañamiento sigue siendo una volea, y lo que la delata es la pala quieta, no
+    /// el arco. Ningún golpe de fondo de las dos tandas limpias baja de 4 de axial.
     public var volleyMaxSweptDeg: Float
     /// Barrido mínimo del saque: 270°.
     ///
@@ -90,6 +95,20 @@ public struct DetectorConfig: Equatable, Sendable {
     /// El umbral anterior pedía un pico de 18 rad/s, de saque de tenis: los saques reales
     /// picaron entre 9,5 y 15,3 y no llegaba ninguno.
     public var serveAxialRadS: Float
+    /// La segunda firma del saque: **el brazo armado en alto antes de golpear**.
+    ///
+    /// De la tanda de 40 en bloques (ago 2026), donde la primera firma solo pescaba uno
+    /// de cinco saques: los otros cuatro rotaban 4,0-5,7 —por debajo del umbral— o
+    /// barrían menos de 270°. Lo que los cinco compartían, y ningún otro golpe bajo de
+    /// las dos tandas limpias: la preparación por ENCIMA de la horizontal (+10..+27°,
+    /// el gesto de armar el saque llevando la pala arriba y atrás) con el impacto a la
+    /// altura de la cintura y pronación clara. Las voleas se preparan como mucho a +6°,
+    /// y la única derecha que se armó en alto (+26°, tanda de 42) impactó a −37° — por
+    /// eso la firma exige además que el golpeo no sea bajo.
+    public var serveArmedPrepDeg: Float
+    public var serveArmedAxialRadS: Float
+    public var serveArmedImpactFloorDeg: Float
+    public var serveArmedSweptDeg: Float
     /// Pico de |gyro| a partir del cual un golpeo alto es un smash.
     ///
     /// 14, de la tanda limpia de 42 golpes (ago 2026): los seis remates picaron
@@ -122,6 +141,17 @@ public struct DetectorConfig: Equatable, Sendable {
     /// rotación axial media de las víboras (−2,0) y la de las bandejas (−1,9) son el
     /// mismo número.
     public var viboraElevationDeg: Float
+    /// Umbral alternativo para separar víbora de bandeja: **la pronación, con signo**.
+    /// Rotación axial media por encima de esto → víbora; por debajo → bandeja.
+    ///
+    /// Nil de fábrica, y a propósito: las dos tandas limpias se contradicen. En la de
+    /// 42 (ago 2026) las separaba la altura y el efecto no distinguía nada; en la de 40
+    /// en bloques, la altura no separaba nada (bandejas a +4..+20 y víboras a +6..+29,
+    /// mezcladas) y el efecto las partía limpio: bandejas planas (−0,3..+2,3) contra
+    /// víboras cortadas (+2,8..+6,0). Es una frontera de técnica personal, así que la
+    /// fija el calibrador con las tandas de cada jugador — y solo si en SUS datos el
+    /// efecto separa mejor que la altura.
+    public var viboraAxialRadS: Float?
     /// Ventana previa al impacto sobre la que se promedia la rotación axial.
     public var axialWindowMs: Int64
     /// Ventana previa al **arranque del swing** sobre la que se mide la elevación de
@@ -161,11 +191,16 @@ public struct DetectorConfig: Equatable, Sendable {
         overheadElevationDeg: Float = 14,
         volleySweptDeg: Float = 50,
         volleyAxialMaxRadS: Float = 4,
-        volleyMaxSweptDeg: Float = 210,
+        volleyMaxSweptDeg: Float = 310,
         serveSweptDeg: Float = 270,
         serveAxialRadS: Float = 5.5,
+        serveArmedPrepDeg: Float = 8,
+        serveArmedAxialRadS: Float = 3.5,
+        serveArmedImpactFloorDeg: Float = -20,
+        serveArmedSweptDeg: Float = 90,
         smashPeakGyroRadS: Float = 14,
         viboraElevationDeg: Float = 44,
+        viboraAxialRadS: Float? = nil,
         axialWindowMs: Int64 = 200,
         prepWindowMs: Int64 = 400,
         prepOverheadElevationDeg: Float = 90,
@@ -189,8 +224,13 @@ public struct DetectorConfig: Equatable, Sendable {
         self.volleyMaxSweptDeg = volleyMaxSweptDeg
         self.serveSweptDeg = serveSweptDeg
         self.serveAxialRadS = serveAxialRadS
+        self.serveArmedPrepDeg = serveArmedPrepDeg
+        self.serveArmedAxialRadS = serveArmedAxialRadS
+        self.serveArmedImpactFloorDeg = serveArmedImpactFloorDeg
+        self.serveArmedSweptDeg = serveArmedSweptDeg
         self.smashPeakGyroRadS = smashPeakGyroRadS
         self.viboraElevationDeg = viboraElevationDeg
+        self.viboraAxialRadS = viboraAxialRadS
         self.axialWindowMs = axialWindowMs
         self.prepWindowMs = prepWindowMs
         self.prepOverheadElevationDeg = prepOverheadElevationDeg
@@ -220,9 +260,11 @@ public struct DetectorConfig: Equatable, Sendable {
     /// calibración no sostiene se queda de fábrica.
     public func applying(_ calibracion: DetectorCalibration) -> DetectorConfig {
         var copy = self
+        if let valor = calibracion.overheadElevationDeg { copy.overheadElevationDeg = valor }
         if let valor = calibracion.prepOverheadElevationDeg { copy.prepOverheadElevationDeg = valor }
         if let valor = calibracion.smashPeakGyroRadS { copy.smashPeakGyroRadS = valor }
         if let valor = calibracion.viboraElevationDeg { copy.viboraElevationDeg = valor }
+        if let valor = calibracion.viboraAxialRadS { copy.viboraAxialRadS = valor }
         if let valor = calibracion.volleyAxialMaxRadS { copy.volleyAxialMaxRadS = valor }
         // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
         // hay que corregir cuando las tandas dicen que este reloj la lee al revés.

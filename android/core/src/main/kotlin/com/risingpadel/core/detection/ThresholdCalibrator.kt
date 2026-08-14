@@ -18,9 +18,25 @@ import kotlin.math.abs
  */
 @Serializable
 data class DetectorCalibration(
+    /**
+     * La puerta de golpe alto de ESTE jugador. La de fábrica (+14) sale de una tanda
+     * donde altos y bajos no se rozaban; en la tanda de 40 en bloques (ago 2026) el
+     * mismo jugador impactó sus golpes altos entre +4 y +31 — cuatro de ellos por
+     * debajo de la puerta de fábrica, perdidos como voleas. Se fija en el punto medio
+     * del HUECO entre el bajo más alto y el alto más bajo (no entre medianas: es una
+     * puerta, y una puerta que deja un golpe al otro lado ya está mal puesta), y solo
+     * si el hueco existe.
+     */
+    val overheadElevationDeg: Float? = null,
     val prepOverheadElevationDeg: Float? = null,
     val smashPeakGyroRadS: Float? = null,
     val viboraElevationDeg: Float? = null,
+    /**
+     * Frontera bandeja/víbora por pronación (con signo) en vez de por altura, para los
+     * jugadores cuyas tandas demuestran que a ellos las separa el efecto. Ver
+     * [DetectorConfig.viboraAxialRadS].
+     */
+    val viboraAxialRadS: Float? = null,
     val volleyAxialMaxRadS: Float? = null,
     /**
      * El eje del antebrazo lee la elevación al revés en este reloj.
@@ -41,8 +57,9 @@ data class DetectorCalibration(
     val creadoEpochMs: Long = 0,
 ) {
     val vacia: Boolean
-        get() = prepOverheadElevationDeg == null && smashPeakGyroRadS == null &&
-            viboraElevationDeg == null && volleyAxialMaxRadS == null &&
+        get() = overheadElevationDeg == null && prepOverheadElevationDeg == null &&
+            smashPeakGyroRadS == null && viboraElevationDeg == null &&
+            viboraAxialRadS == null && volleyAxialMaxRadS == null &&
             ejeDeElevacionInvertido == null
 }
 
@@ -137,15 +154,49 @@ object ThresholdCalibrator {
             .map { abs(it.second.axialRotationRadS) }
         val volea = frontera(axialVoleas, axialFondo, rango = 1.5f..8f)
 
-        val calibracion = DetectorCalibration(
+        // ── La puerta de golpe alto: el pico de elevación de los altos contra TODO lo
+        // demás, saques incluidos. Los saques no son ni voleas ni fondo, pero viven
+        // debajo de la puerta: si se calibrara sin contarlos, una puerta baja los
+        // mandaría a la rama alta y los mataría a todos. Y es una PUERTA, no una
+        // frontera de medianas: se pone en el punto medio del hueco real, porque un
+        // solo golpe al otro lado ya es un golpe mal clasificado.
+        val alturaAltos = etiquetados.filter { it.first in ALTOS }
+            .map { it.second.peakElevationDeg * giro }
+        val alturaBajos = etiquetados.filter { it.first !in ALTOS }
+            .map { it.second.peakElevationDeg * giro }
+        val puerta = hueco(alturaBajos, alturaAltos, rango = 0f..40f)
+
+        // ── Víbora contra bandeja por pronación, la frontera alternativa ──
+        // Con signo: la víbora se corta con pronación de derecha; el valor absoluto
+        // mezclaría un corte con su contrario. Solo sobrevivirá (ver la validación de
+        // abajo) si en las tandas de ESTE jugador separa mejor que la altura.
+        val viboraPorAxial = frontera(
+            etiquetados.filter { it.first == ShotType.BANDEJA }
+                .map { it.second.axialRotationRadS },
+            etiquetados.filter { it.first == ShotType.VIBORA }
+                .map { it.second.axialRotationRadS },
+            rango = 1f..6f,
+        )
+
+        val candidata = DetectorCalibration(
+            overheadElevationDeg = puerta,
             prepOverheadElevationDeg = prep,
             smashPeakGyroRadS = smash,
             viboraElevationDeg = vibora,
+            viboraAxialRadS = viboraPorAxial,
             volleyAxialMaxRadS = volea,
             ejeDeElevacionInvertido = invertido,
             muestras = etiquetados.size,
             creadoEpochMs = ahoraEpochMs,
         )
+
+        // Cada umbral se queda solo si NO EMPEORA las tandas del jugador. Esto no es
+        // adorno: en la tanda de 40 en bloques, la elevación de preparación calibraba a
+        // +20° (el punto medio entre familias, acotado al rango) y a +20° se preparan
+        // los saques de ese jugador — tres saques muertos por un umbral "bien" derivado.
+        // El método sigue siendo explicable: se prueba cada umbral sobre las mismas
+        // tandas de las que salió, y el que resta, fuera.
+        val calibracion = validada(candidata, etiquetados, base)
 
         return ResultadoCalibracion(
             calibracion = calibracion,
@@ -153,6 +204,67 @@ object ThresholdCalibrator {
             aciertoDespues = acierto(etiquetados, base.aplicando(calibracion)),
             porTipo = porTipo,
         )
+    }
+
+    /**
+     * Deja en null todo umbral candidato que empeore el acierto sobre las propias
+     * tandas. Se evalúan uno a uno, en orden fijo y de forma acumulada: cada umbral se
+     * juzga con los ya aceptados puestos. Empate = se queda (personalizado no es peor
+     * que de fábrica, y el jugador ve su calibración aplicada).
+     */
+    private fun validada(
+        candidata: DetectorCalibration,
+        etiquetados: List<Pair<ShotType, ShotFeatures>>,
+        base: DetectorConfig,
+    ): DetectorCalibration {
+        var aceptada = DetectorCalibration(
+            ejeDeElevacionInvertido = candidata.ejeDeElevacionInvertido,
+            muestras = candidata.muestras,
+            creadoEpochMs = candidata.creadoEpochMs,
+        )
+        var mejorAcierto = acierto(etiquetados, base.aplicando(aceptada))
+
+        // El eje invertido no se valida por acierto: es una corrección de signo que se
+        // decidió por separación de medianas, y sin él puestos, el resto de umbrales de
+        // elevación no significan nada.
+        val pasos = listOf<Pair<String, (DetectorCalibration) -> DetectorCalibration>>(
+            "puerta" to { it.copy(overheadElevationDeg = candidata.overheadElevationDeg) },
+            "prep" to { it.copy(prepOverheadElevationDeg = candidata.prepOverheadElevationDeg) },
+            "smash" to { it.copy(smashPeakGyroRadS = candidata.smashPeakGyroRadS) },
+            "viboraAltura" to { it.copy(viboraElevationDeg = candidata.viboraElevationDeg) },
+            "viboraAxial" to { it.copy(viboraAxialRadS = candidata.viboraAxialRadS) },
+            "volea" to { it.copy(volleyAxialMaxRadS = candidata.volleyAxialMaxRadS) },
+        )
+        for ((_, aplicar) in pasos) {
+            val prueba = aplicar(aceptada)
+            if (prueba == aceptada) continue
+            val conEste = acierto(etiquetados, base.aplicando(prueba))
+            if (conEste >= mejorAcierto) {
+                aceptada = prueba
+                mejorAcierto = conEste
+            }
+        }
+        return aceptada
+    }
+
+    /**
+     * El punto medio del **hueco** entre dos familias: entre el mayor de los bajos y el
+     * menor de los altos. Para una puerta —donde un solo golpe al otro lado ya cuenta
+     * como error— el hueco es lo que importa, no las medianas. Null si no hay material
+     * o si las familias se pisan.
+     */
+    private fun hueco(
+        bajos: List<Float>,
+        altos: List<Float>,
+        rango: ClosedFloatingPointRange<Float>,
+    ): Float? {
+        if (bajos.size < MIN_POR_FAMILIA || altos.size < MIN_POR_FAMILIA) return null
+        val techoBajos = bajos.max()
+        val sueloAltos = altos.min()
+        if (sueloAltos <= techoBajos) return null
+        val punto = (techoBajos + sueloAltos) / 2
+        if (punto < rango.start || punto > rango.endInclusive) return null
+        return punto
     }
 
     /**

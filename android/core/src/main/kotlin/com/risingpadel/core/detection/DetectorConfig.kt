@@ -80,8 +80,16 @@ data class DetectorConfig(
      * ocho tipos llevaba 4,5. Entre medias no cabe nada más.
      */
     val volleyAxialMaxRadS: Float = 4f,
-    /** Techo de barrido para esa segunda firma: más allá ya es un swing completo. */
-    val volleyMaxSweptDeg: Float = 210f,
+    /**
+     * Techo de barrido para esa segunda firma: más allá ya es un swing completo.
+     *
+     * 310, subido desde 210 con la tanda de 40 en bloques (ago 2026): una volea de
+     * revés real barrió 301° con la pala quieta (3,1 de axial) — una volea con mucho
+     * acompañamiento sigue siendo una volea, y lo que la delata es la pala quieta, no
+     * el arco. Ningún golpe de fondo de las dos tandas limpias baja de 4 de axial, así
+     * que subir el techo no les abre la puerta.
+     */
+    val volleyMaxSweptDeg: Float = 310f,
     /**
      * Barrido mínimo del saque: 270°.
      *
@@ -106,6 +114,26 @@ data class DetectorConfig(
      * picaron entre 9,5 y 15,3 y no llegaba ninguno.
      */
     val serveAxialRadS: Float = 5.5f,
+    /**
+     * La segunda firma del saque: **el brazo armado en alto antes de golpear**.
+     *
+     * De la tanda de 40 en bloques (ago 2026), donde la primera firma solo pescaba uno
+     * de cinco saques: los otros cuatro rotaban 4,0-5,7 —por debajo del umbral— o
+     * barrían menos de 270°. Lo que los cinco compartían, y ningún otro golpe bajo de
+     * las dos tandas limpias: la preparación por ENCIMA de la horizontal (+10..+27°,
+     * el gesto de armar el saque llevando la pala arriba y atrás) con el impacto a la
+     * altura de la cintura y pronación clara. Las voleas se preparan como mucho a +6°,
+     * y la única derecha que se armó en alto (+26°, tanda de 42) impactó a −37° — por
+     * eso la firma exige además que el golpeo no sea bajo.
+     *
+     * Umbrales: preparación sobre [serveArmedPrepDeg], pronación (con signo, lado de
+     * derecha) sobre [serveArmedAxialRadS], impacto por encima de
+     * [serveArmedImpactFloorDeg] y barrido mínimo [serveArmedSweptDeg] de cordura.
+     */
+    val serveArmedPrepDeg: Float = 8f,
+    val serveArmedAxialRadS: Float = 3.5f,
+    val serveArmedImpactFloorDeg: Float = -20f,
+    val serveArmedSweptDeg: Float = 90f,
     /**
      * Pico de |gyro| a partir del cual un golpeo alto es un smash.
      *
@@ -139,6 +167,19 @@ data class DetectorConfig(
      * promediarlo sobre 200° de arco lo borra.
      */
     val viboraElevationDeg: Float = 44f,
+    /**
+     * Umbral alternativo para separar víbora de bandeja: **la pronación, con signo**.
+     * Rotación axial media por encima de esto → víbora; por debajo → bandeja.
+     *
+     * Null de fábrica, y a propósito: las dos tandas limpias se contradicen. En la de
+     * 42 (ago 2026) las separaba la altura y el efecto no distinguía nada; en la de 40
+     * en bloques, la altura no separaba nada (bandejas a +4..+20 y víboras a +6..+29,
+     * mezcladas) y el efecto las partía limpio: bandejas planas (−0,3..+2,3) contra
+     * víboras cortadas (+2,8..+6,0). Es una frontera de técnica personal, así que la
+     * fija el calibrador con las tandas de cada jugador — y solo si en SUS datos el
+     * efecto separa mejor que la altura.
+     */
+    val viboraAxialRadS: Float? = null,
     /** Ventana previa al impacto sobre la que se promedia la rotación axial. */
     val axialWindowMs: Long = 200,
     /**
@@ -197,10 +238,12 @@ data class DetectorConfig(
      * calibración no sostiene se queda de fábrica.
      */
     fun aplicando(calibracion: DetectorCalibration): DetectorConfig = copy(
+        overheadElevationDeg = calibracion.overheadElevationDeg ?: overheadElevationDeg,
         prepOverheadElevationDeg =
             calibracion.prepOverheadElevationDeg ?: prepOverheadElevationDeg,
         smashPeakGyroRadS = calibracion.smashPeakGyroRadS ?: smashPeakGyroRadS,
         viboraElevationDeg = calibracion.viboraElevationDeg ?: viboraElevationDeg,
+        viboraAxialRadS = calibracion.viboraAxialRadS ?: viboraAxialRadS,
         volleyAxialMaxRadS = calibracion.volleyAxialMaxRadS ?: volleyAxialMaxRadS,
         // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
         // hay que corregir cuando las tandas dicen que este reloj la lee al revés.
