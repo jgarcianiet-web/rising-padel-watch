@@ -245,6 +245,11 @@ struct LigaTemporada: Codable, Equatable, Identifiable {
     var fechaFinPrevista = ""
     /// Cuántos partidos se quiere jugar esta temporada. Nil = sin meta de volumen.
     var objetivoPartidos: Int?
+    /// Las metas técnicas de la temporada: "Bandeja 2,6 → 3,5". Ver `ObjetivoDeGolpe`.
+    ///
+    /// Vacío por defecto, como todo en este fichero: una copia de seguridad anterior a
+    /// que existieran no puede fallar al importarse.
+    var objetivosDeGolpe: [ObjetivoDeGolpe] = []
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -254,6 +259,8 @@ struct LigaTemporada: Codable, Equatable, Identifiable {
         fechaFin = try c.decodeIfPresent(String.self, forKey: .fechaFin) ?? ""
         fechaFinPrevista = try c.decodeIfPresent(String.self, forKey: .fechaFinPrevista) ?? ""
         objetivoPartidos = try c.decodeIfPresent(Int.self, forKey: .objetivoPartidos)
+        objetivosDeGolpe =
+            try c.decodeIfPresent([ObjetivoDeGolpe].self, forKey: .objetivosDeGolpe) ?? []
     }
 
     init(
@@ -262,7 +269,8 @@ struct LigaTemporada: Codable, Equatable, Identifiable {
         fechaInicio: String,
         fechaFin: String = "",
         fechaFinPrevista: String = "",
-        objetivoPartidos: Int? = nil
+        objetivoPartidos: Int? = nil,
+        objetivosDeGolpe: [ObjetivoDeGolpe] = []
     ) {
         self.id = id
         self.nombre = nombre
@@ -270,6 +278,7 @@ struct LigaTemporada: Codable, Equatable, Identifiable {
         self.fechaFin = fechaFin
         self.fechaFinPrevista = fechaFinPrevista
         self.objetivoPartidos = objetivoPartidos
+        self.objetivosDeGolpe = objetivosDeGolpe
     }
 
     var enCurso: Bool { fechaFin.isEmpty }

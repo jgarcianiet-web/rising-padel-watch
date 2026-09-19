@@ -126,6 +126,13 @@ data class LigaTemporada(
     val fechaFinPrevista: String = "",
     /** Cuántos partidos se quiere jugar esta temporada. Null = sin meta de volumen. */
     val objetivoPartidos: Int? = null,
+    /**
+     * Las metas técnicas de la temporada: "Bandeja 2,6 → 3,5". Ver [ObjetivoDeGolpe].
+     *
+     * Vacío por defecto, como todo en este fichero: una copia de seguridad anterior a
+     * que existieran no puede fallar al importarse.
+     */
+    val objetivosDeGolpe: List<ObjetivoDeGolpe> = emptyList(),
 ) {
     val enCurso: Boolean get() = fechaFin.isEmpty()
 
