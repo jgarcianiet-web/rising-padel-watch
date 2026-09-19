@@ -46,6 +46,13 @@ object ObjectiveEvaluator {
         "a la t", "%", "racha", "calent", "molestia", "protest", "comunic",
     )
 
+    // Nota sobre "globo": el detector **ya** lo reconoce (ShotType.LOB), pero se queda
+    // fuera de alcance a propósito. Su regla es deliberadamente estrecha mientras no
+    // haya una tanda de globos etiquetada, así que cuenta de menos — y un objetivo que
+    // dice "15 globos" marcado como fallado cuando el jugador hizo quince es peor que
+    // uno sin marcar. Vuelve a ser medible el día que haya tanda. Misma regla de
+    // siempre: antes en silencio que inventado.
+
     /** Palabras de cada tipo de golpe que el reloj sabe contar. */
     private val GOLPES: List<Pair<String, List<ShotType>>> = listOf(
         "bandeja" to listOf(ShotType.BANDEJA),

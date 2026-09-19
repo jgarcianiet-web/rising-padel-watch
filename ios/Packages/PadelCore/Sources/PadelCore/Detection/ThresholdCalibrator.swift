@@ -25,6 +25,11 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     /// jugadores cuyas tandas demuestran que a ellos las separa el efecto. Ver
     /// `DetectorConfig.viboraAxialRadS`.
     public var viboraAxialRadS: Float?
+    /// Velocidad por debajo de la cual un swing largo de este jugador es un globo.
+    ///
+    /// Sin esto el detector **no ve globos**, y a propósito: "lento" no significa lo
+    /// mismo para dos jugadores. Ver `DetectorConfig.lobMaxPeakGyroRadS`.
+    public var lobMaxPeakGyroRadS: Float?
     public var volleyAxialMaxRadS: Float?
     /// El eje del antebrazo lee la elevación al revés en este reloj.
     ///
@@ -49,6 +54,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
         smashPeakGyroRadS: Float? = nil,
         viboraElevationDeg: Float? = nil,
         viboraAxialRadS: Float? = nil,
+        lobMaxPeakGyroRadS: Float? = nil,
         volleyAxialMaxRadS: Float? = nil,
         ejeDeElevacionInvertido: Bool? = nil,
         muestras: Int = 0,
@@ -59,6 +65,7 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
         self.smashPeakGyroRadS = smashPeakGyroRadS
         self.viboraElevationDeg = viboraElevationDeg
         self.viboraAxialRadS = viboraAxialRadS
+        self.lobMaxPeakGyroRadS = lobMaxPeakGyroRadS
         self.volleyAxialMaxRadS = volleyAxialMaxRadS
         self.ejeDeElevacionInvertido = ejeDeElevacionInvertido
         self.muestras = muestras
@@ -68,8 +75,8 @@ public struct DetectorCalibration: Codable, Equatable, Sendable {
     public var vacia: Bool {
         overheadElevationDeg == nil && prepOverheadElevationDeg == nil
             && smashPeakGyroRadS == nil && viboraElevationDeg == nil
-            && viboraAxialRadS == nil && volleyAxialMaxRadS == nil
-            && ejeDeElevacionInvertido == nil
+            && viboraAxialRadS == nil && lobMaxPeakGyroRadS == nil
+            && volleyAxialMaxRadS == nil && ejeDeElevacionInvertido == nil
     }
 }
 
@@ -176,12 +183,24 @@ public enum ThresholdCalibrator {
             rango: 1...6
         )
 
+        // El globo: swing largo SIN velocidad, contra el resto de golpes bajos. Se
+        // compara solo con golpes bajos porque es con quien compite, y por velocidad y
+        // no por barrido porque el barrido del globo y el de una derecha larga son el
+        // mismo. Ojo al orden: aquí la familia "alta" es el RESTO, porque lo que define
+        // al globo es quedarse por debajo.
+        let picoGlobos = etiquetados.filter { $0.0 == .lob }.map { $0.1.peakGyroRadS }
+        let picoOtrosBajos = etiquetados
+            .filter { !altos.contains($0.0) && $0.0 != .lob && $0.0 != .serve }
+            .map { $0.1.peakGyroRadS }
+        let globo = frontera(bajos: picoGlobos, altos: picoOtrosBajos, rango: 6...16)
+
         let candidata = DetectorCalibration(
             overheadElevationDeg: puerta,
             prepOverheadElevationDeg: prep,
             smashPeakGyroRadS: smash,
             viboraElevationDeg: vibora,
             viboraAxialRadS: viboraPorAxial,
+            lobMaxPeakGyroRadS: globo,
             volleyAxialMaxRadS: volea,
             ejeDeElevacionInvertido: invertido,
             muestras: etiquetados.count,
@@ -225,6 +244,7 @@ public enum ThresholdCalibrator {
             { $0.smashPeakGyroRadS = candidata.smashPeakGyroRadS },
             { $0.viboraElevationDeg = candidata.viboraElevationDeg },
             { $0.viboraAxialRadS = candidata.viboraAxialRadS },
+            { $0.lobMaxPeakGyroRadS = candidata.lobMaxPeakGyroRadS },
             { $0.volleyAxialMaxRadS = candidata.volleyAxialMaxRadS },
         ]
         for aplicar in pasos {

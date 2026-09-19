@@ -7,6 +7,15 @@ import kotlinx.serialization.Serializable
 enum class ShotType(val wireName: String) {
     FOREHAND("forehand"),
     BACKHAND("backhand"),
+
+    /**
+     * El globo: recorrido completo y sin velocidad, el golpe defensivo del pádel.
+     *
+     * Se detecta por esa contradicción —swing largo pero lento— porque es la única
+     * región del espacio de rasgos que ningún otro golpe bajo ocupa. Ver
+     * [com.risingpadel.core.detection.DetectorConfig.lobSweptDeg].
+     */
+    LOB("lob"),
     FOREHAND_VOLLEY("forehandVolley"),
     BACKHAND_VOLLEY("backhandVolley"),
 
@@ -26,7 +35,11 @@ enum class ShotType(val wireName: String) {
             entries.firstOrNull { it.wireName == value }
                 // Sesiones anteriores a separar los golpes altos: "overhead" agrupaba
                 // bandeja, víbora y smash. Se mapea a bandeja, que es el más común.
-                ?: if (value == "overhead") BANDEJA else UNKNOWN
+                ?: if (value == "overhead") BANDEJA
+                // "globo" es como lo escribía el catálogo manual heredado de Padel Band,
+                // desde antes de que el detector tuviera el tipo.
+                else if (value == "globo") LOB
+                else UNKNOWN
     }
 }
 

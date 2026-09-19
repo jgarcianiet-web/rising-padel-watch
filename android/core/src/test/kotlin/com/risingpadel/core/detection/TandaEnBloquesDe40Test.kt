@@ -125,6 +125,15 @@ class TandaEnBloquesDe40Test {
     private val deFabrica = ShotClassifier()
 
     @Test
+    fun `el globo no le roba ni un golpe a esta tanda`() {
+        // La regla del globo se puso en un hueco vacío del espacio de rasgos, y esto es
+        // lo que comprueba que el hueco sigue vacío. En esta tanda no hay globos, así
+        // que cualquier LOB que salga aquí es un golpe robado.
+        val robados = tanda.filter { deFabrica.classify(it.rasgos()).type == ShotType.LOB }
+        assertTrue(robados.isEmpty(), "el globo se llevó: ${robados.map { it.n }}")
+    }
+
+    @Test
     fun `los cinco saques salen con los umbrales de fabrica`() {
         // La firma del brazo armado: es la aportación universal de esta tanda, no
         // depende de calibrar. Antes de ella salía un saque de cinco.

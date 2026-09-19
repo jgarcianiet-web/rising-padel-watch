@@ -143,6 +143,22 @@ class ShotClassifier(
             return finalize(ShotType.SERVE, 0.5f + 0.25f * prepMargin + 0.25f * axialMargin)
         }
 
+        // El globo, antes que la volea y que el fondo: recorrido completo y sin
+        // velocidad. Va aquí y no antes porque un saque también barre mucho, y va antes
+        // que la volea porque el techo de barrido de la volea (310°) lo taparía.
+        //
+        // Solo existe si el jugador ha grabado globos: sin su tanda, `lobMaxPeakGyroRadS`
+        // es null y esta rama no se pisa nunca. Ver el comentario del campo.
+        val lobMaxPico = config.lobMaxPeakGyroRadS
+        if (lobMaxPico != null &&
+            features.sweptAngleDeg >= config.lobSweptDeg &&
+            features.peakGyroRadS < lobMaxPico
+        ) {
+            val largoMargin = margin(features.sweptAngleDeg, config.lobSweptDeg, 60f)
+            val lentoMargin = margin(features.peakGyroRadS, lobMaxPico, 4f)
+            return finalize(ShotType.LOB, 0.5f + 0.25f * largoMargin + 0.25f * lentoMargin)
+        }
+
         val axial = features.axialRotationRadS
         val axialAbs = abs(axial)
 

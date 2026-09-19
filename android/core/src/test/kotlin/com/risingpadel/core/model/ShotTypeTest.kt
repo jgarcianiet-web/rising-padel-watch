@@ -18,8 +18,18 @@ class ShotTypeTest {
         assertEquals(ShotType.BANDEJA, ShotType.fromWire("overhead"))
     }
 
+    /**
+     * "globo" es como lo escribía el catálogo manual heredado de Padel Band, desde
+     * antes de que el detector tuviera el tipo. Los partidos viejos lo traen así.
+     */
+    @Test
+    fun `el globo en castellano se mapea al tipo nuevo`() {
+        assertEquals(ShotType.LOB, ShotType.fromWire("globo"))
+        assertEquals(ShotType.LOB, ShotType.fromWire("lob"))
+    }
+
     @Test
     fun `un tipo desconocido cae a UNKNOWN en vez de romper`() {
-        assertEquals(ShotType.UNKNOWN, ShotType.fromWire("globo"))
+        assertEquals(ShotType.UNKNOWN, ShotType.fromWire("contrapared"))
     }
 }

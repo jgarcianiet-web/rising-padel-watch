@@ -124,6 +124,14 @@ class TandaLimpiaDe42Test {
         tipo == ShotType.FOREHAND || tipo == ShotType.BACKHAND
 
     @Test
+    fun `el globo no le roba ni un golpe a esta tanda`() {
+        // La regla del globo vive en un hueco vacío del espacio de rasgos; esto
+        // comprueba que sigue vacío. Aquí no hubo globos: cualquiera que salga, robado.
+        val robados = tanda.filter { classifier.classify(it.rasgos()).type == ShotType.LOB }
+        assertTrue(robados.isEmpty(), "el globo se llevó: ${robados.map { it.n }}")
+    }
+
+    @Test
     fun `la puerta de golpe alto no se equivoca en esta tanda`() {
         // El rasgo más limpio del detector: los diecisiete altos picaron +15..+56 y los
         // veinticinco bajos −82..+14. Ni un solapamiento. Si esto se rompe, se rompió el

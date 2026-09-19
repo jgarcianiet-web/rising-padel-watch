@@ -61,6 +61,7 @@ RASGOS = [
 WIRE_A_KOTLIN = {
     "forehand": "FOREHAND",
     "backhand": "BACKHAND",
+    "lob": "LOB",
     "forehandVolley": "FOREHAND_VOLLEY",
     "backhandVolley": "BACKHAND_VOLLEY",
     "bandeja": "BANDEJA",
@@ -71,6 +72,7 @@ WIRE_A_KOTLIN = {
 WIRE_A_SWIFT = {
     "forehand": "forehand",
     "backhand": "backhand",
+    "lob": "lob",
     "forehandVolley": "forehandVolley",
     "backhandVolley": "backhandVolley",
     "bandeja": "bandeja",

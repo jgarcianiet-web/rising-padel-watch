@@ -62,6 +62,24 @@ public struct DetectorConfig: Equatable, Sendable {
     /// voleas se colaban en la rama alta —una volea de revés pica a +2°— y de ahí venía
     /// la mitad de los fallos, tres voleas seguidas clasificadas como smash.
     public var overheadElevationDeg: Float
+    /// Barrido mínimo del globo: hace recorrido completo, no es un bloqueo. Por sí solo
+    /// no decide nada — la regla no se activa sin `lobMaxPeakGyroRadS`.
+    public var lobSweptDeg: Float
+    /// Velocidad máxima del globo. **Nil = el reloj no dice "globo", y es lo correcto
+    /// mientras el jugador no haya grabado globos.**
+    ///
+    /// Lo que define al globo es una contradicción: recorrido completo **sin
+    /// velocidad**. Una derecha larga va rápida, una volea va lenta pero es corta.
+    ///
+    /// Con las dos tandas limpias de pista (ago 2026) el hueco parecía obvio: ningún
+    /// golpe bajo de los 82 barría más de 135° picando menos de 13 rad/s. Pero contra
+    /// la tanda de ocho tipos, de otro jugador, esa región resultó estar **llena**: sus
+    /// bandejas y derechas barren 180-250° picando 10-11. Lo que para uno es un swing
+    /// sin velocidad, para otro es su golpe normal.
+    ///
+    /// Mismo problema que la frontera bandeja/víbora y misma solución: de fábrica no
+    /// hay regla, y el umbral lo pone el calibrador con la tanda de globos del jugador.
+    public var lobMaxPeakGyroRadS: Float?
     /// Por debajo de este ángulo barrido el golpeo es una volea.
     public var volleySweptDeg: Float
     /// La segunda firma de la volea, validada en pista (ago 2026): swing medio con la
@@ -189,6 +207,8 @@ public struct DetectorConfig: Equatable, Sendable {
         maxSwingMs: Int64 = 900,
         minSwingMs: Int64 = 80,
         overheadElevationDeg: Float = 14,
+        lobSweptDeg: Float = 135,
+        lobMaxPeakGyroRadS: Float? = nil,
         volleySweptDeg: Float = 50,
         volleyAxialMaxRadS: Float = 4,
         volleyMaxSweptDeg: Float = 310,
@@ -219,6 +239,8 @@ public struct DetectorConfig: Equatable, Sendable {
         self.maxSwingMs = maxSwingMs
         self.minSwingMs = minSwingMs
         self.overheadElevationDeg = overheadElevationDeg
+        self.lobSweptDeg = lobSweptDeg
+        self.lobMaxPeakGyroRadS = lobMaxPeakGyroRadS
         self.volleySweptDeg = volleySweptDeg
         self.volleyAxialMaxRadS = volleyAxialMaxRadS
         self.volleyMaxSweptDeg = volleyMaxSweptDeg
@@ -265,6 +287,7 @@ public struct DetectorConfig: Equatable, Sendable {
         if let valor = calibracion.smashPeakGyroRadS { copy.smashPeakGyroRadS = valor }
         if let valor = calibracion.viboraElevationDeg { copy.viboraElevationDeg = valor }
         if let valor = calibracion.viboraAxialRadS { copy.viboraAxialRadS = valor }
+        if let valor = calibracion.lobMaxPeakGyroRadS { copy.lobMaxPeakGyroRadS = valor }
         if let valor = calibracion.volleyAxialMaxRadS { copy.volleyAxialMaxRadS = valor }
         // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
         // hay que corregir cuando las tandas dicen que este reloj la lee al revés.

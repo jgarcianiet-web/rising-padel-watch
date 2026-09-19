@@ -231,33 +231,18 @@ final class LigaModel: ObservableObject {
         let analytics = SessionAnalytics()
         let level = session.level
 
-        // Nivel por golpe con el catálogo de la liga; las dos voleas se funden en una.
-        var golpes: [LigaGolpeSesion] = []
-        var voleas: [Double] = []
-        for (type, grade) in level.byShotType {
-            if type == .forehandVolley || type == .backhandVolley {
-                voleas.append(Double(grade))
-            } else if let name = Self.catalogo[type] {
-                golpes.append(LigaGolpeSesion(nombre: name, nota: round1(Double(grade))))
-            }
-        }
-        if !voleas.isEmpty {
-            golpes.append(LigaGolpeSesion(nombre: "Volea", nota: round1(voleas.reduce(0, +) / Double(voleas.count))))
+        // Nivel y volumen por golpe, con el repertorio que ve el jugador: las dos
+        // voleas se funden en una y la víbora se pliega dentro de la bandeja. Mismo
+        // mapeo que hace `LigaMapper` en el core Kotlin. Ver `GolpeVisible`.
+        let golpes = GolpeVisible.agruparNotas(level.byShotType).map { visible, nota in
+            LigaGolpeSesion(nombre: visible.etiqueta, nota: round1(Double(nota)))
         }
 
         // Los recuentos con la revisión del jugador aplicada: si dijo que fueron 12
         // bandejas, la liga y los objetivos ven 12, contara lo que contara el reloj.
-        var volumen: [LigaGolpeVolumen] = []
-        var voleaCount = 0
-        for (type, count) in session.effectiveShotsByType {
-            if type == .forehandVolley || type == .backhandVolley {
-                voleaCount += count
-            } else if let name = Self.catalogo[type], count > 0 {
-                volumen.append(LigaGolpeVolumen(nombre: name, cantidad: count))
-            }
-        }
-        if voleaCount > 0 {
-            volumen.append(LigaGolpeVolumen(nombre: "Volea", cantidad: voleaCount))
+        let volumen = GolpeVisible.agruparRecuentos(session.effectiveShotsByType).map {
+            visible, cantidad in
+            LigaGolpeVolumen(nombre: visible.etiqueta, cantidad: cantidad)
         }
 
         let progression = analytics.levelProgression(
@@ -433,16 +418,6 @@ final class LigaModel: ObservableObject {
     }
 
     // MARK: Utilidades
-
-    /// Tipos del reloj → catálogo de la liga (las voleas se tratan aparte).
-    private static let catalogo: [ShotType: String] = [
-        .forehand: "Derecha",
-        .backhand: "Revés",
-        .bandeja: "Bandeja",
-        .vibora: "Víbora",
-        .smash: "Remate",
-        .serve: "Saque",
-    ]
 
     /// Un partido interrumpido se decide por sets ganados, como haría el jugador.
     ///

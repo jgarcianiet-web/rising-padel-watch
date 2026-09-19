@@ -2,6 +2,7 @@ package com.risingpadel.core.liga
 
 import com.risingpadel.core.analytics.SessionAnalytics
 import com.risingpadel.core.insights.ObjectiveEvaluator
+import com.risingpadel.core.model.GolpeVisible
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.model.ShotType
 import com.risingpadel.core.score.MatchScore
@@ -21,16 +22,6 @@ import kotlin.math.roundToInt
  */
 object LigaMapper {
 
-    /** Tipos del reloj → catálogo de la liga (las voleas se tratan aparte). */
-    private val CATALOGO = mapOf(
-        ShotType.FOREHAND to "Derecha",
-        ShotType.BACKHAND to "Revés",
-        ShotType.BANDEJA to "Bandeja",
-        ShotType.VIBORA to "Víbora",
-        ShotType.SMASH to "Remate",
-        ShotType.SERVE to "Saque",
-    )
-
     fun matchFrom(
         session: PadelSession,
         playerAverage: Float?,
@@ -39,30 +30,15 @@ object LigaMapper {
         val analytics = SessionAnalytics()
         val level = session.level
 
-        // Nivel por golpe con el catálogo de la liga; las dos voleas se funden en una.
-        val golpes = mutableListOf<LigaGolpeSesion>()
-        val voleas = mutableListOf<Double>()
-        for ((type, grade) in level.byShotType) {
-            if (type == ShotType.FOREHAND_VOLLEY || type == ShotType.BACKHAND_VOLLEY) {
-                voleas.add(grade.toDouble())
-            } else {
-                CATALOGO[type]?.let { golpes.add(LigaGolpeSesion(it, round1(grade.toDouble()))) }
-            }
-        }
-        if (voleas.isNotEmpty()) golpes.add(LigaGolpeSesion("Volea", round1(voleas.average())))
+        // Nivel y volumen por golpe, con el repertorio que ve el jugador: las dos voleas
+        // se funden en una y la víbora se pliega dentro de la bandeja. Ver [GolpeVisible].
+        val golpes = GolpeVisible.agruparNotas(level.byShotType)
+            .map { (visible, nota) -> LigaGolpeSesion(visible.etiqueta, round1(nota.toDouble())) }
 
         // Los recuentos con la revisión del jugador aplicada: si dijo que fueron 12
         // bandejas, la liga y los objetivos ven 12, contara lo que contara el reloj.
-        val volumen = mutableListOf<LigaGolpeVolumen>()
-        var voleaCount = 0
-        for ((type, count) in session.effectiveShotsByType) {
-            if (type == ShotType.FOREHAND_VOLLEY || type == ShotType.BACKHAND_VOLLEY) {
-                voleaCount += count
-            } else if (count > 0) {
-                CATALOGO[type]?.let { volumen.add(LigaGolpeVolumen(it, count)) }
-            }
-        }
-        if (voleaCount > 0) volumen.add(LigaGolpeVolumen("Volea", voleaCount))
+        val volumen = GolpeVisible.agruparRecuentos(session.effectiveShotsByType)
+            .map { (visible, cuantos) -> LigaGolpeVolumen(visible.etiqueta, cuantos) }
 
         val durationMs = session.durationSeconds * 1000
         val progression = analytics.levelProgression(session.shots, durationMs)

@@ -37,6 +37,15 @@ data class DetectorCalibration(
      * [DetectorConfig.viboraAxialRadS].
      */
     val viboraAxialRadS: Float? = null,
+    /**
+     * Velocidad por debajo de la cual un swing largo de este jugador es un globo.
+     *
+     * Sin esto el detector **no ve globos**, y a propósito: "lento" no significa lo
+     * mismo para dos jugadores. Ver [DetectorConfig.lobMaxPeakGyroRadS]. Se deriva de
+     * una tanda de globos etiquetada, comparando su velocidad con la del resto de
+     * golpes bajos del mismo jugador.
+     */
+    val lobMaxPeakGyroRadS: Float? = null,
     val volleyAxialMaxRadS: Float? = null,
     /**
      * El eje del antebrazo lee la elevación al revés en este reloj.
@@ -59,8 +68,8 @@ data class DetectorCalibration(
     val vacia: Boolean
         get() = overheadElevationDeg == null && prepOverheadElevationDeg == null &&
             smashPeakGyroRadS == null && viboraElevationDeg == null &&
-            viboraAxialRadS == null && volleyAxialMaxRadS == null &&
-            ejeDeElevacionInvertido == null
+            viboraAxialRadS == null && lobMaxPeakGyroRadS == null &&
+            volleyAxialMaxRadS == null && ejeDeElevacionInvertido == null
 }
 
 /** El resultado de calibrar: los umbrales y cuánto mejoran sobre las propias tandas. */
@@ -178,12 +187,28 @@ object ThresholdCalibrator {
             rango = 1f..6f,
         )
 
+        // ── El globo: swing largo SIN velocidad, contra el resto de golpes bajos ──
+        // Se compara solo con golpes bajos porque es con quien compite: la rama del
+        // globo se pregunta después de la puerta de altura. Y se compara por velocidad
+        // y no por barrido porque el barrido del globo y el de una derecha larga son el
+        // mismo; lo que los separa es que al globo no se le pega.
+        //
+        // Ojo al orden de los argumentos: aquí la familia "alta" es el RESTO, porque lo
+        // que define al globo es quedarse por debajo.
+        val picoGlobos = etiquetados.filter { it.first == ShotType.LOB }
+            .map { it.second.peakGyroRadS }
+        val picoOtrosBajos = etiquetados
+            .filter { it.first !in ALTOS && it.first != ShotType.LOB && it.first != ShotType.SERVE }
+            .map { it.second.peakGyroRadS }
+        val globo = frontera(picoGlobos, picoOtrosBajos, rango = 6f..16f)
+
         val candidata = DetectorCalibration(
             overheadElevationDeg = puerta,
             prepOverheadElevationDeg = prep,
             smashPeakGyroRadS = smash,
             viboraElevationDeg = vibora,
             viboraAxialRadS = viboraPorAxial,
+            lobMaxPeakGyroRadS = globo,
             volleyAxialMaxRadS = volea,
             ejeDeElevacionInvertido = invertido,
             muestras = etiquetados.size,
@@ -233,6 +258,7 @@ object ThresholdCalibrator {
             "smash" to { it.copy(smashPeakGyroRadS = candidata.smashPeakGyroRadS) },
             "viboraAltura" to { it.copy(viboraElevationDeg = candidata.viboraElevationDeg) },
             "viboraAxial" to { it.copy(viboraAxialRadS = candidata.viboraAxialRadS) },
+            "globo" to { it.copy(lobMaxPeakGyroRadS = candidata.lobMaxPeakGyroRadS) },
             "volea" to { it.copy(volleyAxialMaxRadS = candidata.volleyAxialMaxRadS) },
         )
         for ((_, aplicar) in pasos) {

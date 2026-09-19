@@ -64,6 +64,11 @@ data class LevelConfig(
             ShotType.VIBORA to ShotBand(38f, 68f, idealSweptDeg = 170f),
             ShotType.SMASH to ShotBand(50f, 95f, idealSweptDeg = 210f),
             ShotType.SERVE to ShotBand(32f, 72f, idealSweptDeg = 240f),
+            // El globo es el golpe donde pegar fuerte es directamente el error: lo que
+            // lo hace bueno es la altura y la profundidad, y ninguna de las dos las ve
+            // el reloj. Su banda de velocidad es la más corta de todas a propósito —
+            // premia el recorrido limpio, no la fuerza.
+            ShotType.LOB to ShotBand(18f, 40f, idealSweptDeg = 180f),
         )
 
         val DEFAULT = LevelConfig()

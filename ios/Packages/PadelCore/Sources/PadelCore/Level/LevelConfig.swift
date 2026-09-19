@@ -99,6 +99,10 @@ public struct LevelConfig: Sendable {
         .vibora: ShotBand(speedAtLevel1: 38, speedAtLevel7: 68, idealSweptDeg: 170),
         .smash: ShotBand(speedAtLevel1: 50, speedAtLevel7: 95, idealSweptDeg: 210),
         .serve: ShotBand(speedAtLevel1: 32, speedAtLevel7: 72, idealSweptDeg: 240),
+        // El globo es el golpe donde pegar fuerte es directamente el error: lo que lo
+        // hace bueno es la altura y la profundidad, y ninguna de las dos las ve el
+        // reloj. Su banda de velocidad es la más corta de todas a propósito.
+        .lob: ShotBand(speedAtLevel1: 18, speedAtLevel7: 40, idealSweptDeg: 180),
     ]
 
     public static let `default` = LevelConfig()

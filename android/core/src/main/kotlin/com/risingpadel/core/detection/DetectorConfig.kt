@@ -67,6 +67,38 @@ data class DetectorConfig(
      * pasa claramente por encima de la horizontal, no el que la roza.
      */
     val overheadElevationDeg: Float = 14f,
+    /**
+     * Barrido mínimo del globo: hace recorrido completo, no es un bloqueo.
+     *
+     * Este sí puede ser global —135° deja fuera cualquier volea— pero por sí solo no
+     * decide nada: la regla del globo no se activa sin [lobMaxPeakGyroRadS].
+     */
+    val lobSweptDeg: Float = 135f,
+    /**
+     * Velocidad máxima del globo. **Null = el reloj no dice "globo", y es lo correcto
+     * mientras el jugador no haya grabado globos.**
+     *
+     * Lo que define al globo es una contradicción: recorrido completo **sin velocidad**.
+     * Una derecha larga va rápida, una volea va lenta pero es corta; largo y lento a la
+     * vez no lo hace ningún otro golpe. El problema es el "lento".
+     *
+     * Con las dos tandas limpias de pista (ago 2026) el hueco parecía obvio: ningún
+     * golpe bajo de los 82 barría más de 135° picando menos de 13 rad/s, y los vecinos
+     * más cercanos —un revés a 144°/13,6 y una volea a 130°/12,1— se quedaban fuera por
+     * poco. Pero al probarlo contra la tanda de ocho tipos, de otro jugador, la región
+     * resultó estar **llena**: sus bandejas y sus derechas barren 180-250° picando
+     * 10-11. Lo que para uno es un swing sin velocidad, para otro es su golpe normal.
+     *
+     * O sea: el mismo problema que la frontera bandeja/víbora, y con la misma solución.
+     * No hay número global honesto, así que de fábrica no hay regla —el detector
+     * sencillamente no ve globos— y el umbral lo pone el calibrador cuando el jugador
+     * graba una tanda de globos. Ver [DetectorCalibration.lobMaxPeakGyroRadS].
+     *
+     * Ponerle aquí un número inventado cogería globos de algunos jugadores a cambio de
+     * convertir en globos los golpes de fondo de otros, que es exactamente el tipo de
+     * intercambio que este detector lleva dos meses aprendiendo a no hacer.
+     */
+    val lobMaxPeakGyroRadS: Float? = null,
     /** Por debajo de este ángulo barrido el golpeo es una volea. */
     val volleySweptDeg: Float = 50f,
     /**
@@ -244,6 +276,7 @@ data class DetectorConfig(
         smashPeakGyroRadS = calibracion.smashPeakGyroRadS ?: smashPeakGyroRadS,
         viboraElevationDeg = calibracion.viboraElevationDeg ?: viboraElevationDeg,
         viboraAxialRadS = calibracion.viboraAxialRadS ?: viboraAxialRadS,
+        lobMaxPeakGyroRadS = calibracion.lobMaxPeakGyroRadS ?: lobMaxPeakGyroRadS,
         volleyAxialMaxRadS = calibracion.volleyAxialMaxRadS ?: volleyAxialMaxRadS,
         // Girar el eje del antebrazo invierte la elevación medida, que es justo lo que
         // hay que corregir cuando las tandas dicen que este reloj la lee al revés.

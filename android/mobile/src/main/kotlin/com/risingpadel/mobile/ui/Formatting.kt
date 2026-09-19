@@ -24,6 +24,7 @@ fun ShotType.label(): String = when (this) {
     ShotType.BACKHAND -> "Revés"
     ShotType.FOREHAND_VOLLEY -> "Volea de derecha"
     ShotType.BACKHAND_VOLLEY -> "Volea de revés"
+    ShotType.LOB -> "Globo"
     ShotType.BANDEJA -> "Bandeja"
     ShotType.VIBORA -> "Víbora"
     ShotType.SMASH -> "Smash"

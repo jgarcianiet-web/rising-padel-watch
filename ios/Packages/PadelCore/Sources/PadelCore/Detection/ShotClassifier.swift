@@ -143,6 +143,24 @@ public struct ShotClassifier: Sendable {
             return finalize(.serve, 0.5 + 0.25 * prepMargin + 0.25 * axialMargin)
         }
 
+        // El globo, antes que la volea y que el fondo: recorrido completo y sin
+        // velocidad. Va aquí y no antes porque un saque también barre mucho, y va antes
+        // que la volea porque el techo de barrido de la volea (310°) lo taparía.
+        //
+        // Solo existe si el jugador ha grabado globos: sin su tanda,
+        // `lobMaxPeakGyroRadS` es nil y esta rama no se pisa nunca.
+        if let lobMaxPico = config.lobMaxPeakGyroRadS,
+           features.sweptAngleDeg >= config.lobSweptDeg,
+           features.peakGyroRadS < lobMaxPico {
+            let largoMargin = margin(
+                value: features.sweptAngleDeg, threshold: config.lobSweptDeg, scale: 60
+            )
+            let lentoMargin = margin(
+                value: features.peakGyroRadS, threshold: lobMaxPico, scale: 4
+            )
+            return finalize(.lob, 0.5 + 0.25 * largoMargin + 0.25 * lentoMargin)
+        }
+
         let axial = features.axialRotationRadS
         let axialAbs = abs(axial)
 

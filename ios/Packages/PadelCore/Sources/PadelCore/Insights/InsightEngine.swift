@@ -426,6 +426,7 @@ public struct InsightEngine: Sendable {
         case .backhand: return "El revés"
         case .forehandVolley: return "La volea de derecha"
         case .backhandVolley: return "La volea de revés"
+        case .lob: return "El globo"
         case .bandeja: return "La bandeja"
         case .vibora: return "La víbora"
         case .smash: return "El remate"

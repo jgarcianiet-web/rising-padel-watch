@@ -89,6 +89,7 @@ peakElevation > 14°  ──► peakGyro > 14 rad/s ──► smash
 
 peakElevation ≤ 14°  ──► |axial| ≥ 5.5 y sweptAngle ≥ 270°            ──► serve
                      ├─► prep ≥ +8°, axial ≥ +3.5 e impacto ≥ −20°    ──► serve (armado)
+                     ├─► sweptAngle ≥ 135° y peakGyro < X             ──► globo (X: calibrado)
                      ├─► sweptAngle < 50°, o < 310° con |axial| < 4   ──► volea (lado por signo)
                      └─► resto                                        ──► fondo (lado por signo)
 ```
@@ -97,6 +98,34 @@ La segunda firma del saque —**el brazo armado en alto con el impacto a la cint
 salió de la tanda de 40 en bloques (ago 2026): la firma clásica (mucha pronación, barrido
 completo) solo pescaba uno de cinco saques reales; el gesto de armar (+10..+27° de
 preparación) los compartían los cinco y ningún otro golpe bajo de las dos tandas limpias.
+
+## El repertorio visible: nueve tipos por dentro, siete de cara al jugador
+
+El detector distingue nueve tipos; la app enseña siete (`GolpeVisible`, en los dos
+cores). Se pliegan **la víbora dentro de la bandeja** y **el lado de la volea**, que son
+justo las dos distinciones que los datos dicen que hoy no se sostienen. Medido sobre los
+82 golpes etiquetados de las dos tandas limpias:
+
+| | ocho tipos | repertorio visible |
+|---|---|---|
+| tanda de 42 | 71 % | **85 %** |
+| tanda de 40 (calibrada) | 80 % | **82 %** |
+| las dos juntas | 68 % | **79 %** |
+
+Las tandas se siguen grabando con los nueve tipos: esto solo decide qué se le enseña a
+una persona, no qué aprende el modelo.
+
+## El globo, y por qué no tiene umbral de fábrica
+
+El globo es el único golpe bajo que hace **recorrido completo sin velocidad** — una
+derecha larga va rápida, una volea va lenta pero es corta. Con las dos tandas limpias
+el hueco parecía obvio: ningún golpe bajo de los 82 barría más de 135° picando menos de
+13 rad/s. Contra la tanda de ocho tipos, de otro jugador, esa misma región estaba
+**llena**: sus bandejas y derechas barren 180-250° picando 10-11.
+
+O sea que "lento" no es una medida absoluta. De fábrica `lobMaxPeakGyroRadS` es null y
+el reloj **no dice globo nunca**; el umbral lo pone el calibrador con la tanda de globos
+del jugador. Es la misma lección que la frontera bandeja/víbora, aprendida dos veces.
 
 Esa misma tanda enseñó que **las fronteras de elevación son del jugador, no del
 deporte**: sus golpes altos picaron +4..+31° cuando la tanda anterior daba +15..+56, y

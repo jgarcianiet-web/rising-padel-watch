@@ -436,6 +436,7 @@ class InsightEngine(
         ShotType.BACKHAND -> "El revés"
         ShotType.FOREHAND_VOLLEY -> "La volea de derecha"
         ShotType.BACKHAND_VOLLEY -> "La volea de revés"
+        ShotType.LOB -> "El globo"
         ShotType.BANDEJA -> "La bandeja"
         ShotType.VIBORA -> "La víbora"
         ShotType.SMASH -> "El remate"
