@@ -138,7 +138,22 @@ CREATE TABLE IF NOT EXISTS levels (
 CREATE TABLE IF NOT EXISTS coach_usage (
   user INTEGER NOT NULL REFERENCES users(id),
   period TEXT NOT NULL,          -- 'yyyy-mm'
-  plan TEXT NOT NULL DEFAULT 'free',
   used INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (user, period)
+);
+
+-- La suscripción del jugador. Va aparte de coach_usage a propósito: el consumo se
+-- reinicia cada mes y el plan NO. Con el plan dentro de coach_usage, el día 1 no había
+-- fila todavía, se leía 'free' y se escribía 'free' — un suscriptor de pago habría
+-- vuelto al plan gratuito cada primero de mes sin que nadie tocara nada.
+--
+-- expires_at permite que una suscripción vencida caiga sola a gratuito aunque el aviso
+-- de Apple se pierda: el sistema no depende de que el webhook llegue siempre.
+CREATE TABLE IF NOT EXISTS subscriptions (
+  user INTEGER PRIMARY KEY REFERENCES users(id),
+  plan TEXT NOT NULL DEFAULT 'free',        -- free | pro | elite
+  product TEXT NOT NULL DEFAULT '',         -- el id del producto de App Store Connect
+  original_transaction_id TEXT,             -- la identidad estable de la suscripción
+  expires_at TEXT,                          -- ISO 8601; NULL = sin caducidad conocida
+  updated_at TEXT NOT NULL
 );

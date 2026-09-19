@@ -17,8 +17,9 @@
 // abierto, Claude gratis para quien se registre. Las defensas, por orden de importancia:
 //
 //  1. **Cuenta obligatoria.** Sin token de la comunidad no hay Coach.
-//  2. **Cuota mensual por cuenta**, contada en el servidor (tabla `coach_usage`). El
-//     cliente no puede pedir más de lo que le queda, y el contador no vive en el móvil.
+//  2. **Cuota mensual por cuenta**, contada en el servidor (`coach_usage` para el gasto
+//     del mes, `subscriptions` para el plan que decide el tope). El cliente no puede
+//     pedir más de lo que le queda, y el contador no vive en el móvil.
 //  3. **El servidor manda el prompt de sistema**, no el cliente. Encajona al modelo en
 //     "entrenador de pádel sobre estos datos" y, sobre todo, hace que el endpoint no
 //     sirva como asistente de propósito general.
@@ -41,8 +42,8 @@ const MAX_TOKENS_SALIDA = 4_000;
  * Peticiones al mes por cuenta en el plan gratuito.
  *
  * 30 da para un análisis por partido de alguien que juega dos veces por semana, más
- * conversación. El plan de pago sube el número; mientras no haya suscripción, `plan`
- * es 'free' para todo el mundo y el límite es este.
+ * conversación. Mientras no haya suscripción nadie tiene fila en `subscriptions`, así
+ * que todo el mundo cae en 'free' y el límite es este.
  */
 const CUOTA = { free: 30, pro: 300, elite: 1000 };
 
@@ -75,17 +76,33 @@ const periodoActual = () => new Date().toISOString().slice(0, 7);
 /**
  * Cuántas peticiones lleva este usuario en el mes en curso y cuántas le tocan.
  *
- * El plan sale de la propia tabla y por defecto es 'free': cuando exista la
- * suscripción, lo único que cambia es quién escribe esa columna.
+ * **El plan y el consumo viven en tablas distintas, y esa separación es el arreglo de
+ * un fallo real.** Al principio el plan era una columna de `coach_usage`, que tiene una
+ * fila por usuario Y MES: el día 1 no hay fila todavía, así que el plan se leía como
+ * 'free' y se escribía 'free' en la fila nueva. Un suscriptor de pago habría vuelto al
+ * plan gratuito cada primero de mes, en silencio y sin que nadie tocara nada.
+ *
+ * Ahora el consumo se cuenta por mes (que es lo que se reinicia) y el plan se guarda en
+ * `subscriptions` (que es lo que dura). De paso, la caducidad se comprueba aquí: una
+ * suscripción vencida cae sola a gratuito aunque el aviso de Apple se haya perdido, así
+ * que el sistema no depende de que el webhook llegue siempre.
  */
 async function consumo(env, userId) {
-  const fila = await env.DB.prepare(
-    "SELECT plan, used FROM coach_usage WHERE user = ?1 AND period = ?2"
-  )
-    .bind(userId, periodoActual())
-    .first();
-  const plan = fila?.plan || "free";
-  return { plan, usadas: fila?.used ?? 0, limite: CUOTA[plan] ?? CUOTA.free };
+  const [suscripcion, uso] = await Promise.all([
+    env.DB.prepare("SELECT plan, expires_at FROM subscriptions WHERE user = ?1")
+      .bind(userId)
+      .first(),
+    env.DB.prepare("SELECT used FROM coach_usage WHERE user = ?1 AND period = ?2")
+      .bind(userId, periodoActual())
+      .first(),
+  ]);
+
+  const vigente =
+    suscripcion &&
+    (!suscripcion.expires_at || suscripcion.expires_at > new Date().toISOString());
+  const plan = vigente ? suscripcion.plan : "free";
+
+  return { plan, usadas: uso?.used ?? 0, limite: CUOTA[plan] ?? CUOTA.free };
 }
 
 /**
@@ -204,11 +221,11 @@ export async function coach(request, env, path) {
   // Se cobra la petición DESPUÉS de que el modelo conteste: si falla, no se descuenta.
   // Un UPSERT y no un SELECT+UPDATE para que dos peticiones a la vez no se pisen.
   await env.DB.prepare(
-    `INSERT INTO coach_usage (user, period, plan, used)
-       VALUES (?1, ?2, ?3, 1)
+    `INSERT INTO coach_usage (user, period, used)
+       VALUES (?1, ?2, 1)
      ON CONFLICT(user, period) DO UPDATE SET used = used + 1`
   )
-    .bind(user.id, periodoActual(), plan)
+    .bind(user.id, periodoActual())
     .run();
 
   return json(200, {
