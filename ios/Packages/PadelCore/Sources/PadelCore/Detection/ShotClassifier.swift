@@ -149,6 +149,9 @@ public struct ShotClassifier: Sendable {
         //
         // Solo existe si el jugador ha grabado globos: sin su tanda,
         // `lobMaxPeakGyroRadS` es nil y esta rama no se pisa nunca.
+        let axial = features.axialRotationRadS
+        let axialAbs = abs(axial)
+
         if let lobMaxPico = config.lobMaxPeakGyroRadS,
            features.sweptAngleDeg >= config.lobSweptDeg,
            features.peakGyroRadS < lobMaxPico {
@@ -158,11 +161,12 @@ public struct ShotClassifier: Sendable {
             let lentoMargin = margin(
                 value: features.peakGyroRadS, threshold: lobMaxPico, scale: 4
             )
-            return finalize(.lob, 0.5 + 0.25 * largoMargin + 0.25 * lentoMargin)
+            // El lado, por el signo del efecto, igual que en la volea.
+            return finalize(
+                axial > 0 ? .forehandLob : .backhandLob,
+                0.5 + 0.25 * largoMargin + 0.25 * lentoMargin
+            )
         }
-
-        let axial = features.axialRotationRadS
-        let axialAbs = abs(axial)
 
         // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
         // swing medio con la pala quieta — voleas reales con acompañamiento barrían

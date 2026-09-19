@@ -510,7 +510,8 @@ private fun colorDeGolpe(type: ShotType): androidx.compose.ui.graphics.Color = w
         androidx.compose.ui.graphics.Color(0xFF1F8A5B)
     // El globo es defensa: azul apagado, lejos del naranja de la bandeja y del verde de
     // la volea, que son los dos golpes con los que se puede confundir.
-    ShotType.LOB -> androidx.compose.ui.graphics.Color(0xFF479CB8)
+    ShotType.FOREHAND_LOB, ShotType.BACKHAND_LOB ->
+        androidx.compose.ui.graphics.Color(0xFF479CB8)
     ShotType.BANDEJA -> androidx.compose.ui.graphics.Color(0xFFE08A1E)
     ShotType.VIBORA -> androidx.compose.ui.graphics.Color(0xFFB34570)
     ShotType.SMASH -> androidx.compose.ui.graphics.Color(0xFFD0455B)

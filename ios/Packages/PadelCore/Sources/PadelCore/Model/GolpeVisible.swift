@@ -5,37 +5,43 @@ import Foundation
 ///
 /// ### Por qué existe esta capa
 ///
-/// El detector separa nueve tipos; la app enseña siete. La diferencia no es cosmética,
-/// es una decisión medida. Con las dos tandas limpias de pista (82 golpes etiquetados,
-/// ago 2026) el acierto es:
+/// El detector separa diez tipos; la app enseña nueve. **La única que se pliega es la
+/// víbora dentro de la bandeja**, y no por gusto: las dos tandas limpias de pista se
+/// contradicen sobre cuál de las dos se golpea más alta, así que separarlas sin
+/// calibrar es echar una moneda al aire con dos nombres puestos.
 ///
-/// | | ocho tipos | repertorio visible |
+/// Medido sobre los 82 golpes etiquetados de esas dos tandas (ago 2026):
+///
+/// | | diez tipos | repertorio visible |
 /// |---|---|---|
-/// | tanda de 42 | 71 % | **85 %** |
+/// | tanda de 42 | 71 % | **76 %** |
 /// | tanda de 40 (calibrada) | 80 % | **82 %** |
-/// | las dos juntas | 68 % | **79 %** |
+/// | las dos juntas | 68 % | **74 %** |
 ///
-/// Las dos distinciones que se pliegan son justo las dos que los datos dicen que hoy no
-/// se pueden sostener:
+/// ### Por qué la volea y el globo SÍ llevan lado
 ///
-/// - **Víbora dentro de bandeja.** Las dos tandas se contradicen: en una la bandeja se
-///   golpea más alta que la víbora y en la otra más baja. Mientras un jugador no
-///   calibre con sus propias tandas, separarlas es echar una moneda al aire con dos
-///   nombres.
-/// - **El lado de la volea.** Una volea es un bloqueo sin muñeca, y el efecto que
-///   decidiría el lado no está en la señal: las diez voleas de la tanda de 42 midieron
-///   entre 0,1 y 3,9 de rotación axial, que es ruido.
+/// Plegar también el lado de la volea daba más acierto de tabla —85 % en la tanda de 42
+/// en vez de 76 %— y aun así se descartó: para un jugador no es lo mismo tener floja la
+/// volea de derecha que la de revés, y una app que no se lo puede decir no le sirve
+/// para entrenar. El número de la tabla mide otra cosa que lo útil que es el dato.
 ///
-/// Nada de esto se pierde: el detector **sigue** produciendo los nueve tipos y las
-/// tandas se graban con ellos, que es lo que alimenta al modelo entrenado. Esto solo
-/// decide qué se le enseña a una persona.
+/// Hay que decirlo claro de todas formas: **el lado de la volea hoy es poco fiable**.
+/// Lo decide el signo de la rotación axial, y las diez voleas de la tanda de 42
+/// midieron entre 0,1 y 3,9 rad/s, que es ruido. En el globo el mismo signo tiene mejor
+/// pinta —es un swing completo con muñeca, no un bloqueo— pero no hay tanda con la que
+/// decirlo. Las dos cosas las arregla el modelo entrenado, no un umbral.
+///
+/// El detector **sigue** produciendo los diez tipos y las tandas se graban con ellos,
+/// que es lo que alimenta al modelo. Esto solo decide qué se le enseña a una persona.
 ///
 /// Espejo de `GolpeVisible` en el core Kotlin, con los tests allí.
 public enum GolpeVisible: String, CaseIterable, Sendable {
     case derecha
     case reves
-    case volea
-    case globo
+    case voleaDerecha
+    case voleaReves
+    case globoDerecha
+    case globoReves
     case bandeja
     case remate
     case saque
@@ -44,8 +50,10 @@ public enum GolpeVisible: String, CaseIterable, Sendable {
         switch self {
         case .derecha: return "Derecha"
         case .reves: return "Revés"
-        case .volea: return "Volea"
-        case .globo: return "Globo"
+        case .voleaDerecha: return "Volea de derecha"
+        case .voleaReves: return "Volea de revés"
+        case .globoDerecha: return "Globo de derecha"
+        case .globoReves: return "Globo de revés"
         case .bandeja: return "Bandeja"
         case .remate: return "Remate"
         case .saque: return "Saque"
@@ -57,8 +65,10 @@ public enum GolpeVisible: String, CaseIterable, Sendable {
         switch tipo {
         case .forehand: return .derecha
         case .backhand: return .reves
-        case .forehandVolley, .backhandVolley: return .volea
-        case .lob: return .globo
+        case .forehandVolley: return .voleaDerecha
+        case .backhandVolley: return .voleaReves
+        case .forehandLob: return .globoDerecha
+        case .backhandLob: return .globoReves
         // La víbora se pliega dentro de la bandeja: las dos son el golpe alto de
         // control y hoy no se separan con garantías. Ver la cabecera.
         case .bandeja, .vibora: return .bandeja

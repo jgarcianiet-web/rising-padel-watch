@@ -46,7 +46,8 @@ object ObjectiveEvaluator {
         "a la t", "%", "racha", "calent", "molestia", "protest", "comunic",
     )
 
-    // Nota sobre "globo": el detector **ya** lo reconoce (ShotType.LOB), pero se queda
+    // Nota sobre "globo": el detector **ya** tiene el tipo (FOREHAND_LOB /
+    // BACKHAND_LOB), pero "globo" se queda
     // fuera de alcance a propósito. Su regla es deliberadamente estrecha mientras no
     // haya una tanda de globos etiquetada, así que cuenta de menos — y un objetivo que
     // dice "15 globos" marcado como fallado cuando el jugador hizo quince es peor que

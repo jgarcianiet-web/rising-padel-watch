@@ -149,6 +149,9 @@ class ShotClassifier(
         //
         // Solo existe si el jugador ha grabado globos: sin su tanda, `lobMaxPeakGyroRadS`
         // es null y esta rama no se pisa nunca. Ver el comentario del campo.
+        val axial = features.axialRotationRadS
+        val axialAbs = abs(axial)
+
         val lobMaxPico = config.lobMaxPeakGyroRadS
         if (lobMaxPico != null &&
             features.sweptAngleDeg >= config.lobSweptDeg &&
@@ -156,11 +159,10 @@ class ShotClassifier(
         ) {
             val largoMargin = margin(features.sweptAngleDeg, config.lobSweptDeg, 60f)
             val lentoMargin = margin(features.peakGyroRadS, lobMaxPico, 4f)
-            return finalize(ShotType.LOB, 0.5f + 0.25f * largoMargin + 0.25f * lentoMargin)
+            // El lado, por el signo del efecto, igual que en la volea.
+            val tipo = if (axial > 0f) ShotType.FOREHAND_LOB else ShotType.BACKHAND_LOB
+            return finalize(tipo, 0.5f + 0.25f * largoMargin + 0.25f * lentoMargin)
         }
-
-        val axial = features.axialRotationRadS
-        val axialAbs = abs(axial)
 
         // La firma de la volea es doble (validado en pista, ago 2026): swing corto, o
         // swing medio con la pala quieta — voleas reales con acompañamiento barrían

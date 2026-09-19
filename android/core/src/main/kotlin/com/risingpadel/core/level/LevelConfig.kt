@@ -68,7 +68,8 @@ data class LevelConfig(
             // lo hace bueno es la altura y la profundidad, y ninguna de las dos las ve
             // el reloj. Su banda de velocidad es la más corta de todas a propósito —
             // premia el recorrido limpio, no la fuerza.
-            ShotType.LOB to ShotBand(18f, 40f, idealSweptDeg = 180f),
+            ShotType.FOREHAND_LOB to ShotBand(18f, 40f, idealSweptDeg = 180f),
+            ShotType.BACKHAND_LOB to ShotBand(17f, 38f, idealSweptDeg = 170f),
         )
 
         val DEFAULT = LevelConfig()

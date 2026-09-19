@@ -109,6 +109,7 @@ public enum ThresholdCalibrator {
     public static let minSeparacionEjeDeg: Float = 15
 
     private static let altos: Set<ShotType> = [.bandeja, .vibora, .smash]
+    private static let globos: Set<ShotType> = [.forehandLob, .backhandLob]
     private static let voleas: Set<ShotType> = [.forehandVolley, .backhandVolley]
     private static let fondo: Set<ShotType> = [.forehand, .backhand]
 
@@ -188,9 +189,10 @@ public enum ThresholdCalibrator {
         // no por barrido porque el barrido del globo y el de una derecha larga son el
         // mismo. Ojo al orden: aquí la familia "alta" es el RESTO, porque lo que define
         // al globo es quedarse por debajo.
-        let picoGlobos = etiquetados.filter { $0.0 == .lob }.map { $0.1.peakGyroRadS }
+        let picoGlobos = etiquetados.filter { globos.contains($0.0) }
+            .map { $0.1.peakGyroRadS }
         let picoOtrosBajos = etiquetados
-            .filter { !altos.contains($0.0) && $0.0 != .lob && $0.0 != .serve }
+            .filter { !altos.contains($0.0) && !globos.contains($0.0) && $0.0 != .serve }
             .map { $0.1.peakGyroRadS }
         let globo = frontera(bajos: picoGlobos, altos: picoOtrosBajos, rango: 6...16)
 

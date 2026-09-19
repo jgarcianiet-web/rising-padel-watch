@@ -256,7 +256,7 @@ enum ColorDeGolpe {
         case .forehandVolley, .backhandVolley: return T.verde
         // El globo es defensa: azul apagado, lejos del naranja de la bandeja y del
         // verde de la volea, que son los dos golpes con los que se puede confundir.
-        case .lob: return Color(red: 0.28, green: 0.55, blue: 0.72)
+        case .forehandLob, .backhandLob: return Color(red: 0.28, green: 0.55, blue: 0.72)
         case .bandeja: return .orange
         case .vibora: return Color(red: 0.70, green: 0.27, blue: 0.44)
         case .smash: return T.rojo
@@ -293,7 +293,8 @@ struct ShotBreakdownChart: View {
         case .backhand: return "Revés"
         case .forehandVolley: return "Volea de derecha"
         case .backhandVolley: return "Volea de revés"
-        case .lob: return "Globo"
+        case .forehandLob: return "Globo de derecha"
+        case .backhandLob: return "Globo de revés"
         case .bandeja: return "Bandeja"
         case .vibora: return "Víbora"
         case .smash: return "Smash"

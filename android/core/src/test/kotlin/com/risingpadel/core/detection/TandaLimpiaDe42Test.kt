@@ -127,7 +127,10 @@ class TandaLimpiaDe42Test {
     fun `el globo no le roba ni un golpe a esta tanda`() {
         // La regla del globo vive en un hueco vacío del espacio de rasgos; esto
         // comprueba que sigue vacío. Aquí no hubo globos: cualquiera que salga, robado.
-        val robados = tanda.filter { classifier.classify(it.rasgos()).type == ShotType.LOB }
+        val robados = tanda.filter {
+            val t = classifier.classify(it.rasgos()).type
+            t == ShotType.FOREHAND_LOB || t == ShotType.BACKHAND_LOB
+        }
         assertTrue(robados.isEmpty(), "el globo se llevó: ${robados.map { it.n }}")
     }
 

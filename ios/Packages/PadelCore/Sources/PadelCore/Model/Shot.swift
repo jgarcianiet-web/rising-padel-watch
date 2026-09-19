@@ -5,12 +5,19 @@ public enum ShotType: String, Codable, CaseIterable, Sendable {
     case forehand
     case backhand
 
-    /// El globo: recorrido completo y sin velocidad, el golpe defensivo del pádel.
+    /// El globo, con su lado: recorrido completo y sin velocidad, el golpe defensivo
+    /// del pádel.
     ///
     /// Se detecta por esa contradicción —swing largo pero lento— y solo cuando el
     /// jugador ha grabado su tanda de globos: "lento" no significa lo mismo para dos
     /// muñecas. Ver `DetectorConfig.lobMaxPeakGyroRadS`.
-    case lob
+    ///
+    /// El lado sale del signo de la rotación axial, igual que en la volea. A diferencia
+    /// de la volea, aquí el signo tiene una oportunidad razonable de acertar: un globo
+    /// es un swing completo con muñeca, no un bloqueo. Pero es una expectativa, no una
+    /// medida — no hay todavía ninguna tanda de globos con la que comprobarlo.
+    case forehandLob
+    case backhandLob
     case forehandVolley
     case backhandVolley
 
@@ -32,11 +39,7 @@ public enum ShotType: String, Codable, CaseIterable, Sendable {
         if let type = ShotType(rawValue: value) { return type }
         // Sesiones anteriores a separar los golpes altos: "overhead" agrupaba bandeja,
         // víbora y smash. Se mapea a bandeja, que es el más común.
-        if value == "overhead" { return .bandeja }
-        // "globo" es como lo escribía el catálogo manual heredado de Padel Band, desde
-        // antes de que el detector tuviera el tipo.
-        if value == "globo" { return .lob }
-        return .unknown
+        return value == "overhead" ? .bandeja : .unknown
     }
 }
 

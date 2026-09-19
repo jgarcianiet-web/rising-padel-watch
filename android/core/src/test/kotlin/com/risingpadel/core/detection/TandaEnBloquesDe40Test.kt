@@ -129,7 +129,10 @@ class TandaEnBloquesDe40Test {
         // La regla del globo se puso en un hueco vacío del espacio de rasgos, y esto es
         // lo que comprueba que el hueco sigue vacío. En esta tanda no hay globos, así
         // que cualquier LOB que salga aquí es un golpe robado.
-        val robados = tanda.filter { deFabrica.classify(it.rasgos()).type == ShotType.LOB }
+        val robados = tanda.filter {
+            val t = deFabrica.classify(it.rasgos()).type
+            t == ShotType.FOREHAND_LOB || t == ShotType.BACKHAND_LOB
+        }
         assertTrue(robados.isEmpty(), "el globo se llevó: ${robados.map { it.n }}")
     }
 

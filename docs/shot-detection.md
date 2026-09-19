@@ -99,20 +99,27 @@ salió de la tanda de 40 en bloques (ago 2026): la firma clásica (mucha pronaci
 completo) solo pescaba uno de cinco saques reales; el gesto de armar (+10..+27° de
 preparación) los compartían los cinco y ningún otro golpe bajo de las dos tandas limpias.
 
-## El repertorio visible: nueve tipos por dentro, siete de cara al jugador
+## El repertorio visible: diez tipos por dentro, nueve de cara al jugador
 
-El detector distingue nueve tipos; la app enseña siete (`GolpeVisible`, en los dos
-cores). Se pliegan **la víbora dentro de la bandeja** y **el lado de la volea**, que son
-justo las dos distinciones que los datos dicen que hoy no se sostienen. Medido sobre los
-82 golpes etiquetados de las dos tandas limpias:
+El detector distingue diez tipos; la app enseña nueve (`GolpeVisible`, en los dos
+cores). **La única familia que se pliega es la víbora dentro de la bandeja**: las dos
+tandas limpias se contradicen sobre cuál se golpea más alta, así que separarlas sin
+calibrar es una moneda al aire con dos nombres. Medido sobre los 82 golpes etiquetados:
 
-| | ocho tipos | repertorio visible |
+| | diez tipos | repertorio visible |
 |---|---|---|
-| tanda de 42 | 71 % | **85 %** |
+| tanda de 42 | 71 % | **76 %** |
 | tanda de 40 (calibrada) | 80 % | **82 %** |
-| las dos juntas | 68 % | **79 %** |
+| las dos juntas | 68 % | **74 %** |
 
-Las tandas se siguen grabando con los nueve tipos: esto solo decide qué se le enseña a
+**La volea y el globo sí llevan lado**, aunque plegarlo daría más acierto de tabla (85 %
+en la tanda de 42 en vez de 76 %). Tener floja la volea de derecha no es lo mismo que
+tenerla de revés, y una app que no se lo puede decir al jugador no le sirve para
+entrenar: el porcentaje mide otra cosa que lo útil que es el dato. Con la salvedad
+dicha en voz alta — **el lado de la volea hoy es poco fiable**, lo decide un signo de
+rotación axial que en las voleas reales midió entre 0,1 y 3,9 rad/s, que es ruido.
+
+Las tandas se siguen grabando con los diez tipos: esto solo decide qué se le enseña a
 una persona, no qué aprende el modelo.
 
 ## El globo, y por qué no tiene umbral de fábrica

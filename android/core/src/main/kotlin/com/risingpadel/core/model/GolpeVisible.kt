@@ -6,36 +6,43 @@ package com.risingpadel.core.model
  *
  * ### Por qué existe esta capa
  *
- * El detector separa nueve tipos; la app enseña siete. La diferencia no es cosmética,
- * es una decisión medida. Con las dos tandas limpias de pista (82 golpes etiquetados,
- * ago 2026) el acierto es:
+ * El detector separa diez tipos; la app enseña nueve. **La única que se pliega es la
+ * víbora dentro de la bandeja**, y no por gusto: las dos tandas limpias de pista se
+ * contradicen sobre cuál de las dos se golpea más alta, así que separarlas sin calibrar
+ * es echar una moneda al aire con dos nombres puestos.
  *
- * | | ocho tipos | repertorio visible |
+ * Medido sobre los 82 golpes etiquetados de esas dos tandas (ago 2026):
+ *
+ * | | diez tipos | repertorio visible |
  * |---|---|---|
- * | tanda de 42 | 71 % | **85 %** |
+ * | tanda de 42 | 71 % | **76 %** |
  * | tanda de 40 (calibrada) | 80 % | **82 %** |
- * | las dos juntas | 68 % | **79 %** |
+ * | las dos juntas | 68 % | **74 %** |
  *
- * Las dos distinciones que se pliegan son justo las dos que los datos dicen que hoy no
- * se pueden sostener:
+ * ### Por qué la volea y el globo SÍ llevan lado
  *
- * - **Víbora dentro de bandeja.** Las dos tandas se contradicen: en una la bandeja se
- *   golpea más alta que la víbora y en la otra más baja. Mientras un jugador no calibre
- *   con sus propias tandas, separarlas es echar una moneda al aire con dos nombres.
- * - **El lado de la volea.** Una volea es un bloqueo sin muñeca, y el efecto que
- *   decidiría el lado sencillamente no está en la señal: las diez voleas de la tanda de
- *   42 midieron entre 0,1 y 3,9 de rotación axial, que es ruido.
+ * Plegar también el lado de la volea daba más acierto de tabla —85 % en la tanda de 42
+ * en vez de 76 %— y aun así se descartó: para un jugador no es lo mismo tener floja la
+ * volea de derecha que la de revés, y una app que no se lo puede decir no le sirve para
+ * entrenar. El número de la tabla mide otra cosa que lo útil que es el dato.
  *
- * Nada de esto se pierde: el detector **sigue** produciendo los nueve tipos y las tandas
- * se graban con ellos, que es lo que alimenta al modelo entrenado. Esto solo decide qué
- * se le enseña a una persona. Cuando el modelo sepa separar víbora de bandeja con datos
- * de verdad, aquí se deshace el pliegue y ya está.
+ * Hay que decirlo claro de todas formas: **el lado de la volea hoy es poco fiable**. Lo
+ * decide el signo de la rotación axial, y las diez voleas de la tanda de 42 midieron
+ * entre 0,1 y 3,9 rad/s, que es ruido. En el globo el mismo signo tiene mejor pinta —es
+ * un swing completo con muñeca, no un bloqueo— pero no hay tanda con la que decirlo.
+ * Las dos cosas las arregla el modelo entrenado, no un umbral.
+ *
+ * El detector **sigue** produciendo los diez tipos y las tandas se graban con ellos, que
+ * es lo que alimenta al modelo. Esto solo decide qué se le enseña a una persona: cuando
+ * el modelo sepa separar víbora de bandeja de verdad, aquí se deshace el pliegue.
  */
 enum class GolpeVisible(val etiqueta: String) {
     DERECHA("Derecha"),
     REVES("Revés"),
-    VOLEA("Volea"),
-    GLOBO("Globo"),
+    VOLEA_DERECHA("Volea de derecha"),
+    VOLEA_REVES("Volea de revés"),
+    GLOBO_DERECHA("Globo de derecha"),
+    GLOBO_REVES("Globo de revés"),
     BANDEJA("Bandeja"),
     REMATE("Remate"),
     SAQUE("Saque");
@@ -45,8 +52,10 @@ enum class GolpeVisible(val etiqueta: String) {
         fun de(tipo: ShotType): GolpeVisible? = when (tipo) {
             ShotType.FOREHAND -> DERECHA
             ShotType.BACKHAND -> REVES
-            ShotType.FOREHAND_VOLLEY, ShotType.BACKHAND_VOLLEY -> VOLEA
-            ShotType.LOB -> GLOBO
+            ShotType.FOREHAND_VOLLEY -> VOLEA_DERECHA
+            ShotType.BACKHAND_VOLLEY -> VOLEA_REVES
+            ShotType.FOREHAND_LOB -> GLOBO_DERECHA
+            ShotType.BACKHAND_LOB -> GLOBO_REVES
             // La víbora se pliega dentro de la bandeja: las dos son el golpe alto de
             // control y hoy no se separan con garantías. Ver la cabecera.
             ShotType.BANDEJA, ShotType.VIBORA -> BANDEJA

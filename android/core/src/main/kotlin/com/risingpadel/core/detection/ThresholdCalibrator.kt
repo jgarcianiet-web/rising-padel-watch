@@ -111,6 +111,7 @@ object ThresholdCalibrator {
     const val MIN_SEPARACION_EJE_DEG = 15f
 
     private val ALTOS = setOf(ShotType.BANDEJA, ShotType.VIBORA, ShotType.SMASH)
+    private val GLOBOS = setOf(ShotType.FOREHAND_LOB, ShotType.BACKHAND_LOB)
     private val VOLEAS = setOf(ShotType.FOREHAND_VOLLEY, ShotType.BACKHAND_VOLLEY)
     private val FONDO = setOf(ShotType.FOREHAND, ShotType.BACKHAND)
 
@@ -195,10 +196,10 @@ object ThresholdCalibrator {
         //
         // Ojo al orden de los argumentos: aquí la familia "alta" es el RESTO, porque lo
         // que define al globo es quedarse por debajo.
-        val picoGlobos = etiquetados.filter { it.first == ShotType.LOB }
+        val picoGlobos = etiquetados.filter { it.first in GLOBOS }
             .map { it.second.peakGyroRadS }
         val picoOtrosBajos = etiquetados
-            .filter { it.first !in ALTOS && it.first != ShotType.LOB && it.first != ShotType.SERVE }
+            .filter { it.first !in ALTOS && it.first !in GLOBOS && it.first != ShotType.SERVE }
             .map { it.second.peakGyroRadS }
         val globo = frontera(picoGlobos, picoOtrosBajos, rango = 6f..16f)
 

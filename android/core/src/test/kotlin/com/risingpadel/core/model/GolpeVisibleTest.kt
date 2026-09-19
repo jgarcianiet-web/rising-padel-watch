@@ -13,15 +13,19 @@ class GolpeVisibleTest {
     }
 
     @Test
-    fun `la volea pierde el lado`() {
-        assertEquals(GolpeVisible.VOLEA, GolpeVisible.de(ShotType.FOREHAND_VOLLEY))
-        assertEquals(GolpeVisible.VOLEA, GolpeVisible.de(ShotType.BACKHAND_VOLLEY))
+    fun `la volea conserva el lado`() {
+        // Cuesta acierto de tabla (85 % a 76 % en la tanda de 42) y se mantiene igual:
+        // tener floja la volea de derecha no es lo mismo que tenerla de revés, y sin
+        // esa distinción la app no sirve para entrenar.
+        assertEquals(GolpeVisible.VOLEA_DERECHA, GolpeVisible.de(ShotType.FOREHAND_VOLLEY))
+        assertEquals(GolpeVisible.VOLEA_REVES, GolpeVisible.de(ShotType.BACKHAND_VOLLEY))
     }
 
     @Test
-    fun `el globo es un golpe de primera y tiene su sitio`() {
-        assertEquals(GolpeVisible.GLOBO, GolpeVisible.de(ShotType.LOB))
-        assertEquals("Globo", GolpeVisible.GLOBO.etiqueta)
+    fun `el globo es un golpe de primera y tambien lleva lado`() {
+        assertEquals(GolpeVisible.GLOBO_DERECHA, GolpeVisible.de(ShotType.FOREHAND_LOB))
+        assertEquals(GolpeVisible.GLOBO_REVES, GolpeVisible.de(ShotType.BACKHAND_LOB))
+        assertEquals("Globo de derecha", GolpeVisible.GLOBO_DERECHA.etiqueta)
     }
 
     @Test
@@ -30,11 +34,10 @@ class GolpeVisibleTest {
     }
 
     @Test
-    fun `el repertorio visible son siete golpes`() {
-        // Los cinco del MVP (derecha, revés, volea, bandeja, remate) más el globo, más
-        // el saque, que se queda porque el detector lo saca 5 de 5 desde la firma del
-        // brazo armado.
-        assertEquals(7, GolpeVisible.entries.size)
+    fun `el repertorio visible son nueve golpes`() {
+        // Derecha, revés, las dos voleas, los dos globos, bandeja, remate y saque. La
+        // única familia plegada es víbora dentro de bandeja.
+        assertEquals(9, GolpeVisible.entries.size)
     }
 
     @Test
@@ -60,7 +63,8 @@ class GolpeVisibleTest {
         )
         val contados = GolpeVisible.agruparRecuentos(recuentos)
         assertEquals(15, contados[GolpeVisible.BANDEJA])
-        assertEquals(10, contados[GolpeVisible.VOLEA])
+        assertEquals(4, contados[GolpeVisible.VOLEA_DERECHA])
+        assertEquals(6, contados[GolpeVisible.VOLEA_REVES])
         // Un tipo con cero golpes no ocupa sitio en la ficha.
         assertNull(contados[GolpeVisible.REMATE])
     }

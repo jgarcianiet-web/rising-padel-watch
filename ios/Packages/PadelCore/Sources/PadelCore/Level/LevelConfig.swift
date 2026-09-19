@@ -102,7 +102,8 @@ public struct LevelConfig: Sendable {
         // El globo es el golpe donde pegar fuerte es directamente el error: lo que lo
         // hace bueno es la altura y la profundidad, y ninguna de las dos las ve el
         // reloj. Su banda de velocidad es la más corta de todas a propósito.
-        .lob: ShotBand(speedAtLevel1: 18, speedAtLevel7: 40, idealSweptDeg: 180),
+        .forehandLob: ShotBand(speedAtLevel1: 18, speedAtLevel7: 40, idealSweptDeg: 180),
+        .backhandLob: ShotBand(speedAtLevel1: 17, speedAtLevel7: 38, idealSweptDeg: 170),
     ]
 
     public static let `default` = LevelConfig()

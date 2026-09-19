@@ -9,13 +9,20 @@ enum class ShotType(val wireName: String) {
     BACKHAND("backhand"),
 
     /**
-     * El globo: recorrido completo y sin velocidad, el golpe defensivo del pádel.
+     * El globo, con su lado: recorrido completo y sin velocidad, el golpe defensivo
+     * del pádel.
      *
-     * Se detecta por esa contradicción —swing largo pero lento— porque es la única
-     * región del espacio de rasgos que ningún otro golpe bajo ocupa. Ver
-     * [com.risingpadel.core.detection.DetectorConfig.lobSweptDeg].
+     * Se detecta por esa contradicción —swing largo pero lento— y solo cuando el
+     * jugador ha grabado su tanda de globos, porque "lento" no significa lo mismo para
+     * dos muñecas. Ver [com.risingpadel.core.detection.DetectorConfig.lobMaxPeakGyroRadS].
+     *
+     * El lado se decide por el signo de la rotación axial, igual que en la volea. A
+     * diferencia de la volea, aquí el signo tiene una oportunidad razonable de acertar:
+     * un globo es un swing completo con muñeca, no un bloqueo. Pero es una expectativa,
+     * no una medida — no hay todavía ninguna tanda de globos con la que comprobarlo.
      */
-    LOB("lob"),
+    FOREHAND_LOB("forehandLob"),
+    BACKHAND_LOB("backhandLob"),
     FOREHAND_VOLLEY("forehandVolley"),
     BACKHAND_VOLLEY("backhandVolley"),
 
@@ -35,11 +42,7 @@ enum class ShotType(val wireName: String) {
             entries.firstOrNull { it.wireName == value }
                 // Sesiones anteriores a separar los golpes altos: "overhead" agrupaba
                 // bandeja, víbora y smash. Se mapea a bandeja, que es el más común.
-                ?: if (value == "overhead") BANDEJA
-                // "globo" es como lo escribía el catálogo manual heredado de Padel Band,
-                // desde antes de que el detector tuviera el tipo.
-                else if (value == "globo") LOB
-                else UNKNOWN
+                ?: if (value == "overhead") BANDEJA else UNKNOWN
     }
 }
 

@@ -55,24 +55,24 @@ class GloboTest {
             rasgos(barrido = 160f, pico = 11f),
             rasgos(barrido = 250f, pico = 7f),
         )
-        assertTrue(candidatos.none { deFabrica.classify(it).type == ShotType.LOB })
+        assertTrue(candidatos.none { esGlobo(deFabrica.classify(it).type) })
     }
 
     @Test
     fun `con la tanda del jugador, un swing largo y lento sale globo`() {
-        assertEquals(ShotType.LOB, conGlobos.classify(rasgos(barrido = 190f, pico = 9f)).type)
-        assertEquals(ShotType.LOB, conGlobos.classify(rasgos(barrido = 160f, pico = 11f)).type)
+        assertTrue(esGlobo(conGlobos.classify(rasgos(barrido = 190f, pico = 9f)).type))
+        assertTrue(esGlobo(conGlobos.classify(rasgos(barrido = 160f, pico = 11f)).type))
     }
 
     @Test
-    fun `el globo no tiene lado`() {
-        // Se globea de derecha y de revés y sigue siendo el mismo golpe: la regla no
-        // mira el signo del efecto, y no debe.
+    fun `el globo lleva lado, y lo decide el efecto`() {
         assertEquals(
-            ShotType.LOB, conGlobos.classify(rasgos(barrido = 175f, pico = 10f, axial = 3f)).type
+            ShotType.FOREHAND_LOB,
+            conGlobos.classify(rasgos(barrido = 175f, pico = 10f, axial = 3f)).type,
         )
         assertEquals(
-            ShotType.LOB, conGlobos.classify(rasgos(barrido = 175f, pico = 10f, axial = -3f)).type
+            ShotType.BACKHAND_LOB,
+            conGlobos.classify(rasgos(barrido = 175f, pico = 10f, axial = -3f)).type,
         )
     }
 
@@ -119,7 +119,7 @@ class GloboTest {
         // Un jugador que globea a 8-9 rad/s y pega sus derechas y reveses a 15-17.
         val etiquetados =
             List(6) { i ->
-                ShotType.LOB to rasgos(barrido = 170f + i, pico = 8f + i * 0.2f)
+                ShotType.FOREHAND_LOB to rasgos(barrido = 170f + i, pico = 8f + i * 0.2f)
             } +
             List(6) { i ->
                 ShotType.FOREHAND to rasgos(barrido = 120f + i, pico = 16f + i * 0.2f, axial = 8f)
@@ -137,9 +137,7 @@ class GloboTest {
 
         // Y con él puesto, los globos de ESE jugador salen.
         val conSuCalibracion = ShotClassifier(DetectorConfig.DEFAULT.aplicando(calibracion))
-        assertEquals(
-            ShotType.LOB, conSuCalibracion.classify(rasgos(barrido = 175f, pico = 8.5f)).type
-        )
+        assertTrue(esGlobo(conSuCalibracion.classify(rasgos(barrido = 175f, pico = 8.5f)).type))
     }
 
     @Test
@@ -150,10 +148,12 @@ class GloboTest {
     }
 
     @Test
-    fun `el globo tiene banda de nivel propia`() {
-        assertNotNull(
-            com.risingpadel.core.level.LevelConfig.DEFAULT_BANDS[ShotType.LOB],
-            "sin banda, un globo no puntúa y desaparece del nivel",
-        )
+    fun `los dos globos tienen banda de nivel propia`() {
+        // Sin banda, un globo no puntúa y desaparece del nivel del jugador.
+        assertNotNull(com.risingpadel.core.level.LevelConfig.DEFAULT_BANDS[ShotType.FOREHAND_LOB])
+        assertNotNull(com.risingpadel.core.level.LevelConfig.DEFAULT_BANDS[ShotType.BACKHAND_LOB])
     }
+
+    private fun esGlobo(tipo: ShotType) =
+        tipo == ShotType.FOREHAND_LOB || tipo == ShotType.BACKHAND_LOB
 }
