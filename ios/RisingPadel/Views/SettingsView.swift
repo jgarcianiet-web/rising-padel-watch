@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var token = ""
     @State private var coachKey = ""
     @State private var hasCoachKey = CoachKeyStore.read() != nil
+    @State private var videoLabAbierto = false
 
     var body: some View {
         NavigationStack {
@@ -43,6 +44,9 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .fullScreenCover(isPresented: $mandoAbierto) {
                 TrainingRemoteView().environmentObject(model)
+            }
+            .fullScreenCover(isPresented: $videoLabAbierto) {
+                VideoLabView()
             }
             .background(T.fondo)
             .tint(T.pista)
@@ -265,6 +269,16 @@ struct SettingsView: View {
                     mandoAbierto = true
                 } label: {
                     Label("Dirigir tandas desde el móvil", systemImage: "dot.radiowaves.left.and.right")
+                }
+
+                // El Video Lab va aquí y no en una pestaña propia: es la otra mitad
+                // del laboratorio —la verdad de lo que pasó, vista en vídeo, contra lo
+                // que creyó el reloj— y la usa quien está construyendo el detector, no
+                // quien viene a mirar cómo jugó el sábado.
+                Button {
+                    videoLabAbierto = true
+                } label: {
+                    Label("Video Lab", systemImage: "film.stack")
                 }
 
                 if let url = model.trainingDataURL {

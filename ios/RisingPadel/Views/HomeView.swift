@@ -104,9 +104,9 @@ struct HomeView: View {
         let actual = LigaMetrics.nivelActual(liga.state.matches, perfil: liga.state.perfil)
         let delta = LigaMetrics.deltaNivel(liga.state.matches, perfil: liga.state.perfil)
 
-        return Tarjeta {
+        return PadelCard {
             VStack(spacing: 4) {
-                Rotulo("RISING LEVEL")
+                SectionLabel("RISING LEVEL")
                 if let actual {
                     Text(String(format: "%.2f", actual))
                         .font(.system(size: 54, weight: .heavy, design: .rounded))
@@ -141,9 +141,9 @@ struct HomeView: View {
         if !perfil.nivelObjetivo.isEmpty,
            let porcentaje = LigaMetrics.progresoMeta(liga.state.matches, perfil: perfil) {
             Button { irA(.objetivos) } label: {
-                Tarjeta {
+                PadelCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        Rotulo("OBJETIVO")
+                        SectionLabel("OBJETIVO")
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(perfil.nivelPlaytomic.isEmpty ? "—" : perfil.nivelPlaytomic)
                                 .font(.system(size: 26, weight: .bold, design: .rounded))
@@ -154,10 +154,11 @@ struct HomeView: View {
                                 .font(.system(size: 26, weight: .bold, design: .rounded))
                                 .foregroundStyle(T.pista)
                         }
-                        Barra(fraccion: Double(porcentaje) / 100, color: T.pista)
-                        Text("\(porcentaje) %")
-                            .font(.caption)
-                            .foregroundStyle(T.tintaSuave)
+                        PadelBar(
+                            label: "Progreso",
+                            value: "\(porcentaje) %",
+                            fraction: Float(porcentaje) / 100
+                        )
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -172,9 +173,9 @@ struct HomeView: View {
     private var areaDeMejora: some View {
         if let area = ProgresoDeGolpes.principalAreaDeMejora(progresos) {
             Button { irA(.objetivos) } label: {
-                Tarjeta {
+                PadelCard {
                     VStack(alignment: .leading, spacing: 8) {
-                        Rotulo("PRINCIPAL ÁREA DE MEJORA")
+                        SectionLabel("PRINCIPAL ÁREA DE MEJORA")
                         Text(area.objetivo.golpe.uppercased())
                             .font(.system(size: 22, weight: .heavy, design: .rounded))
                             .foregroundStyle(T.tinta)
@@ -185,7 +186,12 @@ struct HomeView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(T.tintaSuave)
                         }
-                        Barra(fraccion: area.fraccion, color: T.lima)
+                        PadelBar(
+                            label: "Progreso",
+                            value: "\(area.porcentaje) %",
+                            fraction: Float(area.fraccion),
+                            color: T.lima
+                        )
                         if area.notaActual != nil {
                             Text(
                                 (area.avance >= 0 ? "+" : "")
@@ -204,9 +210,9 @@ struct HomeView: View {
             // Sin objetivos no hay área de mejora que enseñar, y decirlo es más útil
             // que dejar el hueco en blanco: es la acción que falta por hacer.
             Button { irA(.objetivos) } label: {
-                Tarjeta {
+                PadelCard {
                     VStack(alignment: .leading, spacing: 6) {
-                        Rotulo("TUS OBJETIVOS")
+                        SectionLabel("TUS OBJETIVOS")
                         Text("Ponle una meta a un golpe")
                             .font(.headline)
                             .foregroundStyle(T.tinta)
@@ -233,18 +239,18 @@ struct HomeView: View {
             // `LastSessionView` porque esa última trae su propio NavigationStack y
             // anidarlos deja dos barras de título, una encima de la otra.
             NavigationLink { SessionDetailView(session: sesion) } label: {
-                Tarjeta {
+                PadelCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Rotulo("ÚLTIMO PARTIDO")
+                        SectionLabel("ÚLTIMO PARTIDO")
                         HStack(spacing: 18) {
-                            Dato(
-                                titulo: "Nivel",
-                                valor: sesion.level.gradedShots > 0
+                            StatTile(
+                                label: "Nivel",
+                                value: sesion.level.gradedShots > 0
                                     ? String(format: "%.2f", sesion.level.overall)
                                     : "—"
                             )
-                            Dato(titulo: "Duración", valor: formatDuration(sesion.durationSeconds))
-                            Dato(titulo: "Intensidad", valor: intensidad(sesion))
+                            StatTile(label: "Duración", value: formatDuration(sesion.durationSeconds))
+                            StatTile(label: "Intensidad", value: intensidad(sesion))
                         }
                         Text("Ver análisis")
                             .font(.caption.bold())
@@ -276,11 +282,11 @@ struct HomeView: View {
 
     private var tarjetaCoach: some View {
         Button { irA(.coach) } label: {
-            Tarjeta {
+            PadelCard {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 6) {
                         Image(systemName: "brain.head.profile")
-                        Rotulo("RISING AI")
+                        SectionLabel("RISING AI")
                     }
                     Text(liga.state.analisis?.lectura ?? "Pregúntale a tu entrenador qué entrenar esta semana.")
                         .font(.subheadline)
@@ -295,69 +301,5 @@ struct HomeView: View {
             }
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Piezas compartidas de la portada
-
-/// El contenedor de todas las tarjetas. Existe para que no haya seis definiciones
-/// distintas de "tarjeta" con radios y sombras que no coinciden.
-struct Tarjeta<Contenido: View>: View {
-    @ViewBuilder let contenido: Contenido
-
-    var body: some View {
-        contenido
-            .padding(16)
-            .background(T.superficie, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).stroke(T.borde, lineWidth: 1))
-    }
-}
-
-/// El rótulo pequeño en mayúsculas que encabeza cada tarjeta.
-struct Rotulo: View {
-    private let texto: String
-    init(_ texto: String) { self.texto = texto }
-
-    var body: some View {
-        Text(texto)
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .tracking(1.1)
-            .foregroundStyle(T.tintaSuave)
-    }
-}
-
-/// Una barra de progreso con la altura y el radio de la app. La de sistema no deja
-/// fijar el color en todos los estilos y quedaba de un azul que no es el nuestro.
-struct Barra: View {
-    let fraccion: Double
-    var color: Color = T.pista
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(T.borde)
-                Capsule()
-                    .fill(color)
-                    .frame(width: geo.size.width * min(max(fraccion, 0), 1))
-            }
-        }
-        .frame(height: 8)
-    }
-}
-
-/// Un número con su etiqueta debajo, la unidad mínima de las fichas.
-struct Dato: View {
-    let titulo: String
-    let valor: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(valor)
-                .font(.system(size: 19, weight: .bold, design: .rounded))
-                .foregroundStyle(T.tinta)
-            Text(titulo)
-                .font(.caption2)
-                .foregroundStyle(T.tintaSuave)
-        }
     }
 }

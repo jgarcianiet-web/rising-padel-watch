@@ -56,9 +56,9 @@ struct ObjetivosView: View {
     // MARK: Cabecera de la temporada
 
     private func cabecera(_ temporada: LigaTemporada) -> some View {
-        Tarjeta {
+        PadelCard {
             VStack(alignment: .leading, spacing: 6) {
-                Rotulo("TEMPORADA")
+                SectionLabel("TEMPORADA")
                 Text(temporada.nombre.isEmpty ? "Sin nombre" : temporada.nombre.uppercased())
                     .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .foregroundStyle(T.tinta)
@@ -79,9 +79,9 @@ struct ObjetivosView: View {
         let perfil = liga.state.perfil
         if !perfil.nivelObjetivo.isEmpty,
            let porcentaje = LigaMetrics.progresoMeta(liga.state.matches, perfil: perfil) {
-            Tarjeta {
+            PadelCard {
                 VStack(alignment: .leading, spacing: 8) {
-                    Rotulo("OBJETIVO PRINCIPAL")
+                    SectionLabel("OBJETIVO PRINCIPAL")
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Text(perfil.nivelPlaytomic.isEmpty ? "—" : perfil.nivelPlaytomic)
                             .font(.system(size: 24, weight: .bold, design: .rounded))
@@ -91,9 +91,11 @@ struct ObjetivosView: View {
                             .font(.system(size: 24, weight: .bold, design: .rounded))
                             .foregroundStyle(T.pista)
                     }
-                    Barra(fraccion: Double(porcentaje) / 100, color: T.pista)
-                    Text("\(porcentaje) %")
-                        .font(.caption).foregroundStyle(T.tintaSuave)
+                    PadelBar(
+                        label: "Progreso",
+                        value: "\(porcentaje) %",
+                        fraction: Float(porcentaje) / 100
+                    )
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -105,9 +107,9 @@ struct ObjetivosView: View {
     @ViewBuilder
     private var objetivosTecnicos: some View {
         if progresos.isEmpty {
-            Tarjeta {
+            PadelCard {
                 VStack(alignment: .leading, spacing: 8) {
-                    Rotulo("OBJETIVOS TÉCNICOS")
+                    SectionLabel("OBJETIVOS TÉCNICOS")
                     Text("Todavía no has puesto ninguno")
                         .font(.headline).foregroundStyle(T.tinta)
                     Text("Elige un golpe, mira la nota que tienes hoy y ponle una meta. Cada partido te dirá si te estás acercando.")
@@ -121,7 +123,7 @@ struct ObjetivosView: View {
         } else {
             VStack(spacing: 10) {
                 HStack {
-                    Rotulo("OBJETIVOS TÉCNICOS")
+                    SectionLabel("OBJETIVOS TÉCNICOS")
                     Spacer()
                 }
                 ForEach(progresos, id: \.objetivo.golpe) { progreso in
@@ -137,9 +139,9 @@ struct ObjetivosView: View {
     // MARK: Sin temporada
 
     private var sinTemporada: some View {
-        Tarjeta {
+        PadelCard {
             VStack(alignment: .leading, spacing: 8) {
-                Rotulo("SIN TEMPORADA ABIERTA")
+                SectionLabel("SIN TEMPORADA ABIERTA")
                 Text("Los objetivos viven dentro de una temporada")
                     .font(.headline).foregroundStyle(T.tinta)
                 Text("Una temporada es un tramo con fecha de inicio y de fin — «Reto hacia nivel 4», de octubre a diciembre. Ábrela en Ajustes de la liga y aquí podrás ponerle metas a cada golpe.")
@@ -173,7 +175,7 @@ private struct FilaDeObjetivo: View {
     let progreso: ProgresoDeObjetivo
 
     var body: some View {
-        Tarjeta {
+        PadelCard {
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(progreso.objetivo.golpe)
@@ -202,7 +204,12 @@ private struct FilaDeObjetivo: View {
                         .font(.caption2)
                         .foregroundStyle(T.tintaSuave)
                 }
-                Barra(fraccion: progreso.fraccion, color: progreso.cumplido ? T.verde : T.lima)
+                PadelBar(
+                    label: "Progreso",
+                    value: "\(progreso.porcentaje) %",
+                    fraction: Float(progreso.fraccion),
+                    color: progreso.cumplido ? T.verde : T.lima
+                )
 
                 // Las últimas notas, que es lo que enseña si la tendencia acompaña. Sin
                 // esto, un 60 % no dice si vas subiendo o llevas dos meses parado.

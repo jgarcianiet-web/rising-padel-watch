@@ -86,9 +86,9 @@ struct EvolucionView: View {
             }
             .sorted { $0.0 < $1.0 }
 
-        return Tarjeta {
+        return PadelCard {
             VStack(alignment: .leading, spacing: 10) {
-                Rotulo("RISING LEVEL")
+                SectionLabel("RISING LEVEL")
                 if let ultimo = puntos.last?.1 {
                     Text(String(format: "%.2f", ultimo))
                         .font(.system(size: 40, weight: .heavy, design: .rounded))
@@ -141,11 +141,11 @@ struct EvolucionView: View {
 
         return VStack(spacing: 10) {
             HStack {
-                Rotulo("TUS GOLPES")
+                SectionLabel("TUS GOLPES")
                 Spacer()
             }
             if filas.isEmpty {
-                Tarjeta {
+                PadelCard {
                     Text("No hay golpes medidos en este tramo.")
                         .font(.caption)
                         .foregroundStyle(T.tintaSuave)
@@ -156,7 +156,7 @@ struct EvolucionView: View {
                     NavigationLink {
                         LigaGolpeDetalleView(nombre: nombre)
                     } label: {
-                        Tarjeta {
+                        PadelCard {
                             HStack {
                                 Text(nombre)
                                     .font(.headline)
