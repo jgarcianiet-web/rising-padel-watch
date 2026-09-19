@@ -23,3 +23,6 @@ Packages/*/.build/
 .idea/
 *.iml
 *.swp
+
+# Restos del compilador de Kotlin (sesiones del daemon).
+.kotlin/

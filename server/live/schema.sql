@@ -130,3 +130,15 @@ CREATE TABLE IF NOT EXISTS levels (
   measured REAL NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- El consumo del entrenador IA, una fila por usuario y mes. Existe porque la clave de
+-- Anthropic es del servicio y no del usuario: sin un contador en el servidor, el
+-- endpoint sería un asistente gratis para quien se registre. El plan vive aquí para que
+-- el día que haya suscripción lo único que cambie sea quién escribe esta columna.
+CREATE TABLE IF NOT EXISTS coach_usage (
+  user INTEGER NOT NULL REFERENCES users(id),
+  period TEXT NOT NULL,          -- 'yyyy-mm'
+  plan TEXT NOT NULL DEFAULT 'free',
+  used INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (user, period)
+);

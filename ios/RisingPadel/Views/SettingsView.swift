@@ -148,27 +148,48 @@ struct SettingsView: View {
         }
     }
 
+    /// El entrenador.
+    ///
+    /// La clave de API dejó de ser obligatoria: con cuenta de Rising Pádel, el
+    /// entrenador va contra el servidor y el jugador no tiene que abrir ninguna cuenta
+    /// en Anthropic ni pegar ninguna credencial. Esta sección lo dice en vez de seguir
+    /// pidiendo una clave que ya no hace falta — y solo enseña el campo cuando de
+    /// verdad hace falta o cuando alguien lo despliega a propósito.
     private var coachSection: some View {
         Section {
-            SecureField(hasCoachKey ? "Clave (ya guardada)" : "sk-ant-…", text: $coachKey)
-            Button("Guardar clave") {
-                CoachKeyStore.write(coachKey)
-                coachKey = ""
-                hasCoachKey = CoachKeyStore.read() != nil
+            if CoachService.servidorLoResuelve {
+                Label("Incluido con tu cuenta", systemImage: "checkmark.seal.fill")
+                    .foregroundStyle(T.verde)
+                    .font(.subheadline)
             }
-            .disabled(coachKey.isEmpty)
-            if hasCoachKey {
-                Button("Borrar clave", role: .destructive) {
-                    CoachKeyStore.write(nil)
-                    hasCoachKey = false
+            DisclosureGroup("Usar mi propia clave de API") {
+                SecureField(hasCoachKey ? "Clave (ya guardada)" : "sk-ant-…", text: $coachKey)
+                Button("Guardar clave") {
+                    CoachKeyStore.write(coachKey)
+                    coachKey = ""
+                    hasCoachKey = CoachKeyStore.read() != nil
+                }
+                .disabled(coachKey.isEmpty)
+                if hasCoachKey {
+                    Button("Borrar clave", role: .destructive) {
+                        CoachKeyStore.write(nil)
+                        hasCoachKey = false
+                    }
                 }
             }
         } header: {
             Text("Entrenador IA")
         } footer: {
-            Text("Tu clave de la API de Anthropic (console.anthropic.com) para pedir "
-                 + "análisis al entrenador de la liga. Se guarda cifrada en el Llavero "
-                 + "y nunca viaja en la copia de seguridad de la liga.")
+            Text(
+                CoachService.servidorLoResuelve
+                    ? "El entrenador funciona con tu cuenta de Rising Pádel: no necesitas "
+                        + "ninguna clave. Si prefieres pagar tú el uso, puedes poner la tuya "
+                        + "y la app la usará en su lugar."
+                    : "Conecta tu cuenta en la pestaña Comunidad para usar el entrenador sin "
+                        + "configurar nada. Como alternativa puedes poner tu propia clave de "
+                        + "la API de Anthropic (console.anthropic.com): se guarda cifrada en "
+                        + "el Llavero y nunca viaja en la copia de seguridad."
+            )
         }
     }
 

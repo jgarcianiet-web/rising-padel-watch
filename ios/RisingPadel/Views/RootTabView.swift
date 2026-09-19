@@ -1,9 +1,25 @@
 import PadelCore
 import SwiftUI
 
-/// Raíz de la app: dos pestañas. Lo primero que se ve al abrir es la última sesión con
-/// todos sus datos — es lo que se viene a mirar al salir de la pista —; el histórico
-/// completo vive en su propia pestaña.
+/// Las cinco secciones de la app (§2 del documento de producto).
+///
+/// Vive fuera de la vista porque la portada necesita poder mandar a otra pestaña: una
+/// tarjeta de "principal área de mejora" que no lleva a los objetivos es un adorno.
+enum PestanaPrincipal: Hashable {
+    case inicio, partidos, evolucion, objetivos, coach
+}
+
+/// Raíz de la app: cinco pestañas —inicio, partidos, evolución, objetivos y el
+/// entrenador— y un arranque con la marca.
+///
+/// El orden no es casual: contesta en ese mismo orden a las tres preguntas que el
+/// producto se compromete a responder en cinco segundos (dónde estoy, qué estoy
+/// mejorando, qué hago ahora).
+///
+/// **Comunidad y Ajustes salen de la barra** y pasan a la barra superior de Inicio. Una
+/// barra de siete pestañas no es una barra, es un menú: iOS colapsa a partir de cinco
+/// en un "Más" que esconde justo lo que menos se usa. La comunidad sigue entera, a un
+/// toque, donde se busca — junto a tu perfil.
 struct RootTabView: View {
     @EnvironmentObject private var model: AppModel
     /// La liga vive aquí y no en AppModel: es un dominio con su propio fichero y su
@@ -12,16 +28,41 @@ struct RootTabView: View {
     @StateObject private var comunidad = ComunidadModel()
     @AppStorage("onboardingDone") private var onboardingDone = false
 
+    @State private var pestana: PestanaPrincipal = .inicio
+    /// El splash se quita solo. No bloquea la carga: lo de detrás ya está montado.
+    @State private var arrancando = true
+
     var body: some View {
-        TabView {
-            LastSessionView()
-                .tabItem { Label("Última sesión", systemImage: "figure.tennis") }
-            SessionListView()
-                .tabItem { Label("Histórico", systemImage: "clock.arrow.circlepath") }
-            LigaView()
-                .tabItem { Label("Liga", systemImage: "trophy.fill") }
-            ComunidadView()
-                .tabItem { Label("Comunidad", systemImage: "person.3.fill") }
+        contenido
+            .overlay {
+                if arrancando {
+                    SplashView()
+                        .transition(.opacity)
+                        .task {
+                            try? await Task.sleep(for: .milliseconds(1_100))
+                            withAnimation(.easeInOut(duration: 0.35)) { arrancando = false }
+                        }
+                }
+            }
+    }
+
+    private var contenido: some View {
+        TabView(selection: $pestana) {
+            HomeView(irA: { pestana = $0 })
+                .tabItem { Label("Inicio", systemImage: "house.fill") }
+                .tag(PestanaPrincipal.inicio)
+            PartidosView()
+                .tabItem { Label("Partidos", systemImage: "figure.tennis") }
+                .tag(PestanaPrincipal.partidos)
+            EvolucionView()
+                .tabItem { Label("Evolución", systemImage: "chart.line.uptrend.xyaxis") }
+                .tag(PestanaPrincipal.evolucion)
+            ObjetivosView()
+                .tabItem { Label("Objetivos", systemImage: "target") }
+                .tag(PestanaPrincipal.objetivos)
+            CoachChatView()
+                .tabItem { Label("Rising AI", systemImage: "brain.head.profile") }
+                .tag(PestanaPrincipal.coach)
         }
         .environmentObject(liga)
         .environmentObject(comunidad)

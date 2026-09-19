@@ -18,6 +18,7 @@
 // lleva salud más allá del pulso instantáneo, que solo va si el emisor comparte salud.
 
 import { apuntarResultado, avisarPartidoEnVivo, comunidad, usuarioDe } from "./comunidad.js";
+import { coach } from "./coach.js";
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -86,6 +87,13 @@ export default {
       }
 
       return texto(405, "Método no soportado");
+    }
+
+    // El entrenador IA, con la clave del servicio y cuota por cuenta. Devuelve null
+    // si la ruta no es suya. Ver el porqué en coach.js.
+    if (path.startsWith("/v1/coach")) {
+      const respuesta = await coach(request, env, path);
+      if (respuesta) return respuesta;
     }
 
     // La comunidad entera vive en su módulo; D1 tiene que estar configurada.

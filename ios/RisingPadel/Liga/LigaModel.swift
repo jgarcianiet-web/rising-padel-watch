@@ -111,6 +111,18 @@ final class LigaModel: ObservableObject {
         save()
     }
 
+    /// Reemplaza las metas por golpe de una temporada.
+    ///
+    /// Va por id y no por "la que esté en curso" a propósito: la pantalla de objetivos
+    /// enseña la temporada que enseña, y si alguien cierra una temporada desde otro
+    /// sitio mientras tiene el editor abierto, guardar no puede acabar escribiendo las
+    /// metas en la temporada equivocada.
+    func actualizarObjetivosDeGolpe(_ objetivos: [ObjetivoDeGolpe], enTemporada id: Int64) {
+        guard let index = state.temporadas.firstIndex(where: { $0.id == id }) else { return }
+        state.temporadas[index].objetivosDeGolpe = objetivos
+        save()
+    }
+
     /// El contexto de temporadas para el prompt del entrenador, o nil sin temporadas.
     ///
     /// Dos cosas: dónde está la temporada en curso (meta de partidos incluida) y el

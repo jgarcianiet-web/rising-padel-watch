@@ -26,6 +26,11 @@ database_id = "PON_AQUI_EL_ID_DE_D1"
 #   APNS_KEY_P8    contenido del AuthKey_XXX.p8 de App Store Connect (el mismo de CI)
 #   APNS_KEY_ID    su Key ID
 #   APNS_TEAM_ID   el Team ID de Apple
+#   ANTHROPIC_API_KEY  la clave del SERVICIO para el entrenador IA. Sin ella el
+#                      endpoint /v1/coach devuelve 404 y la app cae a la clave que
+#                      ponga el usuario. Con ella, el usuario no necesita ninguna —
+#                      que es lo que hace vendible la app. Cuota por cuenta y mes
+#                      en la tabla coach_usage; ver src/coach.js.
 # Y una variable normal:
 # Las fotos del muro. Crear con `wrangler r2 bucket create rising-padel-fotos`
 # (R2 hay que activarlo una vez en el panel de Cloudflare; el plan gratuito llega).

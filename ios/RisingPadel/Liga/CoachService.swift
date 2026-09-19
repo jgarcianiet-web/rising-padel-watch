@@ -67,11 +67,18 @@ enum CoachError: LocalizedError {
     case sinConexion
     case api(Int)
     case respuestaVacia
+    /// Se acabaron las consultas del mes en el plan del jugador. No es un error de la
+    /// app ni de la red: es el límite del servicio, y el mensaje tiene que decirlo sin
+    /// hacer sentir al usuario que algo se ha roto.
+    case cuotaAgotada
 
     var errorDescription: String? {
         switch self {
         case .sinClave:
-            return "Añade tu clave de API de Anthropic en Ajustes para usar el entrenador."
+            // Solo se llega aquí si NO hay servidor con entrenador: con cuenta de la
+            // comunidad y servidor configurado, el jugador no necesita clave ninguna.
+            return "Conecta tu cuenta de Rising Pádel en Ajustes para usar el entrenador, "
+                + "o añade tu propia clave de API de Anthropic."
         case .sinConexion:
             return "Sin conexión. Comprueba tu red e inténtalo de nuevo."
         case .api(401):
@@ -82,6 +89,8 @@ enum CoachError: LocalizedError {
             return "Error de la API (\(status)). Inténtalo de nuevo."
         case .respuestaVacia:
             return "Respuesta vacía"
+        case .cuotaAgotada:
+            return "Has agotado tus consultas al entrenador de este mes."
         }
     }
 }
@@ -131,7 +140,106 @@ struct CoachService {
         let content: [Block]?
     }
 
+    /// Una petición al modelo: por el servidor de Rising Pádel si está configurado, y
+    /// si no con la clave que haya puesto el usuario.
+    ///
+    /// **El orden importa y es el que hace vendible la app.** Antes solo existía el
+    /// segundo camino: el jugador tenía que abrir una cuenta en Anthropic, meter una
+    /// tarjeta y pegar una clave en Ajustes. Eso lo hace un desarrollador probando su
+    /// propia app; no lo hace un cliente. Ahora la clave es del servicio y vive en el
+    /// Worker (ver `server/live/src/coach.js`), y el jugador solo necesita su cuenta de
+    /// la comunidad, que ya tiene.
+    ///
+    /// La clave propia se queda como respaldo y no como reliquia: sirve para quien se
+    /// monte su propio servidor sin `ANTHROPIC_API_KEY`, y para no dejar tirado a quien
+    /// ya la tenía puesta.
     private func callAnthropic(_ prompt: String, maxTokens: Int) async throws -> String {
+        try await conversar([Turno(role: "user", content: prompt)], maxTokens: maxTokens)
+    }
+
+    /// Un turno de conversación con el entrenador.
+    struct Turno: Codable, Equatable {
+        let role: String
+        let content: String
+    }
+
+    /// Manda una conversación entera. El análisis de un partido es el caso de un solo
+    /// turno; el chat de la pantalla del entrenador manda el hilo.
+    func conversar(_ turnos: [Turno], maxTokens: Int = 4_000) async throws -> String {
+        if let texto = try await porElServidor(turnos, maxTokens: maxTokens) {
+            return texto
+        }
+        return try await conClavePropia(turnos, maxTokens: maxTokens)
+    }
+
+    // MARK: Por el servidor de Rising Pádel
+
+    private struct ServidorRequest: Encodable {
+        let messages: [Turno]
+        let maxTokens: Int
+    }
+
+    private struct ServidorRespuesta: Decodable {
+        let texto: String?
+        let restantes: Int?
+    }
+
+    /// Devuelve nil —sin lanzar— cuando este servidor no tiene entrenador, para que la
+    /// llamada caiga al camino de la clave propia. Un 404 aquí no es un fallo: es "esta
+    /// instalación no lo ofrece".
+    private func porElServidor(_ turnos: [Turno], maxTokens: Int) async throws -> String? {
+        guard let base = CoachService.servidorConfigurado(),
+              let token = ComunidadCuenta.read("token"),
+              let url = URL(string: base.hasSuffix("/") ? base + "v1/coach/mensaje"
+                                                        : base + "/v1/coach/mensaje")
+        else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        request.timeoutInterval = 300
+        request.httpBody = try JSONEncoder().encode(
+            ServidorRequest(messages: turnos, maxTokens: maxTokens)
+        )
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await urlSession.data(for: request)
+        } catch {
+            throw CoachError.sinConexion
+        }
+
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        // 404 = este servidor no tiene el entrenador configurado. 401 = la cuenta no
+        // vale aquí. Los dos son motivos para probar con la clave propia en vez de
+        // fallar; cualquier otro error sí es un fallo de verdad y se cuenta como tal.
+        if status == 404 || status == 401 { return nil }
+        if status == 429 { throw CoachError.cuotaAgotada }
+        guard (200..<300).contains(status) else { throw CoachError.api(status) }
+
+        let cuerpo = try? JSONDecoder().decode(ServidorRespuesta.self, from: data)
+        guard let texto = cuerpo?.texto, !texto.isEmpty else { throw CoachError.respuestaVacia }
+        return texto
+    }
+
+    /// La URL del servidor de la liga, que es el mismo que sirve el entrenador.
+    static func servidorConfigurado() -> String? {
+        let base = UserDefaults.standard.string(forKey: "leagueBaseURL") ?? ""
+        let limpia = base.trimmingCharacters(in: .whitespaces)
+        return limpia.isEmpty ? nil : limpia
+    }
+
+    /// True si el entrenador funciona sin que el usuario ponga ninguna clave. Lo usa
+    /// Ajustes para no pedir una credencial que ya no hace falta.
+    static var servidorLoResuelve: Bool {
+        servidorConfigurado() != nil && ComunidadCuenta.read("token") != nil
+    }
+
+    // MARK: Con la clave del propio usuario (respaldo)
+
+    private func conClavePropia(_ turnos: [Turno], maxTokens: Int) async throws -> String {
         guard let apiKey = CoachKeyStore.read() else { throw CoachError.sinClave }
         guard let url = URL(string: Self.apiURL) else { throw CoachError.sinConexion }
 
@@ -147,7 +255,7 @@ struct CoachService {
             model: Self.model,
             maxTokens: maxTokens,
             thinking: .init(type: "adaptive"),
-            messages: [.init(role: "user", content: prompt)]
+            messages: turnos.map { .init(role: $0.role, content: $0.content) }
         ))
 
         let data: Data
