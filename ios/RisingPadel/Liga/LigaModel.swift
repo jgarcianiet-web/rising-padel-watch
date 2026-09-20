@@ -423,29 +423,93 @@ final class LigaModel: ObservableObject {
         try? JSONEncoder().encode(state)
     }
 
-    /// Restaura la liga desde la copia de seguridad. Solo pisa si el JSON es válido.
-    func restoreBackup(_ data: Data) {
-        guard let stored = try? JSONDecoder().decode(LigaState.self, from: data) else { return }
-        state = stored
+    /// Trae lo que haya en la copia de seguridad del servidor **sumando, nunca pisando**.
+    ///
+    /// ## El fallo que arregla
+    ///
+    /// Antes esto hacía `state = stored`, y la app llamaba a restaurar en cada arranque
+    /// mientras no hubiera sesiones del reloj en el móvil. Resultado: apuntabas un
+    /// partido a mano, lo veías guardado, cerrabas la app, y al abrirla otra vez la
+    /// copia del servidor —que no lo tenía, porque solo se subía al llegar una sesión
+    /// nueva del reloj— borraba el partido. Parecía que el alta manual no guardaba. Lo
+    /// que pasaba es que guardaba y luego se lo llevaba por delante la restauración.
+    ///
+    /// ## La regla
+    ///
+    /// **Una restauración no puede destruir nada de este teléfono.** Los partidos se
+    /// funden por id y, si el mismo id está en los dos sitios, gana el de aquí: es el
+    /// que el jugador acaba de tocar. Lo demás —temporadas, perfil, análisis— solo se
+    /// copia si aquí está vacío, que es el caso para el que existe la copia: una
+    /// reinstalación.
+    ///
+    /// - Returns: cuántos partidos ha traído la copia que aquí no estaban.
+    @discardableResult
+    func restoreBackup(_ data: Data) -> Int {
+        guard let copia = try? JSONDecoder().decode(LigaState.self, from: data) else { return 0 }
+
+        // Reinstalación de verdad: aquí no hay liga, así que la copia ES la liga.
+        if state.matches.isEmpty, state.temporadas.isEmpty {
+            state = copia
+            seedObjetivos()
+            save()
+            mirrorObjectivesForWatch()
+            return copia.matches.count
+        }
+
+        let conocidos = Set(state.matches.map(\.id))
+        let nuevos = copia.matches.filter { !conocidos.contains($0.id) }
+        if state.temporadas.isEmpty { state.temporadas = copia.temporadas }
+        if state.perfil == LigaPerfil() { state.perfil = copia.perfil }
+        if state.analisis == nil { state.analisis = copia.analisis }
+        guard !nuevos.isEmpty else {
+            mirrorObjectivesForWatch()
+            return 0
+        }
+        state.matches.append(contentsOf: nuevos)
         save()
         mirrorObjectivesForWatch()
+        return nuevos.count
     }
 
     // MARK: Persistencia
 
+    /// Sube uno en cada guardado con éxito. Es lo que mira la raíz de la app para subir
+    /// la copia al servidor: sin esto la copia solo se renovaba cuando llegaba una
+    /// sesión del reloj, así que un partido apuntado a mano no salía nunca del móvil.
+    @Published private(set) var revision = 0
+
+    /// El fichero existe pero no se pudo leer. Mientras esté puesto **no se escribe
+    /// encima**: un JSON que no entendemos puede ser el historial entero del jugador, y
+    /// sobrescribirlo con el estado vacío que quedó en memoria es la forma más rápida de
+    /// convertir un problema de lectura en una pérdida de datos definitiva.
+    private var lecturaFallida = false
+
     private func load() {
-        guard let data = try? Data(contentsOf: fileURL),
-              let stored = try? JSONDecoder().decode(LigaState.self, from: data) else { return }
+        guard let data = try? Data(contentsOf: fileURL) else { return }
+        guard let stored = try? JSONDecoder().decode(LigaState.self, from: data) else {
+            lecturaFallida = true
+            message = "No se ha podido leer tu liga guardada. No se va a escribir encima: "
+                + "exporta una copia desde el menú antes de tocar nada."
+            return
+        }
         state = stored
     }
 
     private func save() {
-        try? FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        guard let data = try? JSONEncoder().encode(state) else { return }
-        try? data.write(to: fileURL, options: .atomic)
+        guard !lecturaFallida else { return }
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            let data = try JSONEncoder().encode(state)
+            try data.write(to: fileURL, options: .atomic)
+            revision &+= 1
+        } catch {
+            // Un guardado que falla en silencio es cómo se pierde un historial sin que
+            // nadie se entere: lo que está en pantalla parece guardado y no lo está.
+            message = "No se ha podido guardar la liga en este móvil."
+        }
     }
 
     // MARK: Utilidades

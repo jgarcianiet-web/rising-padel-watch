@@ -79,6 +79,14 @@ struct RootTabView: View {
             // la app nunca vuelve a costar el historial.
             Task { await subirCopia() }
         }
+        // Y cada cambio de la liga también. Antes solo se subía al llegar una sesión del
+        // reloj, así que un partido apuntado a mano no salía nunca del móvil — y peor:
+        // la copia del servidor se quedaba vieja y al restaurar se lo llevaba por
+        // delante. `revision` sube en cada guardado, incluidas las ediciones, que no
+        // cambian el número de partidos y por eso no se pueden vigilar contándolos.
+        .onChange(of: liga.revision) {
+            Task { await subirCopia() }
+        }
         // Al arrancar con la app vacía pero con cuenta en el Llavero (una
         // reinstalación), el historial vuelve solo del servidor.
         .task { await restaurarSiHaceFalta() }
@@ -124,16 +132,26 @@ struct RootTabView: View {
         }
     }
 
+    /// Trae del servidor lo que a este móvil le falte.
+    ///
+    /// **La condición de entrada mira las sesiones, y la liga no son las sesiones.** Eso
+    /// era el fallo: con el móvil sin sesiones del reloj pero con liga escrita a mano,
+    /// esto entraba y la copia del servidor —vieja, porque solo se subía al llegar una
+    /// sesión— pisaba los partidos apuntados. Ahora restaurar solo suma
+    /// (`LigaModel.restoreBackup`), así que entrar de más ya no puede costar nada.
     private func restaurarSiHaceFalta() async {
-        guard model.sessions.isEmpty, comunidad.tieneCuenta,
+        guard comunidad.tieneCuenta,
+              model.sessions.isEmpty || liga.state.matches.isEmpty,
               let data = await comunidad.descargarCopia(),
               let copia = CopiaSeguridad.abrir(data) else { return }
         let añadidas = model.restoreSessions(copia.sesiones)
-        if let ligaJson = copia.ligaJson?.data(using: .utf8) {
-            liga.restoreBackup(ligaJson)
-        }
-        if añadidas > 0 {
-            model.message = "Copia restaurada: \(añadidas) sesión(es) y tu liga"
+        let partidos = copia.ligaJson?.data(using: .utf8).map { liga.restoreBackup($0) } ?? 0
+        if añadidas > 0 || partidos > 0 {
+            let piezas = [
+                añadidas > 0 ? "\(añadidas) sesión(es)" : nil,
+                partidos > 0 ? "\(partidos) partido(s)" : nil,
+            ].compactMap { $0 }
+            model.message = "Copia restaurada: " + piezas.joined(separator: " y ")
         }
     }
 }
