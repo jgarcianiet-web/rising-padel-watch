@@ -102,10 +102,15 @@ enum ProgresoDeGolpes {
     static let ventanaLarga = 20
 
     /// El progreso de un objetivo. Los partidos pueden venir en cualquier orden.
+    ///
+    /// `fechaLimite` es la de cierre de la temporada y llega desde fuera porque un
+    /// objetivo suelto, sin temporada, no tiene plazo — y sin plazo no se puede decir
+    /// si va en riesgo.
     static func progreso(
         _ objetivo: ObjetivoDeGolpe,
         partidos: [LigaMatch],
-        ventana: Int = ProgresoDeGolpes.ventana
+        ventana: Int = ProgresoDeGolpes.ventana,
+        fechaLimite: String? = nil
     ) -> ProgresoDeObjetivo {
         let ultimas = Array(notasDe(objetivo.golpe, partidos: partidos).suffix(ventana))
         let actual = ultimas.isEmpty
