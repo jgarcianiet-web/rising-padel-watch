@@ -140,6 +140,13 @@ targets:
         NSMotionUsageDescription: >-
           Rising Padel usa el acelerómetro y el giróscopo de la muñeca para contar tus
           golpeos. Estos datos no salen del reloj.
+        # Solo para medir la pista: el jugador se pone en las cuatro esquinas y el reloj
+        # comprueba cuánto se equivoca reconstruyendo un rectángulo que por reglamento
+        # mide 20×10 m. Se usa cuando se abre esa pantalla y en ningún otro momento.
+        NSLocationWhenInUseUsageDescription: >-
+          Rising Padel usa la ubicación solo cuando mides tu pista, para comprobar con
+          qué precisión puede situar tus golpes en ella. No se guarda dónde juegas ni
+          sale del reloj.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.risingpadel.watch.watchkitapp

@@ -7,6 +7,7 @@ struct WatchRootView: View {
     @AppStorage("deuceFormat") private var deuceFormatRaw = DeuceFormat.goldenPoint.rawValue
     @State private var showTraining = false
     @State private var showRutinas = false
+    @State private var showCalibrarPista = false
     /// La pantalla inicial es una decisión (¿partido o entreno?), no un formulario.
     @State private var choosingFormat = false
     /// Segundo paso del partido: quién saca. Es la única pregunta que no se puede
@@ -143,6 +144,13 @@ struct WatchRootView: View {
                     showRutinas = true
                 }
 
+                // Se hace una vez por pista y contesta si el GPS de este reloj da para
+                // situar los golpes ahí. Va pequeño y abajo a propósito: no es algo
+                // que se toque antes de cada partido.
+                Button("Medir pista") { showCalibrarPista = true }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+
                 // Solo con la recogida de datos activada en el iPhone: es un modo para
                 // quien construye el dataset, no para jugar.
                 if controller.collectTrainingData {
@@ -153,6 +161,9 @@ struct WatchRootView: View {
             }
             .sheet(isPresented: $showTraining) {
                 TrainingView().environmentObject(controller)
+            }
+            .sheet(isPresented: $showCalibrarPista) {
+                CalibrarPistaView()
             }
             .sheet(isPresented: $showRutinas) {
                 RutinaChooserView().environmentObject(controller)

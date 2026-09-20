@@ -30,7 +30,11 @@ class CalibracionDePistaTest {
         )
     }
 
-    /** Una pista perfecta, alineada al norte, centrada en un punto de Madrid. */
+    /**
+     * Una pista perfecta, con su eje largo apuntando al este, centrada en un punto de
+     * Madrid. El orden es el de `NOMBRES_DE_ESQUINA`: fondo cercano izquierda y derecha,
+     * y luego el fondo contrario de derecha a izquierda.
+     */
     private fun pistaPerfecta(
         lat: Double = 40.4168,
         lon: Double = -3.7038,
@@ -38,26 +42,26 @@ class CalibracionDePistaTest {
         ruidoNorte: List<Double> = List(4) { 0.0 },
     ): List<PuntoGeo> {
         val esquinas = listOf(
-            -5.0 to -10.0,   // fondo izquierda
-            5.0 to -10.0,    // fondo derecha
-            5.0 to 10.0,     // red derecha
-            -5.0 to 10.0,    // red izquierda
+            -10.0 to -5.0,   // fondo cercano izquierda
+            -10.0 to 5.0,    // fondo cercano derecha
+            10.0 to 5.0,     // fondo contrario derecha
+            10.0 to -5.0,    // fondo contrario izquierda
         )
-        return esquinas.mapIndexed { i, (este, norte) ->
-            desplazar(lat, lon, este + ruidoEste[i], norte + ruidoNorte[i])
+        return esquinas.mapIndexed { i, (largo, ancho) ->
+            desplazar(lat, lon, largo + ruidoEste[i], ancho + ruidoNorte[i])
         }
     }
 
     @Test
     fun `una pista medida sin error da error cero`() {
-        val calibracion = assertNotNull(CalibracionDePista.de(pistaPerfecta()))
+        val calibracion = assertNotNull(CalibracionGpsDePista.de(pistaPerfecta()))
         assertTrue(calibracion.errorMedioM < 0.01, "error: ${calibracion.errorMedioM}")
-        assertEquals(CalibracionDePista.Fiabilidad.ZONAS, calibracion.fiabilidad)
+        assertEquals(CalibracionGpsDePista.Fiabilidad.ZONAS, calibracion.fiabilidad)
     }
 
     @Test
     fun `con tres esquinas no se calibra, porque la cuarta seria una suposicion`() {
-        assertNull(CalibracionDePista.de(pistaPerfecta().take(3)))
+        assertNull(CalibracionGpsDePista.de(pistaPerfecta().take(3)))
     }
 
     @Test
@@ -66,7 +70,7 @@ class CalibracionDePistaTest {
         // decirlo. Un error que se disimula es peor que no medir nada, porque se acaba
         // pintando un mapa de puntos inventados.
         val calibracion = assertNotNull(
-            CalibracionDePista.de(
+            CalibracionGpsDePista.de(
                 pistaPerfecta(
                     ruidoEste = listOf(4.0, -4.0, 4.0, -4.0),
                     ruidoNorte = listOf(-4.0, 4.0, 4.0, -4.0),
@@ -74,7 +78,7 @@ class CalibracionDePistaTest {
             )
         )
         assertTrue(calibracion.errorMedioM > 3.0, "error: ${calibracion.errorMedioM}")
-        assertEquals(CalibracionDePista.Fiabilidad.NINGUNA, calibracion.fiabilidad)
+        assertEquals(CalibracionGpsDePista.Fiabilidad.NINGUNA, calibracion.fiabilidad)
     }
 
     @Test
@@ -83,11 +87,14 @@ class CalibracionDePistaTest {
         // "perfectamente" en el rectángulo ideal y el error saldría cero — escondiendo
         // justo lo que se quiere medir. El tamaño lo da el reglamento, no el GPS.
         val estirada = listOf(
-            -6.0 to -12.0, 6.0 to -12.0, 6.0 to 12.0, -6.0 to 12.0,
-        ).map { (este, norte) -> desplazar(40.4168, -3.7038, este, norte) }
+            -12.0 to -6.0, -12.0 to 6.0, 12.0 to 6.0, 12.0 to -6.0,
+        ).map { (largo, ancho) -> desplazar(40.4168, -3.7038, largo, ancho) }
 
-        val calibracion = assertNotNull(CalibracionDePista.de(estirada))
-        assertTrue(calibracion.errorMedioM > 1.5, "una pista un 20 % más grande no puede dar error cero: ${calibracion.errorMedioM}")
+        val calibracion = assertNotNull(CalibracionGpsDePista.de(estirada))
+        assertTrue(
+            calibracion.errorMedioM > 1.5,
+            "una pista un 20 % más grande no puede dar error cero: ${calibracion.errorMedioM}",
+        )
     }
 
     @Test
@@ -95,7 +102,7 @@ class CalibracionDePistaTest {
         // Las pistas no están orientadas al norte; el ajuste tiene que encontrar el giro.
         val giro = PI / 5
         val esquinas = listOf(
-            -5.0 to -10.0, 5.0 to -10.0, 5.0 to 10.0, -5.0 to 10.0,
+            -10.0 to -5.0, -10.0 to 5.0, 10.0 to 5.0, 10.0 to -5.0,
         ).map { (x, y) ->
             desplazar(
                 40.4168, -3.7038,
@@ -103,34 +110,40 @@ class CalibracionDePistaTest {
                 x * kotlin.math.sin(giro) + y * cos(giro),
             )
         }
-        val calibracion = assertNotNull(CalibracionDePista.de(esquinas))
+        val calibracion = assertNotNull(CalibracionGpsDePista.de(esquinas))
         assertTrue(calibracion.errorMedioM < 0.01, "error: ${calibracion.errorMedioM}")
         assertEquals(giro, calibracion.rotacionRad, 0.01)
     }
 
     @Test
-    fun `el centro de la pista cae en el centro`() {
-        val calibracion = assertNotNull(CalibracionDePista.de(pistaPerfecta()))
+    fun `el centro de la pista cae en la red`() {
+        val calibracion = assertNotNull(CalibracionGpsDePista.de(pistaPerfecta()))
         val centro = assertNotNull(
             calibracion.aPista(PuntoGeo(calibracion.centroLatitud, calibracion.centroLongitud))
         )
-        assertEquals(5.0, centro.x, 0.1)
-        assertEquals(10.0, centro.y, 0.1)
+        assertEquals(10.0, centro.x, 0.1)
+        assertEquals(5.0, centro.y, 0.1)
+        assertEquals(0.0, centro.distanciaALaRed, 0.1)
     }
 
     @Test
-    fun `las zonas parten la pista en red, medio y fondo por cada lado`() {
-        assertEquals("red izquierda", PosicionEnPista(2.0, 1.0).zona)
-        assertEquals("red derecha", PosicionEnPista(8.0, 1.0).zona)
-        assertEquals("medio izquierda", PosicionEnPista(2.0, 5.0).zona)
-        assertEquals("fondo derecha", PosicionEnPista(8.0, 18.0).zona)
+    fun `las zonas se miden contra la red y no contra una punta`() {
+        // En una pista entera los DOS fondos son fondo. Contar la profundidad desde un
+        // extremo pondría "fondo" en la mitad contraria de la red, que es justo donde
+        // está el rival.
+        assertEquals("red izquierda", PosicionGpsEnPista(9.0, 2.0).zona)
+        assertEquals("red derecha", PosicionGpsEnPista(11.0, 8.0).zona)
+        assertEquals("medio izquierda", PosicionGpsEnPista(5.0, 2.0).zona)
+        assertEquals("fondo derecha", PosicionGpsEnPista(1.0, 8.0).zona)
+        // El fondo contrario también es fondo.
+        assertEquals("fondo derecha", PosicionGpsEnPista(19.0, 8.0).zona)
     }
 
     @Test
     fun `un punto muy lejos de la pista no se coloca dentro`() {
         // Cien metros es la calle de al lado: colocarlo en el fondo de la pista sería
         // inventarse una posición.
-        val calibracion = assertNotNull(CalibracionDePista.de(pistaPerfecta()))
+        val calibracion = assertNotNull(CalibracionGpsDePista.de(pistaPerfecta()))
         val lejos = desplazar(calibracion.centroLatitud, calibracion.centroLongitud, 100.0, 0.0)
         assertNull(calibracion.aPista(lejos))
     }
@@ -139,9 +152,9 @@ class CalibracionDePistaTest {
     fun `un punto pegado a la pared de fondo se acepta aunque mida un poco fuera`() {
         // Con el error del GPS, un jugador defendiendo pegado al cristal puede medirse
         // dos metros fuera. Descartarlo borraría justo los golpes de defensa.
-        val calibracion = assertNotNull(CalibracionDePista.de(pistaPerfecta()))
-        val algoFuera = desplazar(calibracion.centroLatitud, calibracion.centroLongitud, 0.0, -12.0)
+        val calibracion = assertNotNull(CalibracionGpsDePista.de(pistaPerfecta()))
+        val algoFuera = desplazar(calibracion.centroLatitud, calibracion.centroLongitud, -12.0, 0.0)
         val posicion = assertNotNull(calibracion.aPista(algoFuera))
-        assertTrue(posicion.y <= 0.5, "debería quedar pegado al fondo: ${posicion.y}")
+        assertTrue(posicion.x <= 0.5, "debería quedar pegado al fondo: ${posicion.x}")
     }
 }

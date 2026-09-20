@@ -16,6 +16,11 @@ import Foundation
 /// el fondo contrario. Eje `y`: a lo ancho, 0 en la pared izquierda vista desde la cámara
 /// y 10 en la derecha. Metros en los dos casos, sin más escalas: un metro es un metro y
 /// así las distancias del mapa se leen tal cual.
+///
+/// **La otra fuente de posiciones usa este mismo criterio**: `PosicionGpsEnPista`, en
+/// PadelCore, cuenta los metros igual porque el día que el mapa mezcle la cámara y el
+/// GPS tienen que hablar el mismo idioma. Si una de las dos cambia de convención, el
+/// mapa juntará dos pistas distintas sin avisar de nada.
 enum PistaDePadel {
     static let largo: Double = 20
     static let ancho: Double = 10

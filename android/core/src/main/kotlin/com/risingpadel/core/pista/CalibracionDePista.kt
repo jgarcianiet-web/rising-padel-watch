@@ -3,7 +3,6 @@ package com.risingpadel.core.pista
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.hypot
 import kotlin.math.sqrt
 
 /**
@@ -18,23 +17,46 @@ data class PuntoGeo(
     val accuracyM: Double = 0.0,
 )
 
-/** Dónde estaba el jugador dentro de la pista, en metros desde la esquina de origen. */
-data class PosicionEnPista(val x: Double, val y: Double) {
-    /** Las seis zonas gruesas del mapa de pista: fondo / medio / red, por lado. */
+/**
+ * Dónde estaba el jugador dentro de la pista, en metros.
+ *
+ * **El sistema de coordenadas es el mismo que usa el análisis de vídeo** (`PistaDePadel`
+ * en el módulo VideoLab de la app): `x` a lo largo de la pista, de 0 a 20, con la red en
+ * el 10; `y` a lo ancho, de 0 a 10. Que las dos fuentes —la cámara y el GPS— cuenten los
+ * metros igual es lo que permitirá algún día pintarlas en el mismo mapa sin traducir
+ * nada; el día que una de las dos cambie de criterio, el mapa mezclará dos pistas
+ * distintas sin avisar.
+ */
+data class PosicionGpsEnPista(val x: Double, val y: Double) {
+
+    /** Metros hasta la red, que es la lectura táctica que de verdad se usa. */
+    val distanciaALaRed: Double get() = abs(x - RED)
+
+    /**
+     * Las seis zonas gruesas del mapa de pista: red / medio / fondo, por lado.
+     *
+     * La profundidad se mide **contra la red**, que está en el centro de los veinte
+     * metros y no en un extremo: en una pista entera los dos fondos son fondo, y contar
+     * desde una punta pondría "fondo" en la mitad contraria de la red.
+     */
     val zona: String
         get() {
+            val aLaRed = distanciaALaRed
             val profundidad = when {
-                y < LARGO / 6 -> "red"
-                y < LARGO / 3 -> "medio"
+                aLaRed < LARGO / 6 -> "red"
+                aLaRed < LARGO / 3 -> "medio"
                 else -> "fondo"
             }
-            return if (x < ANCHO / 2) "$profundidad izquierda" else "$profundidad derecha"
+            return if (y < ANCHO / 2) "$profundidad izquierda" else "$profundidad derecha"
         }
 
     companion object {
         /** Medidas de reglamento de una pista de pádel, en metros. */
         const val LARGO = 20.0
         const val ANCHO = 10.0
+
+        /** La red parte la pista por la mitad. */
+        const val RED = LARGO / 2
     }
 }
 
@@ -52,7 +74,7 @@ data class PosicionEnPista(val x: Double, val y: Double) {
  *
  * Ese número es [errorMedioM], y es lo que decide qué se puede enseñar:
  *
- * - por debajo de ~1,5 m se pueden separar las seis zonas de [PosicionEnPista.zona];
+ * - por debajo de ~1,5 m se pueden separar las seis zonas de [PosicionGpsEnPista.zona];
  * - entre 1,5 y 3 m solo se sostiene "cerca de la red" contra "en el fondo";
  * - por encima de 3 m no se sostiene nada, y hay que decirlo en vez de pintar puntos.
  *
@@ -60,6 +82,13 @@ data class PosicionEnPista(val x: Double, val y: Double) {
  * multitrayecto —la señal rebota antes de llegar al reloj— y muchas pistas están
  * cubiertas, así que este número va a ser peor que el que da el GPS en campo abierto.
  * Por eso se mide en la pista de cada uno y no se supone.
+ *
+ * ## Por qué lleva "Gps" en el nombre
+ *
+ * Porque hay otra calibración de pista en la app —la del vídeo, que saca la homografía
+ * de las cuatro esquinas tocadas sobre un fotograma— y son cosas distintas con el mismo
+ * apellido. Dos tipos llamados igual en dos módulos que algún día van a alimentar el
+ * mismo mapa es una confusión esperando su turno.
  *
  * ## Cómo se ajusta
  *
@@ -69,7 +98,7 @@ data class PosicionEnPista(val x: Double, val y: Double) {
  * el reglamento y no el GPS — dejar que la escala se ajuste escondería justo el error
  * que se quiere medir).
  */
-data class CalibracionDePista(
+data class CalibracionGpsDePista(
     /** Latitud y longitud del centro de la pista: el origen del sistema local. */
     val centroLatitud: Double,
     val centroLongitud: Double,
@@ -111,45 +140,65 @@ data class CalibracionDePista(
      * pared de fondo puede medirse un par de metros fuera, y descartar esa lectura
      * borraría justo los golpes de defensa.
      */
-    fun aPista(punto: PuntoGeo): PosicionEnPista? {
+    fun aPista(punto: PuntoGeo): PosicionGpsEnPista? {
         val (este, norte) = aMetros(punto, centroLatitud, centroLongitud)
         // Deshacer el giro de la pista: se rota en sentido contrario.
         val cosR = cos(-rotacionRad)
         val senR = kotlin.math.sin(-rotacionRad)
-        val x = este * cosR - norte * senR + PosicionEnPista.ANCHO / 2
-        val y = este * senR + norte * cosR + PosicionEnPista.LARGO / 2
+        val x = este * cosR - norte * senR + PosicionGpsEnPista.LARGO / 2
+        val y = este * senR + norte * cosR + PosicionGpsEnPista.ANCHO / 2
 
         val margen = 3.0
-        if (x < -margen || x > PosicionEnPista.ANCHO + margen) return null
-        if (y < -margen || y > PosicionEnPista.LARGO + margen) return null
-        return PosicionEnPista(x.coerceIn(0.0, PosicionEnPista.ANCHO), y.coerceIn(0.0, PosicionEnPista.LARGO))
+        if (x < -margen || x > PosicionGpsEnPista.LARGO + margen) return null
+        if (y < -margen || y > PosicionGpsEnPista.ANCHO + margen) return null
+        return PosicionGpsEnPista(
+            x.coerceIn(0.0, PosicionGpsEnPista.LARGO),
+            y.coerceIn(0.0, PosicionGpsEnPista.ANCHO),
+        )
     }
 
     companion object {
 
         /**
-         * Calibra con las cuatro esquinas, **en orden**: fondo izquierda, fondo derecha,
-         * red derecha, red izquierda (recorriendo la pista, no en aspa).
+         * Las cuatro esquinas de la pista, **en orden**, tal como se le piden al jugador.
+         *
+         * Son las cuatro esquinas del rectángulo de 20×10, o sea los dos fondos — no los
+         * postes de la red. Es un error fácil de cometer y caro: plantarse en los postes
+         * mide un segmento de diez metros, no una pista, y de ahí no sale una rotación
+         * sino un disparate.
+         */
+        val NOMBRES_DE_ESQUINA = listOf(
+            "Fondo de tu lado, izquierda",
+            "Fondo de tu lado, derecha",
+            "Fondo contrario, derecha",
+            "Fondo contrario, izquierda",
+        )
+
+        /**
+         * Calibra con las cuatro esquinas, en el orden de [NOMBRES_DE_ESQUINA]
+         * (recorriendo la pista, no en aspa).
          *
          * Devuelve null con menos de cuatro lecturas: con tres esquinas el rectángulo
          * sale de una suposición, y una suposición es lo que este fichero existe para
          * evitar.
          */
-        fun de(esquinas: List<PuntoGeo>): CalibracionDePista? {
+        fun de(esquinas: List<PuntoGeo>): CalibracionGpsDePista? {
             if (esquinas.size != 4) return null
 
             val centroLat = esquinas.sumOf { it.latitud } / 4
             val centroLon = esquinas.sumOf { it.longitud } / 4
             val medidas = esquinas.map { aMetros(it, centroLat, centroLon) }
 
-            // El rectángulo ideal, centrado en el origen y en el mismo orden.
-            val mitadAncho = PosicionEnPista.ANCHO / 2
-            val mitadLargo = PosicionEnPista.LARGO / 2
+            // El rectángulo ideal, centrado en el origen y en el mismo orden: primero el
+            // fondo cercano de izquierda a derecha, luego el contrario de derecha a
+            // izquierda.
+            val mitadLargo = PosicionGpsEnPista.LARGO / 2
+            val mitadAncho = PosicionGpsEnPista.ANCHO / 2
             val ideal = listOf(
-                -mitadAncho to -mitadLargo,
-                mitadAncho to -mitadLargo,
-                mitadAncho to mitadLargo,
-                -mitadAncho to mitadLargo,
+                -mitadLargo to -mitadAncho,
+                -mitadLargo to mitadAncho,
+                mitadLargo to mitadAncho,
+                mitadLargo to -mitadAncho,
             )
 
             // Procrustes en 2D sin escala: el ángulo que mejor alinea las dos nubes sale
@@ -178,7 +227,7 @@ data class CalibracionDePista(
             }
             val error = sqrt(sumaCuadrados / 4)
 
-            return CalibracionDePista(
+            return CalibracionGpsDePista(
                 centroLatitud = centroLat,
                 centroLongitud = centroLon,
                 rotacionRad = rotacion,
