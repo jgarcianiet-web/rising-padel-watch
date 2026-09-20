@@ -243,7 +243,7 @@ struct LigaMatchFormView: View {
             Text("Tus objetivos")
         } footer: {
             Text("Cumple 2 de 3 para mantener la racha. Los objetivos se cambian en "
-                 + "Objetivos y perfil, en el menú de la Liga.")
+                 + "la pestaña Objetivos, tocando la tarjeta de la temporada.")
         }
     }
 

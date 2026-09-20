@@ -73,20 +73,39 @@ final class LigaModel: ObservableObject {
     ///
     /// El cierre es la víspera del arranque nuevo: dos temporadas no pueden solaparse
     /// ni dejar días huérfanos entre medias, o un partido caería en dos o en ninguna.
-    func startTemporada(objetivoPartidos: Int?) {
+    /// - Parameter nombre: cómo la llama el jugador («Reto hacia nivel 4»). En blanco
+    ///   sale «Temporada N», que es un nombre de relleno y no una elección: una meta de
+    ///   nueve meses con nombre propio se persigue mejor que una numerada.
+    func startTemporada(nombre: String = "", objetivoPartidos: Int?) {
         let hoy = LigaFechas.hoy()
         if let index = state.temporadas.lastIndex(where: \.enCurso) {
             state.temporadas[index].fechaFin = Self.vispera(de: hoy) ?? hoy
         }
         let numero = state.temporadas.count + 1
+        let limpio = nombre.trimmingCharacters(in: .whitespacesAndNewlines)
+        let comoSeLlama = limpio.isEmpty ? "Temporada \(numero)" : limpio
         state.temporadas.append(LigaTemporada(
             id: Int64(Date().timeIntervalSince1970 * 1000),
-            nombre: "Temporada \(numero)",
+            nombre: comoSeLlama,
             fechaInicio: hoy,
             objetivoPartidos: objetivoPartidos
         ))
         save()
-        message = "Temporada \(numero) en marcha"
+        message = "\(comoSeLlama) en marcha"
+    }
+
+    /// Cambia el nombre de la temporada en curso.
+    ///
+    /// Se puede renombrar en cualquier momento y a propósito: el nombre es del jugador y
+    /// no un identificador — la temporada se identifica por su `id` y por sus fechas, así
+    /// que cambiarlo no mueve ni un partido de sitio. Un nombre en blanco no se guarda:
+    /// una temporada sin nombre no se puede nombrar en ninguna pantalla.
+    func setNombreDeTemporada(_ nombre: String) {
+        guard let index = state.temporadas.lastIndex(where: \.enCurso) else { return }
+        let limpio = nombre.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !limpio.isEmpty, limpio != state.temporadas[index].nombre else { return }
+        state.temporadas[index].nombre = limpio
+        save()
     }
 
     /// Cambia las fechas de la temporada en curso.

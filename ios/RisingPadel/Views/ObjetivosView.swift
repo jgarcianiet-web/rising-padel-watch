@@ -16,6 +16,10 @@ struct ObjetivosView: View {
     @State private var editando: ObjetivoDeGolpe?
     @State private var creando = false
     @State private var vendiendo = false
+    /// La temporada se editaba solo desde Partidos → Liga → ⋯ → Objetivos y perfil, tres
+    /// niveles dentro de otra pestaña, y esta pantalla se limitaba a mandarte allí con
+    /// una frase. Una pantalla que enseña un dato y no deja tocarlo es un callejón.
+    @State private var editandoTemporada = false
 
     /// **La pantalla se ve entera aunque no haya Pro; lo que pide Pro es CREAR.** Quien
     /// ya tenga objetivos puestos (de una prueba, de una suscripción que caducó) los
@@ -65,26 +69,42 @@ struct ObjetivosView: View {
             .sheet(item: $editando) { objetivo in
                 EditorDeObjetivo(objetivo: objetivo) { guardar($0) }
             }
+            .sheet(isPresented: $editandoTemporada) {
+                LigaAjustesView(liga: liga).environmentObject(liga)
+            }
         }
     }
 
     // MARK: Cabecera de la temporada
 
     private func cabecera(_ temporada: LigaTemporada) -> some View {
-        PadelCard {
-            VStack(alignment: .leading, spacing: 6) {
-                SectionLabel("TEMPORADA")
-                Text(temporada.nombre.isEmpty ? "Sin nombre" : temporada.nombre.uppercased())
-                    .font(.system(size: 20, weight: .heavy, design: .rounded))
-                    .foregroundStyle(T.tinta)
-                if !temporada.fechaInicio.isEmpty {
-                    Text("\(temporada.fechaInicio) → \(temporada.fechaDeCierre.isEmpty ? "sin fecha de fin" : temporada.fechaDeCierre)")
-                        .font(.caption)
-                        .foregroundStyle(T.tintaSuave)
+        Button { editandoTemporada = true } label: {
+            PadelCard {
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        SectionLabel("TEMPORADA")
+                        Text(temporada.nombre.isEmpty ? "Sin nombre" : temporada.nombre.uppercased())
+                            .font(.system(size: 20, weight: .heavy, design: .rounded))
+                            .foregroundStyle(T.tinta)
+                            .multilineTextAlignment(.leading)
+                        if !temporada.fechaInicio.isEmpty {
+                            Text("\(temporada.fechaInicio) → \(temporada.fechaDeCierre.isEmpty ? "sin fecha de fin" : temporada.fechaDeCierre)")
+                                .font(.caption)
+                                .foregroundStyle(T.tintaSuave)
+                        }
+                        Text("Toca para cambiar el nombre, las fechas o la meta")
+                            .font(.caption2)
+                            .foregroundStyle(T.tintaSuave)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(T.pista)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: Objetivo global
@@ -161,8 +181,11 @@ struct ObjetivosView: View {
                 SectionLabel("SIN TEMPORADA ABIERTA")
                 Text("Los objetivos viven dentro de una temporada")
                     .font(.headline).foregroundStyle(T.tinta)
-                Text("Una temporada es un tramo con fecha de inicio y de fin — «Reto hacia nivel 4», de octubre a diciembre. Ábrela en Ajustes de la liga y aquí podrás ponerle metas a cada golpe.")
+                Text("Una temporada es un tramo con fecha de inicio y de fin — «Reto hacia nivel 4», de octubre a diciembre. Ábrela aquí y podrás ponerle metas a cada golpe.")
                     .font(.caption).foregroundStyle(T.tintaSuave)
+                Button("Abrir temporada") { editandoTemporada = true }
+                    .font(.subheadline.bold())
+                    .padding(.top, 4)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

@@ -20,6 +20,7 @@ struct VideoLabView: View {
     /// El laboratorio se lleva su propio almacén: es un dominio con su fichero y su
     /// carpeta de medios, como la liga. La vista se instancia sin nada — `VideoLabView()`.
     @StateObject private var lab = VideoLabModel()
+    @Environment(\.dismiss) private var dismiss
 
     @State private var elegido: PhotosPickerItem?
     /// La ruta de navegación es explícita para poder empujar la pantalla de etiquetado
@@ -49,6 +50,12 @@ struct VideoLabView: View {
                 VideoEtiquetadoView(id: id, lab: lab)
             }
             .toolbar {
+                // El laboratorio se abre a pantalla completa, y a pantalla completa no
+                // hay gesto de arrastrar hacia abajo que valga: sin este botón la única
+                // salida era matar la app. Pasó de verdad.
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cerrar") { dismiss() }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if lab.importando {
                         ProgressView()

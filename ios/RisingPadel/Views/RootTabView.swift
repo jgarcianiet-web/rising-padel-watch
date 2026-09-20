@@ -525,7 +525,7 @@ struct LastSessionView: View {
                              + "tu alias y listo — eso enciende también el marcador en "
                              + "vivo para que tus amigos te sigan.")
                         paso("3", "Monta tu temporada",
-                             "En Liga → menú ⋯ → Objetivos y perfil: tu meta de "
+                             "En la pestaña Objetivos: ponle nombre, fechas, tu meta de "
                              + "partidos y tus 3 objetivos. Los que el reloj pueda "
                              + "medir se marcarán solos.")
                         paso("4", "Dale voz al entrenador",

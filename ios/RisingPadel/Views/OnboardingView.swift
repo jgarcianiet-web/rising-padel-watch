@@ -138,7 +138,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("Elige un objetivo que el reloj pueda medir: al acabar cada "
                      + "partido se marca solo si lo cumpliste. Luego puedes cambiarlo "
-                     + "en Liga → Objetivos y perfil.")
+                     + "en la pestaña Objetivos.")
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(T.tintaSuave)
                     .fixedSize(horizontal: false, vertical: true)

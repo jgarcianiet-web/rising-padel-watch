@@ -11,6 +11,10 @@ struct LigaAjustesView: View {
     @State private var objetivos: [String]
     @State private var metaPartidos: String
     @State private var confirmandoTemporada = false
+    /// El nombre de la temporada, editable. Antes lo ponía el botón («Temporada 1») y no
+    /// había forma de cambiarlo en toda la app: una meta de nueve meses se persigue
+    /// mejor si se llama «Reto hacia nivel 4» que si se llama por su número.
+    @State private var nombreTemporada: String
     /// Las fechas de la temporada en curso, editables. Antes solo se podía saber cuándo
     /// empezó —el día que le diste al botón— y nunca cuándo pensabas acabarla.
     @State private var inicioTemporada = Date()
@@ -26,6 +30,7 @@ struct LigaAjustesView: View {
             initialValue: liga.temporadaActual?.objetivoPartidos.map(String.init) ?? ""
         )
         let actual = liga.temporadaActual
+        _nombreTemporada = State(initialValue: actual?.nombre ?? "")
         _inicioTemporada = State(
             initialValue: actual.flatMap { LigaFechas.fecha($0.fechaInicio) } ?? Date()
         )
@@ -63,7 +68,11 @@ struct LigaAjustesView: View {
     private var temporadaSection: some View {
         Section {
             if let actual = liga.temporadaActual {
-                LabeledContent(actual.nombre) {
+                LabeledContent("Nombre") {
+                    TextField("Reto hacia nivel 4", text: $nombreTemporada)
+                        .multilineTextAlignment(.trailing)
+                }
+                LabeledContent("Fechas") {
                     Text(actual.rangoCorto)
                         .foregroundStyle(T.tintaSuave)
                 }
@@ -91,6 +100,13 @@ struct LigaAjustesView: View {
                         .frame(width: 70)
                 }
             } else {
+                // Sin temporada abierta, el nombre se escribe aquí y viaja al botón de
+                // abajo: si solo se pudiera renombrar después, la primera temporada
+                // nacería llamándose «Temporada 1» sin remedio.
+                LabeledContent("Nombre") {
+                    TextField("Reto hacia nivel 4", text: $nombreTemporada)
+                        .multilineTextAlignment(.trailing)
+                }
                 LabeledContent("Meta de partidos") {
                     TextField("20", text: $metaPartidos)
                         .keyboardType(.numberPad)
@@ -116,7 +132,19 @@ struct LigaAjustesView: View {
                 titleVisibility: .visible
             ) {
                 Button("Empezar temporada") {
-                    liga.startTemporada(objetivoPartidos: Int(metaPartidos))
+                    if liga.temporadaActual != nil {
+                        // Lo escrito arriba es el nombre de la que se está CERRANDO. Se
+                        // guarda antes de cerrarla; heredarlo a la nueva le pondría a
+                        // las dos el mismo nombre y no habría forma de distinguirlas.
+                        liga.setNombreDeTemporada(nombreTemporada)
+                        liga.startTemporada(objetivoPartidos: Int(metaPartidos))
+                    } else {
+                        liga.startTemporada(
+                            nombre: nombreTemporada,
+                            objetivoPartidos: Int(metaPartidos)
+                        )
+                    }
+                    nombreTemporada = liga.temporadaActual?.nombre ?? ""
                 }
             }
         } header: {
@@ -198,6 +226,7 @@ struct LigaAjustesView: View {
         // exige abrir temporada nueva.
         liga.setObjetivoPartidos(Int(metaPartidos))
         if liga.temporadaActual != nil {
+            liga.setNombreDeTemporada(nombreTemporada)
             liga.setFechasDeTemporada(
                 inicio: LigaFechas.iso(inicioTemporada),
                 finPrevisto: conFinPrevisto ? LigaFechas.iso(finTemporada) : ""
