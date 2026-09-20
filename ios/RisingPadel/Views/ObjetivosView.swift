@@ -10,8 +10,20 @@ import SwiftUI
 struct ObjetivosView: View {
     @EnvironmentObject private var liga: LigaModel
 
+    /// El plan del jugador: poner metas por golpe es de Pro (ver `Gating`).
+    @StateObject private var tienda = TiendaModel.compartida
+
     @State private var editando: ObjetivoDeGolpe?
     @State private var creando = false
+    @State private var vendiendo = false
+
+    /// **La pantalla se ve entera aunque no haya Pro; lo que pide Pro es CREAR.** Quien
+    /// ya tenga objetivos puestos (de una prueba, de una suscripción que caducó) los
+    /// sigue viendo y los sigue midiendo: esconderle sus propios datos no vende nada y
+    /// se parece demasiado a un secuestro. Lo que se cierra es la puerta de entrada.
+    private var puedeCrear: Bool {
+        Gating.disponible(.objetivosDeGolpe, plan: tienda.plan)
+    }
 
     private var temporada: LigaTemporada? { liga.temporadaActual }
 
@@ -39,13 +51,16 @@ struct ObjetivosView: View {
             .toolbar {
                 if temporada != nil {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button { creando = true } label: { Image(systemName: "plus") }
+                        Button { nuevoObjetivo() } label: { Image(systemName: "plus") }
                             .accessibilityLabel("Nuevo objetivo de golpe")
                     }
                 }
             }
             .sheet(isPresented: $creando) {
                 EditorDeObjetivo(objetivo: nil) { guardar($0) }
+            }
+            .sheet(isPresented: $vendiendo) {
+                PaywallView(destacando: .objetivosDeGolpe, enHoja: true)
             }
             .sheet(item: $editando) { objetivo in
                 EditorDeObjetivo(objetivo: objetivo) { guardar($0) }
@@ -114,9 +129,11 @@ struct ObjetivosView: View {
                         .font(.headline).foregroundStyle(T.tinta)
                     Text("Elige un golpe, mira la nota que tienes hoy y ponle una meta. Cada partido te dirá si te estás acercando.")
                         .font(.caption).foregroundStyle(T.tintaSuave)
-                    Button("Añadir objetivo") { creando = true }
-                        .font(.subheadline.bold())
-                        .padding(.top, 4)
+                    Button(puedeCrear ? "Añadir objetivo" : "Añadir objetivo (Pro)") {
+                        nuevoObjetivo()
+                    }
+                    .font(.subheadline.bold())
+                    .padding(.top, 4)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -148,6 +165,19 @@ struct ObjetivosView: View {
                     .font(.caption).foregroundStyle(T.tintaSuave)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: Crear
+
+    /// El único camino hacia el editor: con Pro abre el editor y sin Pro abre la venta.
+    /// Los dos botones de "nuevo objetivo" (el "+" y el de la tarjeta vacía) pasan por
+    /// aquí para que no haya dos reglas distintas según por dónde se entre.
+    private func nuevoObjetivo() {
+        if puedeCrear {
+            creando = true
+        } else {
+            vendiendo = true
         }
     }
 

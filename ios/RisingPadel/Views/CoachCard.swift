@@ -120,7 +120,7 @@ struct CoachCard: View {
                     .foregroundStyle(T.tintaSuave)
             }
         } else if !hasKey {
-            Text("Añade tu clave de API de Anthropic en Ajustes para usar el entrenador.")
+            Text("Conecta tu cuenta de Rising Pádel en Ajustes para usar el entrenador.")
                 .font(.system(size: 12, design: .rounded))
                 .foregroundStyle(T.tintaSuave)
         } else {
@@ -138,7 +138,13 @@ struct CoachCard: View {
         }
     }
 
-    private var hasKey: Bool { CoachKeyStore.read() != nil }
+    /// Si hay entrenador disponible. **Dos caminos, no uno**: la cuenta de Rising Pádel
+    /// —que es el normal desde que el entrenador vive en el servidor— o la clave propia
+    /// de quien monta el suyo. Cuando esto solo miraba el llavero, un suscriptor con
+    /// cuenta y todo pagado leía "añade tu clave de API" y se quedaba sin botón.
+    private var hasKey: Bool {
+        CoachService.servidorLoResuelve || CoachKeyStore.read() != nil
+    }
 
     private func generar() {
         generating = true

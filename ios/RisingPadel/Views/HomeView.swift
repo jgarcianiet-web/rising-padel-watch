@@ -57,6 +57,8 @@ struct HomeView: View {
 
     @State private var mostrarAjustes = false
     @State private var mostrarComunidad = false
+    @State private var mostrarCompeticion = false
+    @State private var mostrarPareja = false
 
     private var ultima: PadelSession? { model.sessions.first }
 
@@ -80,11 +82,24 @@ struct HomeView: View {
             .background(T.fondo)
             .navigationTitle("Rising Pádel")
             .toolbar {
+                // Todo lo que es "con otros" cuelga de un mismo botón. No es una
+                // pestaña porque no es lo que se abre cada día, y no es un ajuste
+                // porque no se configura: se juega.
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { mostrarComunidad = true } label: {
+                    Menu {
+                        Button { mostrarComunidad = true } label: {
+                            Label("Comunidad", systemImage: "person.3.fill")
+                        }
+                        Button { mostrarCompeticion = true } label: {
+                            Label("Clubes y ligas", systemImage: "trophy.fill")
+                        }
+                        Button { mostrarPareja = true } label: {
+                            Label("Análisis de pareja", systemImage: "person.2.fill")
+                        }
+                    } label: {
                         Image(systemName: "person.3.fill")
                     }
-                    .accessibilityLabel("Comunidad")
+                    .accessibilityLabel("Comunidad y competición")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { mostrarAjustes = true } label: {
@@ -95,6 +110,8 @@ struct HomeView: View {
             }
             .sheet(isPresented: $mostrarAjustes) { SettingsView() }
             .sheet(isPresented: $mostrarComunidad) { ComunidadView() }
+            .sheet(isPresented: $mostrarCompeticion) { CompeticionView() }
+            .sheet(isPresented: $mostrarPareja) { ParejaView() }
         }
     }
 

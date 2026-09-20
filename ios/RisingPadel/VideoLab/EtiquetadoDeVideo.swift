@@ -11,6 +11,17 @@ import PadelCore
 /// Por eso el formato está pensado para salir de la app (`exportar`) y no solo para
 /// pintarse en pantalla: el consumidor final es el entrenamiento del clasificador.
 
+/// Quién puso la marca.
+///
+/// El análisis de vídeo no marca nada: propone. Una marca `propuesta` es una propuesta que
+/// el usuario miró y confirmó — sigue siendo suya, pero conviene poder distinguirlas
+/// cuando esto se use como verdad-terreno, porque confirmar de un toque es más barato (y
+/// por tanto más descuidado) que marcar mirando el vídeo.
+enum OrigenDeMarca: String, Codable {
+    case manual
+    case propuesta
+}
+
 /// Un golpe visto en el vídeo, en el segundo en que ocurre.
 struct MarcaDeVideo: Codable, Equatable, Identifiable {
     var id = UUID()
@@ -19,6 +30,15 @@ struct MarcaDeVideo: Codable, Equatable, Identifiable {
     /// seguidos en la misma marca.
     var segundos: Double
     var tipo: ShotType
+    var origen: OrigenDeMarca = .manual
+    /// La postura del jugador en ese instante, si se ha pasado el análisis de vídeo.
+    /// Opcional para siempre: marcar a mano sigue siendo el camino principal y no
+    /// requiere análisis ninguno.
+    var postura: PosturaDetectada?
+    /// Dónde estaba el jugador en la pista al dar ese golpe. Necesita postura **y**
+    /// calibración de las esquinas; sin una de las dos, nil — nunca un punto aproximado
+    /// "para que el mapa no salga vacío".
+    var posicion: PosicionEnPista?
 
     /// `00:03`, el formato de la línea temporal del documento de producto.
     ///
@@ -27,6 +47,40 @@ struct MarcaDeVideo: Codable, Equatable, Identifiable {
     var tiempo: String {
         let total = Int(segundos.rounded(.down))
         return String(format: "%02d:%02d", total / 60, total % 60)
+    }
+
+    init(
+        id: UUID = UUID(),
+        segundos: Double,
+        tipo: ShotType,
+        origen: OrigenDeMarca = .manual,
+        postura: PosturaDetectada? = nil,
+        posicion: PosicionEnPista? = nil
+    ) {
+        self.id = id
+        self.segundos = segundos
+        self.tipo = tipo
+        self.origen = origen
+        self.postura = postura
+        self.posicion = posicion
+    }
+
+    /// Decodificación tolerante, por lo mismo que en `EtiquetadoDeVideo`: las marcas que
+    /// ya están en disco se escribieron antes de que existieran `origen`, `postura` y
+    /// `posicion`, y Swift **no** usa los valores por defecto de las propiedades al
+    /// decodificar. Sin esto, todos los etiquetados viejos dejarían de abrirse.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        segundos = try c.decodeIfPresent(Double.self, forKey: .segundos) ?? 0
+        tipo = (try c.decodeIfPresent(String.self, forKey: .tipo)).map(ShotType.fromWire) ?? .unknown
+        origen = (try c.decodeIfPresent(String.self, forKey: .origen))
+            .flatMap(OrigenDeMarca.init(rawValue:)) ?? .manual
+        // Con `try?`: un bloque de análisis corrupto (una homografía a medias, por
+        // ejemplo) puede costar la postura de una marca, pero no el etiquetado entero,
+        // que son horas de trabajo manual.
+        postura = (try? c.decodeIfPresent(PosturaDetectada.self, forKey: .postura)) ?? nil
+        posicion = (try? c.decodeIfPresent(PosicionEnPista.self, forKey: .posicion)) ?? nil
     }
 }
 

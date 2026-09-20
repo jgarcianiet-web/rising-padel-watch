@@ -33,18 +33,36 @@ struct EvolucionView: View {
         }
     }
 
+    /// El plan del jugador. **La curva entera es gratis; partirla en tramos es de Pro.**
+    ///
+    /// Esconder la evolución completa detrás del muro dejaría la app sin lo único que
+    /// contesta "¿voy mejorando?", que es la razón por la que alguien se la instala. Lo
+    /// que se vende es leerla por trozos —los últimos siete días, el trimestre, la
+    /// temporada—, que es lo que se usa cuando ya llevas meses midiendo.
+    @StateObject private var tienda = TiendaModel.compartida
+
     @State private var tramo: Tramo = .mes
+    @State private var muroAbierto = false
+
+    private var puedeElegirTramo: Bool {
+        Gating.disponible(.evolucionPorTramos, plan: tienda.plan)
+    }
+
+    /// El tramo que se aplica de verdad: sin Pro, siempre el historial entero.
+    /// Se filtra aquí y no solo en la interfaz — cambiar el `Picker` de sitio no puede
+    /// abrir la función.
+    private var tramoVigente: Tramo { puedeElegirTramo ? tramo : .todo }
 
     private var partidos: [LigaMatch] {
         let todos = liga.state.matches
-        switch tramo {
+        switch tramoVigente {
         case .todo:
             return todos
         case .temporada:
             guard let actual = liga.temporadaActual else { return todos }
             return todos.filter { actual.contiene($0) }
         default:
-            guard let dias = tramo.dias,
+            guard let dias = tramoVigente.dias,
                   let desde = Calendar.current.date(
                     byAdding: .day, value: -dias, to: Date()
                   )
@@ -66,14 +84,42 @@ struct EvolucionView: View {
             }
             .background(T.fondo)
             .navigationTitle("Mi evolución")
+            .sheet(isPresented: $muroAbierto) {
+                PaywallView(destacando: .evolucionPorTramos, enHoja: true)
+            }
         }
     }
 
+    @ViewBuilder
     private var selector: some View {
-        Picker("Tramo", selection: $tramo) {
-            ForEach(Tramo.allCases) { Text($0.rawValue).tag($0) }
+        if puedeElegirTramo {
+            Picker("Tramo", selection: $tramo) {
+                ForEach(Tramo.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        } else {
+            // Sin Pro se enseña lo que hay —el historial entero— y al lado lo que se
+            // compra, dicho con el nombre del tramo y no con un candado genérico.
+            Button { muroAbierto = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "lock.fill")
+                        .font(.caption)
+                    Text("Viendo todo tu historial · elegir tramo es de Pro")
+                        .font(.caption)
+                        .multilineTextAlignment(.leading)
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                }
+                .foregroundStyle(T.tintaSuave)
+                .padding(.vertical, 9)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity)
+                .background(T.superficie, in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(T.borde, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
         }
-        .pickerStyle(.segmented)
     }
 
     // MARK: Rising Level

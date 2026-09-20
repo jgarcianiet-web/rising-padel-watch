@@ -31,6 +31,20 @@ database_id = "PON_AQUI_EL_ID_DE_D1"
 #                      ponga el usuario. Con ella, el usuario no necesita ninguna —
 #                      que es lo que hace vendible la app. Cuota por cuenta y mes
 #                      en la tabla coach_usage; ver src/coach.js.
+#   APPSTORE_IAP_KEY_P8  contenido del AuthKey_XXX.p8 de la clave de **In-App Purchase**
+#                        (App Store Connect → Usuarios y acceso → Claves → Compras
+#                        dentro de la app). OJO: no es la misma clave que APNS_KEY_P8 ni
+#                        la de subir builds; la App Store Server API solo acepta esta.
+#   APPSTORE_IAP_KEY_ID  su Key ID
+#   APPSTORE_ISSUER_ID   el Issuer ID de App Store Connect (el UUID de la pestaña Claves;
+#                        no es el Team ID)
+#   APPSTORE_BUNDLE_ID   com.risingpadel.watch — va dentro del JWT, y Apple contesta 401
+#                        si no coincide con el de la clave.
+# Sin los cuatro, /v1/suscripcion devuelve 404 y la app se queda en el plan gratuito:
+# una suscripción que no se puede comprobar con Apple no se concede. Ver
+# src/suscripciones.js, y apunta la URL del webhook de App Store Server Notifications V2
+# (App Store Connect → tu app → Notificaciones de servidor) a
+# https://<tu-worker>/v1/suscripcion/apple.
 # Y una variable normal:
 # Las fotos del muro. Crear con `wrangler r2 bucket create rising-padel-fotos`
 # (R2 hay que activarlo una vez en el panel de Cloudflare; el plan gratuito llega).

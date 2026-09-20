@@ -47,6 +47,7 @@ decodificación tolerante para backups viejos de la web-app.
 | Liga en Android: dominio Kotlin (modelos + backup + métricas, con tests) | Hecho en el core; las pantallas Compose son el siguiente tramo |
 | Complicación / widget del reloj | Pendiente — necesita otra extensión con su perfil de firma; mismo camino que la de widgets |
 | Temporadas: meta de partidos, análisis del entrenador por temporada y comparación entre temporadas | Hecho — una temporada es un rango de fechas, así que los partidos del backup no cambian de shape y el historial importado se reparte solo |
+| Análisis de pareja (§36.11): con esa pareja contra con cualquier otra | Hecho — `AnalisisDePareja` en los dos cores (tests en Kotlin) y `ParejaView`. El veredicto lo decide el nivel de sesión y no las victorias, porque ganar depende de los rivales y de esos no hay dato. Mínimo 5 partidos; por debajo salen los recuentos y se callan los porcentajes. **El rendimiento del compañero no se mide**: solo hay un reloj, el de quien usa la app — el hueco está preparado para cuando existan dos cuentas conectadas |
 
 ### Sobre el nombre "Band"
 

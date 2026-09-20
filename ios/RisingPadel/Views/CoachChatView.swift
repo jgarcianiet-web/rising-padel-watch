@@ -22,6 +22,11 @@ struct CoachChatView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var liga: LigaModel
 
+    /// El plan del jugador. El entrenador es la función de pago por excelencia —es la
+    /// única que le cuesta dinero al servicio en cada pregunta— así que sin Pro esta
+    /// pantalla ES la de venta, no una versión recortada del chat. Ver `Gating`.
+    @StateObject private var tienda = TiendaModel.compartida
+
     @State private var turnos: [CoachService.Turno] = []
     @State private var borrador = ""
     @State private var pensando = false
@@ -39,7 +44,16 @@ struct CoachChatView: View {
         "¿Qué objetivos tengo para el próximo partido?",
     ]
 
+    @ViewBuilder
     var body: some View {
+        if Gating.disponible(.entrenadorIA, plan: tienda.plan) {
+            chat
+        } else {
+            PaywallView(destacando: .entrenadorIA)
+        }
+    }
+
+    private var chat: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 conversacion

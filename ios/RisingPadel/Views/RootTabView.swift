@@ -529,8 +529,9 @@ struct LastSessionView: View {
                              + "partidos y tus 3 objetivos. Los que el reloj pueda "
                              + "medir se marcarán solos.")
                         paso("4", "Dale voz al entrenador",
-                             "En Ajustes → Entrenador IA, pega tu clave de API: "
-                             + "análisis de temporada y crónicas para el muro.")
+                             "Con tu cuenta de Rising Pádel ya tienes a Rising AI en su "
+                             + "pestaña: análisis de temporada, crónicas para el muro y "
+                             + "respuestas sobre tus propios partidos.")
                     }
                 }
             }

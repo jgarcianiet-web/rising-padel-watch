@@ -19,6 +19,7 @@
 
 import { apuntarResultado, avisarPartidoEnVivo, comunidad, usuarioDe } from "./comunidad.js";
 import { coach } from "./coach.js";
+import { suscripciones } from "./suscripciones.js";
 import { competicion } from "./competicion.js";
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -101,6 +102,13 @@ export default {
     // si la ruta no es suya. Ver el porqué en coach.js.
     if (path.startsWith("/v1/coach")) {
       const respuesta = await coach(request, env, path);
+      if (respuesta) return respuesta;
+    }
+
+    // La suscripción Pro: el cliente solo manda el identificador de la compra y el
+    // servidor se lo pregunta a Apple. Ver el porqué en suscripciones.js.
+    if (path.startsWith("/v1/suscripcion")) {
+      const respuesta = await suscripciones(request, env, path);
       if (respuesta) return respuesta;
     }
 

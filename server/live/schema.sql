@@ -165,6 +165,14 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   updated_at TEXT NOT NULL
 );
 
+-- Una suscripción de Apple es de una persona y de una sola. Sin este índice, el mismo
+-- recibo pegado en dos cuentas daría Pro a las dos: una suscripción, dos plazas.
+-- Es el fraude más barato que existe contra una app de pago, y se cierra aquí y no en
+-- el código, porque una comprobación en el servidor se olvida y un índice no.
+CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_por_transaccion
+  ON subscriptions(original_transaction_id)
+  WHERE original_transaction_id IS NOT NULL;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Competición: clubes, ligas y sus partidos (§36.14, §36.16, §36.19)
 --
