@@ -30,7 +30,7 @@
 // cae sola a la clave propia del usuario. Es el mismo patrón que `TANDAS_TOKEN`: una
 // función que depende de un secreto no debe fingir que está ahí cuando no lo está.
 
-import { usuarioDe } from "./comunidad.js";
+import { esPropietario, usuarioDe } from "./comunidad.js";
 
 const MODELO = "claude-opus-5";
 
@@ -87,20 +87,28 @@ const periodoActual = () => new Date().toISOString().slice(0, 7);
  * suscripción vencida cae sola a gratuito aunque el aviso de Apple se haya perdido, así
  * que el sistema no depende de que el webhook llegue siempre.
  */
-async function consumo(env, userId) {
+async function consumo(env, user) {
   const [suscripcion, uso] = await Promise.all([
     env.DB.prepare("SELECT plan, expires_at FROM subscriptions WHERE user = ?1")
-      .bind(userId)
+      .bind(user.id)
       .first(),
     env.DB.prepare("SELECT used FROM coach_usage WHERE user = ?1 AND period = ?2")
-      .bind(userId, periodoActual())
+      .bind(user.id, periodoActual())
       .first(),
   ]);
 
   const vigente =
     suscripcion &&
     (!suscripcion.expires_at || suscripcion.expires_at > new Date().toISOString());
-  const plan = vigente ? suscripcion.plan : "free";
+  // El dueño del servicio no es cliente del servicio: la clave de Anthropic que se
+  // paga en cada pregunta es la suya. Se le da el plan más alto, no barra libre — el
+  // tope sigue existiendo porque una cuenta robada con gasto ilimitado es una factura
+  // ilimitada, y el dueño es justo la cuenta que más interesa robar.
+  const plan = esPropietario(user, env)
+    ? "elite"
+    : vigente
+      ? suscripcion.plan
+      : "free";
 
   return { plan, usadas: uso?.used ?? 0, limite: CUOTA[plan] ?? CUOTA.free };
 }
@@ -125,7 +133,7 @@ export async function coach(request, env, path) {
   if (!user) return error(401, "sin_cuenta", "Hace falta una cuenta de la comunidad");
 
   if (path === "/v1/coach/cuota" && request.method === "GET") {
-    const { plan, usadas, limite } = await consumo(env, user.id);
+    const { plan, usadas, limite } = await consumo(env, user);
     return json(200, { plan, usadas, limite, restantes: Math.max(0, limite - usadas) });
   }
 
@@ -164,7 +172,7 @@ export async function coach(request, env, path) {
     return error(400, "cuerpo_invalido", "La conversación tiene que empezar por el usuario");
   }
 
-  const { plan, usadas, limite } = await consumo(env, user.id);
+  const { plan, usadas, limite } = await consumo(env, user);
   if (usadas >= limite) {
     return json(429, {
       error: {

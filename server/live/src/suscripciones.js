@@ -48,7 +48,7 @@
 // las credenciales de la App Store Server API esto devuelve 404 en vez de fingir que
 // funciona. Una función que depende de un secreto no debe existir a medias.
 
-import { usuarioDe } from "./comunidad.js";
+import { esPropietario, usuarioDe } from "./comunidad.js";
 
 /**
  * Los productos de App Store Connect y el plan que dan.
@@ -320,6 +320,25 @@ function planVigente(fila) {
  */
 export async function suscripciones(request, env, path) {
   if (!path.startsWith("/v1/suscripcion")) return null;
+
+  // ── El dueño, antes que nada ──
+  //
+  // Consultar el plan es lo único que tiene sentido sin haber montado la tienda, y para
+  // el dueño del servicio TIENE que funcionar así: él no compra nada en App Store, y si
+  // esta ruta devolviera 404 hasta tener las claves de Apple, el que paga la clave de
+  // Anthropic se quedaría mirando un muro de pago en su propia app. Pasó.
+  //
+  // Solo se contesta a GET: ni sincronizar ni el webhook tienen nada que hacer aquí.
+  if (path === "/v1/suscripcion" && request.method === "GET" && env.DB) {
+    const quien = await usuarioDe(request, env);
+    if (esPropietario(quien, env)) {
+      return json(200, {
+        plan: "elite",
+        producto: "propietario",
+        expiraEl: null,
+      });
+    }
+  }
 
   // Sin credenciales de la App Store Server API no hay forma de comprobar nada con
   // Apple, y un endpoint de suscripción que no comprueba nada es peor que no existir.

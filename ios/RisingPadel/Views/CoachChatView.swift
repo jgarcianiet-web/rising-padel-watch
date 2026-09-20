@@ -44,13 +44,19 @@ struct CoachChatView: View {
         "¿Qué objetivos tengo para el próximo partido?",
     ]
 
-    @ViewBuilder
     var body: some View {
-        if Gating.disponible(.entrenadorIA, plan: tienda.plan) {
-            chat
-        } else {
-            PaywallView(destacando: .entrenadorIA)
+        Group {
+            if Gating.disponible(.entrenadorIA, plan: tienda.plan) {
+                chat
+            } else {
+                PaywallView(destacando: .entrenadorIA)
+            }
         }
+        // Al abrir la pestaña se le pregunta al servidor qué plan tiene esta cuenta. Es
+        // barato y evita el peor cuadro posible: alguien con derecho al entrenador —el
+        // dueño del servicio, o quien renovó desde otro móvil— mirando un muro de pago
+        // hasta que se le ocurra reiniciar la app.
+        .task { await tienda.consultarPlan() }
     }
 
     private var chat: some View {

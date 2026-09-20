@@ -64,3 +64,16 @@ bucket_name = "rising-padel-fotos"
 
 [vars]
 APNS_TOPIC = "com.risingpadel.watch"
+
+# Quién es el DUEÑO del servicio y no un cliente suyo: alias separados por comas.
+#
+# El dueño tiene el plan más alto sin comprar nada, porque la clave de Anthropic que se
+# paga en cada pregunta al entrenador es la suya — pedirle que se suscriba a sí mismo
+# para usar lo que él paga no es una regla de negocio, es un error.
+#
+# **Normalmente no hace falta tocar esto**: la cuenta número 1 de la base de datos es el
+# dueño automáticamente, y esa es la del que levantó el servidor. Esta variable es para
+# cuando la cuenta 1 no es la buena (una base migrada, una cuenta de prueba creada
+# antes). Va aquí y no en `wrangler secret` a propósito: un alias no es una credencial,
+# y sin el token de esa cuenta no abre nada. Ver `esPropietario()` en src/comunidad.js.
+# PROPIETARIO = "tu-alias"

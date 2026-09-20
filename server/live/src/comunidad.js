@@ -34,6 +34,43 @@ export async function usuarioDe(request, env) {
     .first();
 }
 
+/**
+ * Si este usuario es **el dueño del servicio** y no un cliente suyo.
+ *
+ * ## Por qué hace falta
+ *
+ * El entrenador IA es de pago porque cada pregunta cuesta dinero de la clave del
+ * servicio. Pero esa clave es la del dueño: pedirle que se suscriba a sí mismo para usar
+ * lo que él paga no es una regla de negocio, es un error. El muro de pago se le puso
+ * delante en la primera build con tienda, y eso es lo que arregla esto.
+ *
+ * ## Las dos formas de serlo, y por qué son dos
+ *
+ * 1. **Ser el usuario 1.** Quien levantó el servidor se registró el primero, así que la
+ *    primera cuenta es la suya. Sirve sin configurar nada, que es la gracia: el dueño
+ *    prueba la app desde el móvil y no tiene por qué poder abrir una consola.
+ *
+ * 2. **Estar en `PROPIETARIO`**, una variable del Worker con uno o varios alias
+ *    separados por comas. Es la vía explícita para cuando la cuenta 1 no es la buena —
+ *    una base de datos migrada, una cuenta de prueba creada antes.
+ *
+ * ## Esto no abre ninguna puerta
+ *
+ * Ser el dueño no se declara desde el cliente: se deduce de la fila de `users` a la que
+ * apunta el token del Llavero, que ya es lo que autentica todo lo demás. Un alias en un
+ * repositorio público no da acceso a nada sin ese token, igual que saber el nombre de
+ * alguien no abre su casa.
+ */
+export function esPropietario(user, env) {
+  if (!user) return false;
+  if (Number(user.id) === 1) return true;
+  const declarados = String(env?.PROPIETARIO ?? "")
+    .split(",")
+    .map((a) => a.trim().toLowerCase())
+    .filter(Boolean);
+  return declarados.includes(String(user.alias ?? "").toLowerCase());
+}
+
 // ─── APNs ───
 
 let apnsJwt = null; // { token, mintedAt } — se reusa hasta 40 min, como pide Apple.

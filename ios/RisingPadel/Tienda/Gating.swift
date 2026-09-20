@@ -89,7 +89,18 @@ enum Gating {
     }
 
     /// Si el jugador puede usar esa función con el plan que tiene.
+    ///
+    /// **El entrenador tiene una puerta más**, y no es una grieta: quien pone su propia
+    /// clave de API le está pagando a Anthropic de su bolsillo en cada pregunta, así que
+    /// cobrarle por el entrenador sería cobrarle por algo que el servicio no le está
+    /// dando. Es el caso del que monta su propio servidor, y también el del dueño de
+    /// este, que es quien paga la clave de todos los demás.
+    ///
+    /// No abre nada que cueste dinero ajeno: las peticiones con clave propia van directas
+    /// a Anthropic desde el móvil y no tocan el servidor. Lo que sí cuesta —la clave del
+    /// servicio— lo sigue guardando la cuota de `coach.js`, que no mira este fichero.
     static func disponible(_ funcion: FuncionPro, plan: String) -> Bool {
-        !requierePro(funcion) || esPro(plan)
+        if !requierePro(funcion) || esPro(plan) { return true }
+        return funcion == .entrenadorIA && CoachKeyStore.read() != nil
     }
 }
