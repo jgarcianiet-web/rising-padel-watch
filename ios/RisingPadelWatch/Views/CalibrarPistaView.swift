@@ -96,10 +96,14 @@ struct CalibrarPistaView: View {
     private var progreso: some View {
         HStack(spacing: 6) {
             ForEach(0..<CalibradorDePista.nombresDeEsquina.count, id: \.self) { i in
-                Image(systemName: i < calibrador.esquinas.count
-                      ? "circle.fill" : "circle")
+                let hecha = i < calibrador.esquinas.count
+                Image(systemName: hecha ? "circle.fill" : "circle")
                     .font(.system(size: 9))
-                    .foregroundStyle(i < calibrador.esquinas.count ? .tint : .secondary)
+                    // `Color` explícito en las dos ramas: `.tint` y `.secondary` son
+                    // tipos distintos de ShapeStyle y el ternario no los unifica. Es el
+                    // mismo tropiezo que ya estaba anotado en `bigButton` de
+                    // WatchRootView con `.bordered` y `.borderedProminent`.
+                    .foregroundStyle(hecha ? Color.accentColor : Color.secondary)
             }
         }
         .padding(.top, 2)
