@@ -40,6 +40,19 @@ data class ProgresoDeObjetivo(
     val ultimas: List<Double>,
     val fraccion: Double,
     val avance: Double,
+    /**
+     * A cuántas décimas por semana avanza el golpe, o null si no hay dos partidos
+     * separados en el tiempo con los que medirlo. Puede ser negativo.
+     */
+    val tendenciaPorSemana: Double? = null,
+    /** yyyy-mm-dd de cierre de la temporada, si la tiene. */
+    val fechaLimite: String? = null,
+    /**
+     * Semanas que harían falta al ritmo actual para llegar a la meta. Null si no hay
+     * tendencia, si ya está cumplido, o si la tendencia es plana o va hacia atrás —
+     * en esos dos casos "faltan infinitas semanas" no es un número, es un no.
+     */
+    val semanasAlRitmoActual: Double? = null,
 ) {
     val cumplido: Boolean get() = notaActual != null && notaActual >= objetivo.notaObjetivo
 
@@ -50,6 +63,27 @@ data class ProgresoDeObjetivo(
      * mirando una barra de progreso.
      */
     val porcentaje: Int get() = (fraccion * 100).roundToInt()
+
+    /**
+     * El objetivo no va a llegar a tiempo al ritmo de ahora.
+     *
+     * Hace falta fecha límite y tendencia: sin las dos no se puede decir nada y el
+     * riesgo es null, no false. La diferencia importa — "no va a llegar" y "no lo sé"
+     * no se le pueden enseñar igual a alguien que está entrenando para eso.
+     *
+     * Ir hacia atrás cuenta como riesgo aunque queden meses: si la tendencia es
+     * negativa, la fecha no arregla nada.
+     */
+    fun enRiesgo(hoy: String): Boolean? {
+        if (cumplido) return false
+        val limite = fechaLimite?.takeIf { it.isNotEmpty() } ?: return null
+        val ritmo = tendenciaPorSemana ?: return null
+        if (ritmo <= 0.0) return true
+        val faltan = semanasAlRitmoActual ?: return true
+        // Una fecha ilegible no es "va bien": es que no se sabe.
+        val diasQueQuedan = Fechas.diasEntre(hoy, limite) ?: return null
+        return diasQueQuedan / 7.0 < faltan
+    }
 }
 
 /**
@@ -83,6 +117,7 @@ object ProgresoDeGolpes {
         objetivo: ObjetivoDeGolpe,
         partidos: List<LigaMatch>,
         ventana: Int = VENTANA,
+        fechaLimite: String? = null,
     ): ProgresoDeObjetivo {
         val notas = notasDe(objetivo.golpe, partidos)
         val ultimas = notas.takeLast(ventana)
@@ -97,13 +132,57 @@ object ProgresoDeGolpes {
             else -> ((actual - objetivo.notaInicial) / camino).coerceIn(0.0, 1.0)
         }
 
+        val tendencia = tendencia(objetivo.golpe, partidos)
+        val restante = if (actual == null) null else objetivo.notaObjetivo - actual
+
         return ProgresoDeObjetivo(
             objetivo = objetivo,
             notaActual = actual,
             ultimas = ultimas,
             fraccion = fraccion,
             avance = if (actual == null) 0.0 else actual - objetivo.notaInicial,
+            tendenciaPorSemana = tendencia,
+            fechaLimite = fechaLimite,
+            semanasAlRitmoActual =
+                if (tendencia != null && tendencia > 0.0 && restante != null && restante > 0.0) {
+                    restante / tendencia
+                } else {
+                    null
+                },
         )
+    }
+
+    /**
+     * A cuántas décimas por semana avanza un golpe: la pendiente entre la primera y la
+     * última medición, repartida entre las semanas que las separan.
+     *
+     * Es una recta entre dos puntos y no una regresión sobre todos, y es deliberado.
+     * Una regresión sobre seis partidos de una temporada tiene tanto ruido que el signo
+     * cambia con un mal sábado, y el número que se le enseña al jugador tiene que
+     * significar algo tan simple como "has subido esto desde que empezaste, y a este
+     * paso". Cuando haya cuarenta partidos por temporada esto se podrá afinar; hoy
+     * afinarlo sería fingir precisión.
+     *
+     * Null con menos de dos mediciones o si todas cayeron el mismo día: dividir por
+     * cero semanas daría una tendencia infinita.
+     */
+    fun tendencia(golpe: String, partidos: List<LigaMatch>): Double? {
+        val conNota = partidos
+            .filter { partido ->
+                partido.golpesSesion?.any { it.nombre.equals(golpe, ignoreCase = true) } == true
+            }
+            .sortedBy { it.fecha }
+        if (conNota.size < 2) return null
+
+        val primera = conNota.first()
+        val ultima = conNota.last()
+        val dias = Fechas.diasEntre(primera.fecha, ultima.fecha) ?: return null
+        if (dias <= 0) return null
+
+        fun nota(partido: LigaMatch) = partido.golpesSesion
+            ?.first { it.nombre.equals(golpe, ignoreCase = true) }?.nota ?: 0.0
+
+        return (nota(ultima) - nota(primera)) / (dias / 7.0)
     }
 
     /** El progreso de todos los objetivos de una temporada, en su orden. */
@@ -112,7 +191,8 @@ object ProgresoDeGolpes {
         partidos: List<LigaMatch>,
     ): List<ProgresoDeObjetivo> {
         val suyos = partidos.filter { temporada.contiene(it) }
-        return temporada.objetivosDeGolpe.map { progreso(it, suyos) }
+        val limite = temporada.fechaDeCierre.takeIf { it.isNotEmpty() }
+        return temporada.objetivosDeGolpe.map { progreso(it, suyos, fechaLimite = limite) }
     }
 
     /**

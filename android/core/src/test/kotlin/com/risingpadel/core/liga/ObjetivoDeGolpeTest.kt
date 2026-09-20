@@ -2,6 +2,7 @@ package com.risingpadel.core.liga
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -152,5 +153,119 @@ class ObjetivoDeGolpeTest {
         val p = ProgresoDeGolpes.progreso(plano, partidos)
         assertEquals(100, p.porcentaje)
         assertTrue(p.cumplido)
+    }
+
+    // MARK: El motor de objetivos (§36.29): tendencia, plazo y riesgo
+
+    @Test
+    fun `la tendencia se da en decimas por semana`() {
+        // Dos partidos separados 14 días, de 3,0 a 3,4: +0,2 por semana.
+        val partidos = listOf(
+            partido("2026-10-01", "Bandeja" to 3.0),
+            partido("2026-10-15", "Bandeja" to 3.4),
+        )
+        val tendencia = assertNotNull(ProgresoDeGolpes.tendencia("Bandeja", partidos))
+        assertEquals(0.2, tendencia, 0.001)
+    }
+
+    @Test
+    fun `con un solo partido no hay tendencia, y no se inventa un cero`() {
+        // Cero significaría "estás estancado", que es una afirmación; lo honesto es que
+        // todavía no se sabe.
+        assertNull(ProgresoDeGolpes.tendencia("Bandeja", listOf(partido("2026-10-01", "Bandeja" to 3.0))))
+    }
+
+    @Test
+    fun `dos partidos el mismo dia no dan tendencia infinita`() {
+        val mismoDia = listOf(
+            partido("2026-10-01", "Bandeja" to 3.0),
+            partido("2026-10-01", "Bandeja" to 3.4),
+        )
+        assertNull(ProgresoDeGolpes.tendencia("Bandeja", mismoDia))
+    }
+
+    @Test
+    fun `un objetivo que no llega a tiempo sale en riesgo`() {
+        // De 2,6 a 3,5 hay 0,9. Va a +0,05 por semana y le quedan dos semanas: no llega.
+        val temporada = LigaTemporada(
+            id = 1,
+            fechaInicio = "2026-10-01",
+            fechaFinPrevista = "2026-10-29",
+            objetivosDeGolpe = listOf(bandeja),
+        )
+        val partidos = listOf(
+            partido("2026-10-01", "Bandeja" to 2.6),
+            partido("2026-10-15", "Bandeja" to 2.7),
+        )
+        val progreso = ProgresoDeGolpes.deTemporada(temporada, partidos).first()
+        assertEquals(true, progreso.enRiesgo("2026-10-15"))
+    }
+
+    @Test
+    fun `el mismo objetivo con margen de sobra no sale en riesgo`() {
+        val temporada = LigaTemporada(
+            id = 1,
+            fechaInicio = "2026-10-01",
+            fechaFinPrevista = "2027-06-30",
+            objetivosDeGolpe = listOf(bandeja),
+        )
+        val partidos = listOf(
+            partido("2026-10-01", "Bandeja" to 2.6),
+            partido("2026-10-15", "Bandeja" to 2.9),
+        )
+        val progreso = ProgresoDeGolpes.deTemporada(temporada, partidos).first()
+        assertEquals(false, progreso.enRiesgo("2026-10-15"))
+    }
+
+    @Test
+    fun `ir hacia atras es riesgo aunque queden meses`() {
+        val temporada = LigaTemporada(
+            id = 1,
+            fechaInicio = "2026-10-01",
+            fechaFinPrevista = "2027-06-30",
+            objetivosDeGolpe = listOf(bandeja),
+        )
+        val partidos = listOf(
+            partido("2026-10-01", "Bandeja" to 3.0),
+            partido("2026-10-15", "Bandeja" to 2.7),
+        )
+        val progreso = ProgresoDeGolpes.deTemporada(temporada, partidos).first()
+        assertEquals(true, progreso.enRiesgo("2026-10-15"))
+    }
+
+    @Test
+    fun `sin plazo o sin tendencia el riesgo es desconocido, no falso`() {
+        // "No va a llegar" y "no lo sé" no se le pueden enseñar igual a alguien que
+        // está entrenando para eso.
+        val sinPlazo = LigaTemporada(id = 1, fechaInicio = "2026-10-01", objetivosDeGolpe = listOf(bandeja))
+        val partidos = listOf(
+            partido("2026-10-01", "Bandeja" to 2.6),
+            partido("2026-10-15", "Bandeja" to 2.7),
+        )
+        assertNull(ProgresoDeGolpes.deTemporada(sinPlazo, partidos).first().enRiesgo("2026-10-15"))
+
+        val conPlazoSinDatos = LigaTemporada(
+            id = 1,
+            fechaInicio = "2026-10-01",
+            fechaFinPrevista = "2026-12-31",
+            objetivosDeGolpe = listOf(bandeja),
+        )
+        val unico = listOf(partido("2026-10-01", "Bandeja" to 2.6))
+        assertNull(ProgresoDeGolpes.deTemporada(conPlazoSinDatos, unico).first().enRiesgo("2026-10-15"))
+    }
+
+    @Test
+    fun `un objetivo cumplido nunca esta en riesgo`() {
+        val temporada = LigaTemporada(
+            id = 1,
+            fechaInicio = "2026-10-01",
+            fechaFinPrevista = "2026-10-20",
+            objetivosDeGolpe = listOf(bandeja),
+        )
+        val partidos = listOf(
+            partido("2026-10-01", "Bandeja" to 3.6),
+            partido("2026-10-15", "Bandeja" to 3.7),
+        )
+        assertEquals(false, ProgresoDeGolpes.deTemporada(temporada, partidos).first().enRiesgo("2026-10-15"))
     }
 }

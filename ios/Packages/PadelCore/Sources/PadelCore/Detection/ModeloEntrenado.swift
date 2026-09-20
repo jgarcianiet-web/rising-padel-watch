@@ -23,5 +23,15 @@ public enum ModeloEntrenado {
     /// Por debajo manda la heurística. No es desconfianza gratuita: la heurística sabe
     /// decir *por qué* clasificó como clasificó, y un golpe que el modelo no tiene claro
     /// es justo el que hay que poder explicar.
+    /// Qué clasificó este golpe, para poder responder dentro de un año a "¿por qué el
+    /// reloj decía esto en septiembre?".
+    ///
+    /// **Nunca se sustituye un modelo en silencio.** Cada golpeo guarda la versión que lo
+    /// clasificó (`Shot.modelVersion`) y cada análisis del entrenador guarda la suya. Sin
+    /// esto, el día que el modelo 0.2 empeore un tipo de golpe, el historial sería una
+    /// mezcla de dos criterios sin forma de separarlos: las notas de antes y las de
+    /// después no se podrían comparar, que es justo lo que la app promete hacer.
+    public static let version = "heuristica-2026.09"
+
     public static let minVotos: Float = 0.6
 }

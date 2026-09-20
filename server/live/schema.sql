@@ -7,6 +7,13 @@ CREATE TABLE IF NOT EXISTS users (
   -- El token es la identidad entera: se genera aquí, viaja al Llavero del móvil y no
   -- hay contraseña que olvidar ni email que filtrar. Para una comunidad de amigos.
   token TEXT NOT NULL UNIQUE,
+  -- Qué es esta cuenta: player | coach | club | admin.
+  --
+  -- Hoy todas son 'player' y nada lo mira. Existe porque añadir una columna a una tabla
+  -- con datos es barato y REPARTIR una tabla que nació sin ella no lo es: el día que un
+  -- entrenador vea a sus jugadores, la relación entrenador-jugador cuelga de aquí. Ver
+  -- el §36.22 del documento de producto.
+  role TEXT NOT NULL DEFAULT 'player',
   created_at TEXT NOT NULL
 );
 

@@ -68,6 +68,13 @@ public final class SessionRecorder {
 
     private var gameRecords: [GameRecord] = []
 
+    /// Puntos jugados en lo que va de partido, para poder situar cada golpeo.
+    ///
+    /// Se cuenta aquí y no se saca del marcador porque `MatchScore` guarda el tanteo
+    /// (15-30, sets ganados), no cuántos puntos se llevan jugados: al cerrarse un juego
+    /// los puntos vuelven a cero y esa cuenta se perdería.
+    private var pointsPlayed = 0
+
     /// Juegos cerrados hasta ahora.
     public var games: [GameRecord] { gameRecords }
 
@@ -80,6 +87,9 @@ public final class SessionRecorder {
     /// El servidor del juego es el de **antes** del punto: al cerrarse un juego el
     /// marcador ya ha rotado el saque para el siguiente.
     public func onScoreChanged(previous: MatchScore, current: MatchScore, monotonicMs: Int64) {
+        // Cualquier cambio de marcador es un punto jugado, se cerrara juego o no.
+        if current != previous { pointsPlayed += 1 }
+
         let winner: Side
         if current.gamesWon(.us) > previous.gamesWon(.us) {
             winner = .us
@@ -126,6 +136,7 @@ public final class SessionRecorder {
         self.startedAtMonotonicMs = monotonicMs
         collectedShots.removeAll()
         gameRecords.removeAll()
+        pointsPlayed = 0
         lastHeartRateBpm = nil
         lastHeartRateAtMs = nil
         maxObservedBpm = 0
@@ -143,9 +154,39 @@ public final class SessionRecorder {
     /// Devuelve el golpeo si esta muestra cierra uno, para poder avisar en la UI al instante.
     @discardableResult
     public func onMotion(_ sample: MotionSample) -> Shot? {
-        guard let shot = detector.process(sample) else { return nil }
+        guard let detectado = detector.process(sample) else { return nil }
+        let shot = Shot(
+            offsetMs: detectado.offsetMs,
+            type: detectado.type,
+            racketSpeedKmh: detectado.racketSpeedKmh,
+            impactG: detectado.impactG,
+            confidence: detectado.confidence,
+            features: detectado.features,
+            context: contextoDeJuego(),
+            modelVersion: detectado.modelVersion
+        )
         collectedShots.append(shot)
         return shot
+    }
+
+    /// Dónde cae este golpe dentro del partido y con qué pulso.
+    ///
+    /// Lo pone el recorder y no el detector a propósito: el detector es una función pura
+    /// de la señal —los mismos milisegundos dan siempre lo mismo, que es lo que permite
+    /// reclasificar una tanda mañana con otro modelo— y el marcador no forma parte de la
+    /// señal. Ver `ShotContext`.
+    ///
+    /// Devuelve nil cuando no hay nada que contar: sin marcador ni pulso, un contexto
+    /// con los cuatro campos vacíos solo ocuparía sitio en el fichero.
+    private func contextoDeJuego() -> ShotContext? {
+        let pulso = lastHeartRateBpm
+        guard score != nil || pulso != nil else { return nil }
+        return ShotContext(
+            pointIndex: score == nil ? nil : pointsPlayed + 1,
+            gameIndex: score.map { $0.gamesWon(.us) + $0.gamesWon(.them) + 1 },
+            setIndex: score.map { $0.completedSets.count + 1 },
+            heartRateBpm: pulso
+        )
     }
 
     /// Cada lectura de FC cierra el intervalo anterior: el tiempo transcurrido desde la

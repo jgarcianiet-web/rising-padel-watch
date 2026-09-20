@@ -12,6 +12,7 @@ import com.risingpadel.core.model.MotionSample
 import com.risingpadel.core.model.PadelSession
 import com.risingpadel.core.model.PlayerProfile
 import com.risingpadel.core.model.Shot
+import com.risingpadel.core.model.ShotContext
 import com.risingpadel.core.model.SourceInfo
 import com.risingpadel.core.score.MatchScore
 import com.risingpadel.core.score.Side
@@ -69,6 +70,15 @@ class SessionRecorder(
 
     private val gameRecords = mutableListOf<GameRecord>()
 
+    /**
+     * Puntos jugados en lo que va de partido, para poder situar cada golpeo.
+     *
+     * Se cuenta aquí y no se saca del marcador porque [MatchScore] guarda el tanteo
+     * (15-30, sets ganados), no cuántos puntos se llevan jugados: al cerrarse un juego
+     * los puntos vuelven a cero y esa cuenta se perdería.
+     */
+    private var pointsPlayed = 0
+
     /** Juegos cerrados hasta ahora. */
     val games: List<GameRecord> get() = gameRecords
 
@@ -83,6 +93,9 @@ class SessionRecorder(
      * marcador ya ha rotado el saque para el siguiente.
      */
     fun onScoreChanged(previous: MatchScore, current: MatchScore, monotonicMs: Long) {
+        // Cualquier cambio de marcador es un punto jugado, se cerrara juego o no.
+        if (current != previous) pointsPlayed++
+
         val closedForUs = current.gamesWon(Side.US) - previous.gamesWon(Side.US)
         val closedForThem = current.gamesWon(Side.THEM) - previous.gamesWon(Side.THEM)
         val winner = when {
@@ -132,7 +145,34 @@ class SessionRecorder(
 
     /** Devuelve el golpeo si esta muestra cierra uno, para poder avisar en la UI al instante. */
     fun onMotion(sample: MotionSample): Shot? =
-        detector.process(sample)?.also { collectedShots.add(it) }
+        detector.process(sample)
+            ?.copy(context = contextoDeJuego())
+            ?.also { collectedShots.add(it) }
+
+    /**
+     * Dónde cae este golpe dentro del partido y con qué pulso.
+     *
+     * Lo pone el recorder y no el detector a propósito: el detector es una función pura
+     * de la señal —los mismos milisegundos dan siempre lo mismo, que es lo que permite
+     * reclasificar una tanda mañana con otro modelo— y el marcador no forma parte de la
+     * señal. Ver [ShotContext].
+     *
+     * Devuelve null cuando no hay nada que contar: sin marcador ni pulso, un contexto
+     * con los cuatro campos vacíos solo ocuparía sitio en el fichero.
+     */
+    private fun contextoDeJuego(): ShotContext? {
+        val marcador = score
+        val pulso = lastHeartRateBpm
+        if (marcador == null && pulso == null) return null
+        return ShotContext(
+            pointIndex = if (marcador == null) null else pointsPlayed + 1,
+            gameIndex = marcador?.let {
+                it.gamesWon(Side.US) + it.gamesWon(Side.THEM) + 1
+            },
+            setIndex = marcador?.let { it.completedSets.size + 1 },
+            heartRateBpm = pulso,
+        )
+    }
 
     /**
      * Cada lectura de FC cierra el intervalo anterior: el tiempo transcurrido desde la

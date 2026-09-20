@@ -271,6 +271,10 @@ class ShotDetector(
             impactG = impactG,
             confidence = classification.confidence,
             features = features,
+            // Quién decidió el tipo. Se estampa en el golpe y no en la sesión porque
+            // una sesión puede sobrevivir a una actualización de la app: los golpes de
+            // antes y los de después no los clasificó lo mismo.
+            modelVersion = ModeloEntrenado.VERSION,
         )
         refractoryUntilMs = impact.timestampMs + config.refractoryMs
         goIdle()

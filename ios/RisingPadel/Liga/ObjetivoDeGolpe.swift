@@ -51,6 +51,28 @@ struct ProgresoDeObjetivo: Equatable, Sendable {
     /// ir justo por la mitad de camino (2,6 → 3,05 con meta en 3,5) salía "49 %" porque
     /// la resta en coma flotante da 0,4999999 en vez de 0,5.
     var porcentaje: Int { Int((fraccion * 100).rounded()) }
+
+    /// El objetivo no va a llegar a tiempo al ritmo de ahora.
+    ///
+    /// Hace falta fecha límite y tendencia: sin las dos, el riesgo es nil y no false.
+    /// La diferencia importa — "no va a llegar" y "no lo sé" no se le pueden enseñar
+    /// igual a alguien que está entrenando para eso.
+    ///
+    /// Ir hacia atrás cuenta como riesgo aunque queden meses: si la tendencia es
+    /// negativa, la fecha no arregla nada.
+    func enRiesgo(hoy: String) -> Bool? {
+        if cumplido { return false }
+        guard let limite = fechaLimite, !limite.isEmpty else { return nil }
+        guard let ritmo = tendenciaPorSemana else { return nil }
+        if ritmo <= 0 { return true }
+        guard let faltan = semanasAlRitmoActual else { return true }
+        guard let desde = LigaFechas.fecha(hoy), let hasta = LigaFechas.fecha(limite) else {
+            // Una fecha ilegible no es "va bien": es que no se sabe.
+            return nil
+        }
+        let dias = hasta.timeIntervalSince(desde) / 86_400
+        return dias / 7 < faltan
+    }
 }
 
 /// Mide los objetivos técnicos de una temporada contra los partidos jugados.
@@ -93,13 +115,53 @@ enum ProgresoDeGolpes {
             fraccion = 0
         }
 
+        let tendenciaSemanal = tendencia(objetivo.golpe, partidos: partidos)
+        let restante = actual.map { objetivo.notaObjetivo - $0 }
+        let semanas: Double?
+        if let tendenciaSemanal, tendenciaSemanal > 0, let restante, restante > 0 {
+            semanas = restante / tendenciaSemanal
+        } else {
+            semanas = nil
+        }
+
         return ProgresoDeObjetivo(
             objetivo: objetivo,
             notaActual: actual,
             ultimas: ultimas,
             fraccion: fraccion,
-            avance: actual.map { $0 - objetivo.notaInicial } ?? 0
+            avance: actual.map { $0 - objetivo.notaInicial } ?? 0,
+            tendenciaPorSemana: tendenciaSemanal,
+            fechaLimite: fechaLimite,
+            semanasAlRitmoActual: semanas
         )
+    }
+
+    /// A cuántas décimas por semana avanza un golpe: la pendiente entre la primera y la
+    /// última medición, repartida entre las semanas que las separan.
+    ///
+    /// Una recta entre dos puntos y no una regresión sobre todos, y es deliberado: con
+    /// seis partidos por temporada, una regresión cambia de signo con un mal sábado.
+    /// Nil con menos de dos mediciones o si todas cayeron el mismo día.
+    static func tendencia(_ golpe: String, partidos: [LigaMatch]) -> Double? {
+        let clave = golpe.lowercased()
+        let conNota = partidos
+            .filter { partido in
+                (partido.golpesSesion ?? []).contains { $0.nombre.lowercased() == clave }
+            }
+            .sorted { $0.fecha < $1.fecha }
+        guard conNota.count >= 2,
+              let primera = conNota.first, let ultima = conNota.last,
+              let desde = LigaFechas.fecha(primera.fecha),
+              let hasta = LigaFechas.fecha(ultima.fecha)
+        else { return nil }
+
+        let dias = hasta.timeIntervalSince(desde) / 86_400
+        guard dias > 0 else { return nil }
+
+        func nota(_ partido: LigaMatch) -> Double {
+            (partido.golpesSesion ?? []).first { $0.nombre.lowercased() == clave }?.nota ?? 0
+        }
+        return (nota(ultima) - nota(primera)) / (dias / 7)
     }
 
     /// El progreso de todos los objetivos de una temporada, en su orden.
@@ -108,7 +170,10 @@ enum ProgresoDeGolpes {
         partidos: [LigaMatch]
     ) -> [ProgresoDeObjetivo] {
         let suyos = partidos.filter { temporada.contiene($0) }
-        return temporada.objetivosDeGolpe.map { progreso($0, partidos: suyos) }
+        let limite = temporada.fechaDeCierre.isEmpty ? nil : temporada.fechaDeCierre
+        return temporada.objetivosDeGolpe.map {
+            progreso($0, partidos: suyos, fechaLimite: limite)
+        }
     }
 
     /// El objetivo en el que menos se ha avanzado: la tarjeta de "principal área de

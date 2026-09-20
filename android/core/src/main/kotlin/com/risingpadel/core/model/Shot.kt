@@ -112,4 +112,61 @@ data class Shot(
     val impactG: Float,
     val confidence: Float,
     val features: ShotFeatures,
+    /**
+     * Dónde cayó este golpe dentro del partido y con qué pulso. Null cuando se jugó sin
+     * marcador o sin permiso de salud. Ver [ShotContext].
+     */
+    val context: ShotContext? = null,
+    /**
+     * Qué versión del clasificador decidió [type]. Null en sesiones grabadas antes de
+     * que se apuntara.
+     *
+     * Es lo que permite comparar el historial consigo mismo: el día que el modelo
+     * cambie, las notas de antes y las de después salen de criterios distintos, y sin
+     * esta etiqueta no habría forma de saber cuáles son cuáles. Ver
+     * [com.risingpadel.core.detection.ModeloEntrenado.VERSION].
+     */
+    val modelVersion: String? = null,
+) {
+    /**
+     * Identidad estable del golpeo dentro de su sesión.
+     *
+     * Se **deriva** de la sesión y el instante en vez de guardar un UUID por golpe, y es
+     * a propósito: un partido largo pasa de 300 golpeos, un identificador aleatorio en
+     * cada uno engorda el fichero, el backup y cada subida sin añadir nada — el par
+     * (sesión, milisegundo) ya es único, porque el detector tiene un tiempo muerto de
+     * 320 ms después de cada impacto y no puede emitir dos golpes en el mismo
+     * milisegundo.
+     *
+     * Sirve para lo que pide el §36 del producto: referenciar un golpe desde fuera
+     * (secuencia de un punto, emparejamiento con el vídeo, valoración de un entrenador).
+     */
+    fun idEn(sessionId: String): String = "$sessionId:$offsetMs"
+}
+
+/**
+ * El contexto de juego de un golpeo: lo que el detector **no** puede saber mirando solo
+ * el movimiento, y que solo conoce quien lleva la sesión.
+ *
+ * Por qué vive aparte de [ShotFeatures]: los rasgos son una función pura de la señal del
+ * sensor —los mismos milisegundos dan siempre los mismos rasgos— y eso es lo que hace
+ * que una tanda grabada se pueda volver a clasificar mañana con otro modelo. El contexto
+ * no; depende del marcador y del pulso, y mezclarlo con los rasgos convertiría el
+ * reentrenamiento en una pesadilla de datos que no se pueden reproducir.
+ *
+ * Y por qué se guarda ahora aunque casi nada lo use todavía: **no se puede rellenar
+ * después**. El punto en el que ocurrió un golpe de hace tres meses no se recupera de
+ * ninguna parte. Es la diferencia entre poder contestar algún día "tu bandeja falla en
+ * los puntos largos del tercer set" y no poder contestarlo nunca.
+ */
+@Serializable
+data class ShotContext(
+    /** Punto del partido, empezando en 1. Null si se jugó sin marcador. */
+    val pointIndex: Int? = null,
+    /** Juego del partido, empezando en 1. */
+    val gameIndex: Int? = null,
+    /** Set del partido, empezando en 1. */
+    val setIndex: Int? = null,
+    /** Pulso en el momento del golpeo. Null sin permiso de salud o sin lectura aún. */
+    val heartRateBpm: Int? = null,
 )

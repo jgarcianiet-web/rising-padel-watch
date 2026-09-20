@@ -134,6 +134,16 @@ public struct Shot: Codable, Equatable, Sendable {
     public let impactG: Float
     public let confidence: Float
     public let features: ShotFeatures
+    /// Dónde cayó este golpe dentro del partido y con qué pulso. Nil cuando se jugó sin
+    /// marcador o sin permiso de salud. Ver `ShotContext`.
+    public let context: ShotContext?
+    /// Qué versión del clasificador decidió `type`. Nil en sesiones grabadas antes de
+    /// que se apuntara.
+    ///
+    /// Es lo que permite comparar el historial consigo mismo: el día que el modelo
+    /// cambie, las notas de antes y las de después salen de criterios distintos, y sin
+    /// esta etiqueta no habría forma de saber cuáles son cuáles.
+    public let modelVersion: String?
 
     public init(
         offsetMs: Int64,
@@ -141,7 +151,9 @@ public struct Shot: Codable, Equatable, Sendable {
         racketSpeedKmh: Float,
         impactG: Float,
         confidence: Float,
-        features: ShotFeatures
+        features: ShotFeatures,
+        context: ShotContext? = nil,
+        modelVersion: String? = nil
     ) {
         self.offsetMs = offsetMs
         self.type = type
@@ -149,5 +161,63 @@ public struct Shot: Codable, Equatable, Sendable {
         self.impactG = impactG
         self.confidence = confidence
         self.features = features
+        self.context = context
+        self.modelVersion = modelVersion
+    }
+
+    /// Los campos nuevos tienen que poder faltar: una sesión grabada antes de que
+    /// existieran no puede fallar al abrirse desde el backup.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        offsetMs = try c.decode(Int64.self, forKey: .offsetMs)
+        type = try c.decode(ShotType.self, forKey: .type)
+        racketSpeedKmh = try c.decode(Float.self, forKey: .racketSpeedKmh)
+        impactG = try c.decode(Float.self, forKey: .impactG)
+        confidence = try c.decode(Float.self, forKey: .confidence)
+        features = try c.decode(ShotFeatures.self, forKey: .features)
+        context = try c.decodeIfPresent(ShotContext.self, forKey: .context)
+        modelVersion = try c.decodeIfPresent(String.self, forKey: .modelVersion)
+    }
+
+    /// Identidad estable del golpeo dentro de su sesión.
+    ///
+    /// Se **deriva** de la sesión y el instante en vez de guardar un UUID por golpe: un
+    /// partido largo pasa de 300 golpeos y un identificador aleatorio en cada uno
+    /// engorda el fichero, el backup y cada subida sin añadir nada. El par (sesión,
+    /// milisegundo) ya es único, porque el detector tiene 320 ms de tiempo muerto tras
+    /// cada impacto y no puede emitir dos golpes en el mismo milisegundo.
+    public func id(en sessionId: String) -> String { "\(sessionId):\(offsetMs)" }
+}
+
+/// El contexto de juego de un golpeo: lo que el detector **no** puede saber mirando solo
+/// el movimiento, y que solo conoce quien lleva la sesión.
+///
+/// Por qué vive aparte de `ShotFeatures`: los rasgos son una función pura de la señal
+/// del sensor —los mismos milisegundos dan siempre los mismos rasgos— y eso es lo que
+/// permite reclasificar mañana una tanda grabada hoy. El contexto depende del marcador y
+/// del pulso; mezclarlo con los rasgos haría el reentrenamiento irreproducible.
+///
+/// Y por qué se guarda ya, aunque casi nada lo use: **no se puede rellenar después**. El
+/// punto en el que ocurrió un golpe de hace tres meses no se recupera de ninguna parte.
+public struct ShotContext: Codable, Equatable, Sendable {
+    /// Punto del partido, empezando en 1. Nil si se jugó sin marcador.
+    public let pointIndex: Int?
+    /// Juego del partido, empezando en 1.
+    public let gameIndex: Int?
+    /// Set del partido, empezando en 1.
+    public let setIndex: Int?
+    /// Pulso en el momento del golpeo. Nil sin permiso de salud o sin lectura aún.
+    public let heartRateBpm: Int?
+
+    public init(
+        pointIndex: Int? = nil,
+        gameIndex: Int? = nil,
+        setIndex: Int? = nil,
+        heartRateBpm: Int? = nil
+    ) {
+        self.pointIndex = pointIndex
+        self.gameIndex = gameIndex
+        self.setIndex = setIndex
+        self.heartRateBpm = heartRateBpm
     }
 }
