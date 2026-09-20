@@ -164,3 +164,74 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   expires_at TEXT,                          -- ISO 8601; NULL = sin caducidad conocida
   updated_at TEXT NOT NULL
 );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Competición: clubes, ligas y sus partidos (§36.14, §36.16, §36.19)
+--
+-- Todo cuelga de identificadores y nada duplica información, que es lo que pide el
+-- §36.20: un jugador pertenece a un club, compite en una liga de ese club y juega
+-- partidos de esa liga, y ninguno de los tres guarda copias del otro.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS clubs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  city TEXT NOT NULL DEFAULT '',
+  creator INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL
+);
+
+-- Quién pertenece a qué club y con qué papel. El papel es del club y no de la cuenta:
+-- la misma persona puede ser jugador en un club y entrenador en otro, y guardarlo en
+-- users obligaría a elegir uno.
+CREATE TABLE IF NOT EXISTS club_members (
+  club INTEGER NOT NULL REFERENCES clubs(id),
+  user INTEGER NOT NULL REFERENCES users(id),
+  role TEXT NOT NULL DEFAULT 'player',   -- player | coach | admin
+  joined_at TEXT NOT NULL,
+  PRIMARY KEY (club, user)
+);
+
+-- Una liga. `club` es opcional: una liga entre amigos no necesita club.
+CREATE TABLE IF NOT EXISTS leagues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  club INTEGER REFERENCES clubs(id),
+  format TEXT NOT NULL DEFAULT 'individual',  -- individual | parejas
+  status TEXT NOT NULL DEFAULT 'abierta',     -- abierta | en curso | cerrada
+  starts_on TEXT NOT NULL DEFAULT '',
+  ends_on TEXT NOT NULL DEFAULT '',
+  creator INTEGER NOT NULL REFERENCES users(id),
+  created_at TEXT NOT NULL
+);
+
+-- Una inscripción: un jugador solo, o una pareja. `partner` nulo = individual.
+--
+-- La pareja se guarda como DOS columnas de la misma fila y no como dos filas enlazadas
+-- porque en una liga de parejas la unidad que compite es la pareja: si fueran dos filas,
+-- nada impediría que uno de los dos se borrara y quedara media pareja en la tabla.
+CREATE TABLE IF NOT EXISTS league_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  league INTEGER NOT NULL REFERENCES leagues(id),
+  user INTEGER NOT NULL REFERENCES users(id),
+  partner INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL,
+  UNIQUE (league, user)
+);
+
+-- Un partido del calendario. Se crea vacío al generar la liga y se rellena al jugarse.
+CREATE TABLE IF NOT EXISTS league_matches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  league INTEGER NOT NULL REFERENCES leagues(id),
+  round INTEGER NOT NULL,
+  home INTEGER NOT NULL REFERENCES league_entries(id),
+  away INTEGER NOT NULL REFERENCES league_entries(id),
+  -- Juegos ganados por cada lado. Nulos mientras no se haya jugado: un 0-0 guardado
+  -- sería un partido jugado y empatado, que en pádel no existe.
+  home_games INTEGER,
+  away_games INTEGER,
+  played_on TEXT NOT NULL DEFAULT '',
+  -- La sesión del reloj que respalda el resultado, si la hay. Es lo que une la
+  -- competición con lo que de verdad midió el reloj.
+  session TEXT NOT NULL DEFAULT ''
+);

@@ -41,6 +41,15 @@ struct ProgresoDeObjetivo: Equatable, Sendable {
     let fraccion: Double
     /// Cuántas décimas se ha subido desde el inicio. Puede ser negativo.
     let avance: Double
+    /// A cuántas décimas por semana avanza el golpe, o nil si no hay dos partidos
+    /// separados en el tiempo con los que medirlo. Puede ser negativo.
+    let tendenciaPorSemana: Double?
+    /// yyyy-mm-dd de cierre de la temporada, si lo tiene.
+    let fechaLimite: String?
+    /// Semanas que harían falta al ritmo actual para llegar a la meta. Nil si no hay
+    /// tendencia, si ya está cumplido, o si la tendencia es plana o va hacia atrás —
+    /// ahí "faltan infinitas semanas" no es un número, es un no.
+    let semanasAlRitmoActual: Double?
 
     var cumplido: Bool {
         guard let notaActual else { return false }

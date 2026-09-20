@@ -19,6 +19,7 @@
 
 import { apuntarResultado, avisarPartidoEnVivo, comunidad, usuarioDe } from "./comunidad.js";
 import { coach } from "./coach.js";
+import { competicion } from "./competicion.js";
 
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -87,6 +88,13 @@ export default {
       }
 
       return texto(405, "Método no soportado");
+    }
+
+    // Clubes y ligas contra otros, que no es lo mismo que la Liga Personal del móvil:
+    // aquella es el jugador contra sí mismo. Ver competicion.js.
+    if (path.startsWith("/v1/competicion")) {
+      const respuesta = await competicion(request, env, path);
+      if (respuesta) return respuesta;
     }
 
     // El entrenador IA, con la clave del servicio y cuota por cuenta. Devuelve null
