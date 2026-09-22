@@ -72,7 +72,10 @@ struct RootTabView: View {
         .onChange(of: model.sessions.first?.sessionId) {
             if UserDefaults.standard.bool(forKey: "ligaAutoGuardar"),
                let session = model.sessions.first,
-               session.score != nil {
+               // Con marcador o sin él: lo que decide es si fue un partido. Antes esta
+               // línea pedía marcador, así que un partido jugado sin anotar no llegaba
+               // nunca a la liga por mucho que el jugador hubiera dicho que era uno.
+               session.cuentaComoPartido {
                 liga.saveMatch(from: session, playerAverage: model.playerAverageLevel)
             }
             // Cada sesión nueva renueva la copia de seguridad del servidor: reinstalar

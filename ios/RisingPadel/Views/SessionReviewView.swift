@@ -143,7 +143,7 @@ struct SessionReviewSheet: View {
         // Si el partido ya estaba en la liga (o se guarda solo), se reescribe con los
         // recuentos corregidos: mismo id, actualiza en vez de duplicar.
         if let actualizada = model.sessions.first(where: { $0.sessionId == session.sessionId }),
-           actualizada.score != nil,
+           actualizada.cuentaComoPartido,
            liga.matches.contains(where: { $0.id == actualizada.startedAtEpochMs })
             || UserDefaults.standard.bool(forKey: "ligaAutoGuardar") {
             liga.saveMatch(from: actualizada, playerAverage: model.playerAverageLevel)

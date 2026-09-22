@@ -274,8 +274,30 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public let profile: PlayerProfile
     public let shots: [Shot]
     public let health: HealthMetrics
-    /// Marcador del partido. Nil si se jugó sin llevarlo (entreno suelto).
+    /// Marcador del partido. Nil si se jugó sin llevarlo.
     public let score: MatchScore?
+    /// Esto fue un **partido**, lo lleve el marcador o no.
+    ///
+    /// Hacía falta porque "sin marcador" y "sin partido" no son lo mismo, y hasta ahora
+    /// la app los confundía: la única señal de que algo era un partido era tener
+    /// `score`, así que quien jugaba un partido de verdad sin ganas de ir anotando punto
+    /// por punto acababa con un entreno suelto que no contaba para su liga.
+    ///
+    /// Con esto, el jugador puede elegir jugar sin marcador y que la sesión siga siendo
+    /// un partido: entra en la liga, cuenta para la racha y para la temporada, y el
+    /// resultado se apunta después a mano si se quiere.
+    ///
+    /// Lo que **no** se puede recuperar después es lo que depende del marcador: sin él
+    /// no hay quién saca, ni juegos, ni separar el rendimiento al saque del que se tiene
+    /// al resto. Eso es el precio de no llevarlo, y se dice en la pantalla que lo
+    /// pregunta en vez de descubrirse luego.
+    ///
+    /// **Nil y false no son lo mismo**, como en el resto del fichero: nil es una sesión
+    /// grabada antes de que esto existiera y de la que no se sabe —y esas se siguen
+    /// reconociendo como partido por tener `score`—, mientras que false es que el
+    /// jugador dijo que no lo era. Además, siendo opcional, una sesión guardada antes de
+    /// este campo se decodifica sin fallar en vez de romper el historial entero.
+    public let esPartido: Bool?
     /// Juegos terminados, en orden. Vacío si se jugó sin marcador.
     public let games: [GameRecord]
     public var matchRef: MatchRef?
@@ -305,6 +327,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         shots: [Shot],
         health: HealthMetrics = .empty,
         score: MatchScore? = nil,
+        esPartido: Bool? = nil,
         games: [GameRecord] = [],
         matchRef: MatchRef? = nil,
         sync: SyncStatus = SyncStatus(),
@@ -320,6 +343,7 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
         self.shots = shots
         self.health = health
         self.score = score
+        self.esPartido = esPartido
         self.games = games
         self.matchRef = matchRef
         self.sync = sync
@@ -337,6 +361,14 @@ public struct PadelSession: Codable, Equatable, Identifiable, Sendable {
     public var schemaVersion: Int {
         score == nil ? Self.schemaVersionBase : Self.schemaVersionWithScore
     }
+
+    /// Si esta sesión cuenta como partido para la liga.
+    ///
+    /// Mira las dos cosas a propósito. `esPartido` es la señal nueva y explícita, pero
+    /// las sesiones grabadas antes de que existiera no la traen: aquellas se reconocen
+    /// por tener marcador, como siempre. Preguntar solo por el campo nuevo habría dejado
+    /// fuera de la liga todo el historial anterior.
+    public var cuentaComoPartido: Bool { esPartido == true || score != nil }
 
     public var durationSeconds: Int64 {
         max((endedAtEpochMs - startedAtEpochMs) / 1000, 0)

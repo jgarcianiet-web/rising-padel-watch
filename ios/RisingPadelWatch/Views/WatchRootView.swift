@@ -10,6 +10,12 @@ struct WatchRootView: View {
     @State private var showCalibrarPista = false
     /// La pantalla inicial es una decisión (¿partido o entreno?), no un formulario.
     @State private var choosingFormat = false
+    /// Primer paso del partido: si se va a llevar el marcador.
+    ///
+    /// Va delante del formato y del saque porque los dos solo existen si hay marcador:
+    /// preguntar por el 40-40 a quien no piensa anotar es hacerle contestar algo que no
+    /// va a usar.
+    @State private var choosingMarcador = false
     /// Segundo paso del partido: quién saca. Es la única pregunta que no se puede
     /// deducir después y sin ella no hay análisis de saque contra resto.
     @State private var choosingServer = false
@@ -123,6 +129,8 @@ struct WatchRootView: View {
             serverChooser
         } else if choosingFormat {
             formatChooser
+        } else if choosingMarcador {
+            marcadorChooser
         } else {
             VStack(spacing: 8) {
                 Text("RISING PADEL")
@@ -131,15 +139,20 @@ struct WatchRootView: View {
                     .foregroundStyle(.tint)
 
                 bigButton("Partido", icon: "trophy.fill", prominent: true) {
-                    choosingFormat = true
+                    choosingMarcador = true
                 }
                 bigButton("Entreno", icon: "figure.tennis", prominent: false) {
+                    // Explícito aunque el valor por defecto sea false: si el anterior
+                    // fue un partido sin marcador, el flag sigue puesto y este entreno
+                    // acabaría en la liga como un partido que nadie jugó.
+                    controller.esPartido = false
                     trackScore = false
                     Task { await controller.start() }
                 }
                 // Un entreno con guion: el reloj canta el ejercicio y lleva la cuenta.
                 // Es lo que separa esta app de un contador de golpes.
                 bigButton("Rutina", icon: "list.bullet.rectangle", prominent: false) {
+                    controller.esPartido = false
                     trackScore = false
                     showRutinas = true
                 }
@@ -201,6 +214,41 @@ struct WatchRootView: View {
         .padding(.vertical, 3)
     }
 
+    /// ¿Se va a llevar el marcador? La primera pregunta del partido.
+    ///
+    /// Las dos opciones dan un **partido** que entra en tu liga; lo único que cambia es
+    /// si vas anotando punto por punto. Sin marcador se cuentan igual los golpeos, los
+    /// niveles por golpe, el pulso y la duración — y el resultado se apunta luego en el
+    /// móvil si quieres.
+    ///
+    /// Lo que se pierde sin marcador se dice aquí y no se descubre después: sin puntos
+    /// no hay juegos, y sin juegos no se puede separar cómo juegas sacando de cómo
+    /// juegas restando, que es de lo poco que el reloj no puede deducir solo.
+    private var marcadorChooser: some View {
+        VStack(spacing: 6) {
+            Text("¿Llevas el marcador?")
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            bigButton("Sí, lo llevo", icon: "list.number", prominent: true) {
+                choosingMarcador = false
+                choosingFormat = true
+            }
+            bigButton("Solo contar", icon: "figure.tennis", prominent: false) {
+                controller.esPartido = true
+                trackScore = false
+                choosingMarcador = false
+                Task { await controller.start() }
+            }
+            Text("Sin marcador cuenta igual para tu liga; el resultado lo pones luego "
+                 + "en el móvil. Lo que no habrá es saque contra resto.")
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+            backButton { choosingMarcador = false }
+        }
+    }
+
     /// Formato de 40-40. Ya no arranca el partido: falta saber quién saca, y preguntarlo
     /// después evita que un toque de más se lleve por delante la elección.
     private var formatChooser: some View {
@@ -215,7 +263,11 @@ struct WatchRootView: View {
                     formatButton(format).buttonStyle(.bordered)
                 }
             }
-            backButton { choosingFormat = false }
+            // Atrás vuelve a la pregunta del marcador, que es de donde se vino.
+            backButton {
+                choosingFormat = false
+                choosingMarcador = true
+            }
         }
     }
 
@@ -242,6 +294,7 @@ struct WatchRootView: View {
 
     private func start(server: Side) {
         controller.firstServer = server
+        controller.esPartido = true
         trackScore = true
         choosingServer = false
         Task { await controller.start() }

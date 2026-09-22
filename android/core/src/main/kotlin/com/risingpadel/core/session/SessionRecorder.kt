@@ -117,6 +117,15 @@ class SessionRecorder(
      */
     var score: MatchScore? = null
 
+    /**
+     * Esto es un partido, lo lleve el marcador o no. Lo pone quien arranca la sesión.
+     *
+     * Va aparte de `score` porque "sin marcador" y "sin partido" no son lo mismo: un
+     * partido jugado sin ir anotando punto por punto sigue siendo un partido y tiene
+     * que entrar en la liga. Ver `PadelSession.esPartido`.
+     */
+    var esPartido: Boolean = false
+
     val shots: List<Shot> get() = collectedShots
     val isRecording: Boolean get() = sessionId != null
 
@@ -129,6 +138,11 @@ class SessionRecorder(
         this.startedAtMonotonicMs = monotonicMs
         collectedShots.clear()
         gameRecords.clear()
+        // Se limpian aquí: son de la sesión que acaba de terminar, y arrastrar el
+        // marcador o el "esto era un partido" del partido anterior a un entreno suelto
+        // metería en la liga algo que nadie jugó.
+        score = null
+        esPartido = false
         lastHeartRateBpm = null
         lastHeartRateAtMs = null
         maxObservedBpm = 0
@@ -238,6 +252,7 @@ class SessionRecorder(
             shots = collectedShots.toList(),
             health = if (shareHealth) buildHealth() else HealthMetrics.EMPTY,
             score = score,
+            esPartido = esPartido,
             games = gameRecords.toList(),
             matchRef = matchRef,
             // Lo que se le escapó. Se guarda aunque sea cero: un cero es información

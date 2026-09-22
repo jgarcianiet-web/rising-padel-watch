@@ -200,8 +200,31 @@ data class PadelSession(
     val profile: PlayerProfile,
     val shots: List<Shot>,
     val health: HealthMetrics = HealthMetrics.EMPTY,
-    /** Marcador del partido. Null si se jugó sin llevarlo (entreno suelto). */
+    /** Marcador del partido. Null si se jugó sin llevarlo. */
     val score: MatchScore? = null,
+    /**
+     * Esto fue un **partido**, lo lleve el marcador o no.
+     *
+     * Hacía falta porque "sin marcador" y "sin partido" no son lo mismo, y hasta ahora
+     * la app los confundía: la única señal de que algo era un partido era tener
+     * `score`, así que quien jugaba un partido de verdad sin ganas de ir anotando punto
+     * por punto acababa con un entreno suelto que no contaba para su liga.
+     *
+     * Con esto, el jugador puede elegir jugar sin marcador y que la sesión siga siendo
+     * un partido: entra en la liga, cuenta para la racha y para la temporada, y el
+     * resultado se apunta después a mano si se quiere.
+     *
+     * Lo que **no** se puede recuperar después es lo que depende del marcador: sin él
+     * no hay quién saca, ni juegos, ni separar el rendimiento al saque del que se tiene
+     * al resto. Eso es el precio de no llevarlo, y se dice en la pantalla que lo
+     * pregunta en vez de descubrirse luego.
+     *
+     * **Null y false no son lo mismo**, como en el resto del fichero: null es una
+     * sesión grabada antes de que esto existiera y de la que no se sabe, y esas se
+     * siguen reconociendo como partido por tener `score`. False es que el jugador dijo
+     * que no lo era.
+     */
+    val esPartido: Boolean? = null,
     /** Juegos terminados, en orden. Vacío si se jugó sin marcador. */
     val games: List<GameRecord> = emptyList(),
     val matchRef: MatchRef? = null,
@@ -223,6 +246,16 @@ data class PadelSession(
     val descartes: DescartesDelDetector? = null,
 ) {
     val durationSeconds: Long get() = ((endedAtEpochMs - startedAtEpochMs) / 1000).coerceAtLeast(0)
+
+    /**
+     * Si esta sesión cuenta como partido para la liga.
+     *
+     * Mira las dos cosas a propósito. `esPartido` es la señal nueva y explícita, pero
+     * las sesiones grabadas antes de que existiera no la traen: aquellas se reconocen
+     * por tener marcador, como siempre. Preguntar solo por el campo nuevo habría dejado
+     * fuera de la liga todo el historial anterior.
+     */
+    val cuentaComoPartido: Boolean get() = esPartido == true || score != null
 
     val totalShots: Int get() = shots.size
 

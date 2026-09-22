@@ -305,7 +305,9 @@ final class LigaModel: ObservableObject {
             // sesión actualiza el partido en vez de duplicarlo.
             id: session.startedAtEpochMs,
             fecha: Self.fechaLocal(session.startedAtEpochMs),
-            tipo: score != nil ? "competitivo" : "amistoso",
+            // El tipo lo da haber sido partido, no haber llevado el marcador: un
+            // partido sin anotar sigue siendo competitivo.
+            tipo: session.cuentaComoPartido ? "competitivo" : "amistoso",
             resultado: Self.resultado(score),
             sets: score.map { $0.allSets.map { "\($0.us)-\($0.them)" }.joined(separator: ", ") } ?? "",
             marcador: score.map {

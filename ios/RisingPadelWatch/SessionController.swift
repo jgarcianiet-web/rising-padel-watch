@@ -450,6 +450,10 @@ final class SessionController: ObservableObject {
             monotonicMs: Self.monotonicMs()
         )
 
+        // Un partido es un partido lo lleve el marcador o no; el entreno y la rutina
+        // no lo son. Se pone después de `start()` porque el recorder lo limpia allí.
+        recorder.esPartido = trackScore || esPartido
+
         if trackScore {
             let board = ScoreBoard(
                 rules: ScoreRules(
@@ -662,6 +666,15 @@ final class SessionController: ObservableObject {
     /// se puede separar el rendimiento al saque del rendimiento al resto, que en pádel
     /// son dos partidos distintos. Ver `docs/insights.md`.
     @Published var firstServer: Side = .us
+
+    /// Esto va a ser un partido aunque no se lleve el marcador. Lo pone la pantalla de
+    /// inicio antes de arrancar.
+    ///
+    /// Separado de `trackScore` porque son dos preguntas distintas: una es *qué estás
+    /// jugando* y la otra *si lo vas a ir anotando*. Mientras fueron la misma, un
+    /// partido jugado sin marcador se guardaba como entreno suelto y no entraba en la
+    /// liga. Ver `PadelSession.esPartido`.
+    @Published var esPartido = false
 
     /// Anota un punto y devuelve la vibración correspondiente al evento.
     func pointTo(_ side: Side) {

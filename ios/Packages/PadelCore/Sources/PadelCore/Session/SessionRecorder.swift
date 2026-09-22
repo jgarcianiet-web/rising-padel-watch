@@ -110,6 +110,13 @@ public final class SessionRecorder {
     /// marcador sigue siendo una sesión válida.
     public var score: MatchScore?
 
+    /// Esto es un partido, lo lleve el marcador o no. Lo pone quien arranca la sesión.
+    ///
+    /// Va aparte de `score` porque "sin marcador" y "sin partido" no son lo mismo: un
+    /// partido jugado sin ir anotando punto por punto sigue siendo un partido y tiene
+    /// que entrar en la liga. Ver `PadelSession.esPartido`.
+    public var esPartido = false
+
     public var shots: [Shot] { collectedShots }
     public var isRecording: Bool { sessionId != nil }
 
@@ -136,6 +143,11 @@ public final class SessionRecorder {
         self.startedAtMonotonicMs = monotonicMs
         collectedShots.removeAll()
         gameRecords.removeAll()
+        // Se limpian aquí: son de la sesión que acaba de terminar, y arrastrar el
+        // marcador o el "esto era un partido" del partido anterior a un entreno suelto
+        // metería en la liga algo que nadie jugó.
+        score = nil
+        esPartido = false
         pointsPlayed = 0
         lastHeartRateBpm = nil
         lastHeartRateAtMs = nil
@@ -256,6 +268,7 @@ public final class SessionRecorder {
             health: shareHealth ? buildHealth() : .empty,
             score: score,
             games: gameRecords,
+            esPartido: esPartido,
             matchRef: matchRef,
             // Lo que se le escapó. Se guarda aunque sea cero: un cero es información
             // ("no se dejó nada") y un nulo es "esta sesión es de antes de medirlo".
