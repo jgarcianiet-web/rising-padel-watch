@@ -267,8 +267,8 @@ public final class SessionRecorder {
             shots: collectedShots,
             health: shareHealth ? buildHealth() : .empty,
             score: score,
-            games: gameRecords,
             esPartido: esPartido,
+            games: gameRecords,
             matchRef: matchRef,
             // Lo que se le escapó. Se guarda aunque sea cero: un cero es información
             // ("no se dejó nada") y un nulo es "esta sesión es de antes de medirlo".
