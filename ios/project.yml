@@ -128,6 +128,14 @@ targets:
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.risingpadel.watch
         WKRunsIndependentlyOfCompanionApp: true
+        # **Faltaba, y es lo que sostiene el partido entero.** Sin declarar este modo,
+        # watchOS suspende la app en cuanto la pantalla se apaga: dejan de contarse los
+        # golpeos y, al volver a levantar la muñeca, el reloj enseña la esfera en vez del
+        # marcador — que es lo que hacía que marcar un punto costara tanto. Con él, el
+        # entrenamiento de HealthKit mantiene la app en primer plano y la pantalla
+        # siempre activa la sigue enseñando, atenuada, en vez de irse a negro.
+        WKBackgroundModes:
+          - workout-processing
         # HealthKit pide justificar el acceso en el propio Info.plist; sin estas dos
         # cadenas la app ni siquiera puede pedir permiso.
         NSHealthShareUsageDescription: >-

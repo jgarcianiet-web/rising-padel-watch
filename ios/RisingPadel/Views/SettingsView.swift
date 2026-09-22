@@ -29,6 +29,7 @@ struct SettingsView: View {
                 coachSection
                 privacySection
                 playerSection
+                relojSection
                 sensitivitySection
                 // El modo de recogida de datos es una herramienta de quien construye el
                 // dataset, no de quien juega: para un usuario normal no existe. Se
@@ -472,6 +473,30 @@ struct SettingsView: View {
         } footer: {
             Text("Si la app cuenta golpeos de más, baja la sensibilidad. "
                  + "Si se deja golpeos flojos sin contar, súbela.")
+        }
+    }
+
+    /// Los dos ajustes del reloj que deciden si el marcador sigue ahí al levantar la
+    /// muñeca. **Son del sistema, no de esta app**, y por eso se explican en vez de
+    /// ponerse aquí: ninguna app puede cambiarlos por su cuenta, y el que llega con
+    /// los 15 segundos de fábrica pierde el marcador entre punto y punto.
+    private var relojSection: some View {
+        Section {
+            Label("Ajustes → Pantalla y brillo → Activada siempre", systemImage: "sun.max")
+                .font(.system(size: 13, design: .rounded))
+            Label("Ajustes → Pantalla y brillo → Activar durante → 70 segundos",
+                  systemImage: "clock")
+                .font(.system(size: 13, design: .rounded))
+        } header: {
+            Text("Que el marcador no se apague")
+        } footer: {
+            Text("Durante un partido, Rising Padel mantiene la pantalla del reloj "
+                 + "encendida y atenuada en vez de irse a la esfera. Con los dos "
+                 + "ajustes de arriba puestos en el Apple Watch, el tanteo sigue "
+                 + "visible al bajar la muñeca y se anota de un toque. "
+                 + "Aviso: con la pantalla atenuada, el primer toque lo usa watchOS "
+                 + "para despertarla y no llega a la app — eso no lo puede cambiar "
+                 + "ninguna aplicación.")
         }
     }
 }

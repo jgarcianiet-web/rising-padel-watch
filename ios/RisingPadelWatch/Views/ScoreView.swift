@@ -12,12 +12,29 @@ import WatchKit
 /// **Mantener pulsado una zona deshace el último punto**, directo y sin menús: es la
 /// corrección frecuente. Finalizar y pausar viven en la página de controles, deslizando
 /// a la izquierda — aquí no hay nada que pueda cerrar la sesión por un roce.
+///
+/// ## La pantalla atenuada
+///
+/// Mientras hay partido, el entrenamiento de HealthKit mantiene esta pantalla como la
+/// que enseña el reloj, así que al bajar la muñeca **no se va a negro: se atenúa**. Esta
+/// vista se dibuja distinta en ese estado (`isLuminanceReduced`): el tanteo más grande,
+/// sin rellenos de color encendidos y sin la letra pequeña, que atenuada no se lee y
+/// solo gasta batería.
+///
+/// Lo que NO se puede hacer, y conviene saberlo: con la pantalla atenuada, watchOS usa
+/// el primer toque para despertarla y **no se lo entrega a la app**. No hay forma de
+/// anotar un punto sin despertar antes. Lo que sí se evita es lo de verdad lento —
+/// volver desde la esfera del reloj y buscar la app— y para eso está el modo de fondo
+/// del entrenamiento declarado en `project.yml`.
 struct ScoreView: View {
     let score: MatchScore
     let shotCount: Int
     let onPoint: (Side) -> Void
     let onUndo: () -> Void
     let onStop: () -> Void
+
+    /// La pantalla está en modo siempre activa, atenuada. Lo pone el sistema.
+    @Environment(\.isLuminanceReduced) private var atenuada
 
     /// Colores fijos de identidad: nosotros azul, ellos naranja. La pareja azul/naranja
     /// se distingue también con daltonismo, y como es identidad y no posición, el cambio
@@ -48,7 +65,9 @@ struct ScoreView: View {
                     .font(.system(size: 10, weight: .heavy, design: .rounded))
                     .kerning(1.2)
                     .foregroundStyle(color)
-                if score.server == side {
+                // Atenuada, "saque" en gris de 9 px no se lee: solo resta contraste a lo
+                // que sí importa. El saque se sigue sabiendo por el borde de la zona.
+                if score.server == side, !atenuada {
                     // El saque, en palabra y no en un punto de 6 px: es la pregunta
                     // que más veces surge en mitad de un partido.
                     Text("saque")
@@ -58,13 +77,18 @@ struct ScoreView: View {
             }
             Spacer()
             Text(score.pointsLabel(side))
-                .font(.system(size: 34, weight: .heavy, design: .rounded))
+                .font(.system(size: atenuada ? 40 : 34, weight: .heavy, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(.white)
         }
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(color.opacity(0.28), in: RoundedRectangle(cornerRadius: 10))
+        // Un relleno de color encendido a pantalla completa durante una hora es lo que
+        // se come la batería en modo siempre activa; atenuada se deja casi en negro y
+        // la identidad de cada zona la lleva el borde, que cuesta mucho menos.
+        .background(
+            color.opacity(atenuada ? 0.10 : 0.28), in: RoundedRectangle(cornerRadius: 10)
+        )
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(color.opacity(score.server == side ? 0.9 : 0.35), lineWidth: 2)
@@ -76,9 +100,13 @@ struct ScoreView: View {
     }
 
     /// La franja neutra: sets y estado. Aquí un toque no hace nada a propósito.
+    ///
+    /// Atenuada se queda solo con los sets. La línea larga —quién saca, tie-break,
+    /// golpeos— es información de consulta, y atenuada a 10 px no se lee de todas
+    /// formas: lo que se mira de reojo es el tanteo.
     private var centerStrip: some View {
         HStack(spacing: 6) {
-            Text("\(setsLine) · \(statusLine)")
+            Text(atenuada ? setsLine : "\(setsLine) · \(statusLine)")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
