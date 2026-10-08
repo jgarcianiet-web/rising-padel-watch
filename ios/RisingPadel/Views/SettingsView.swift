@@ -47,7 +47,10 @@ struct SettingsView: View {
                 TrainingRemoteView().environmentObject(model)
             }
             .fullScreenCover(isPresented: $videoLabAbierto) {
-                VideoLabView()
+                // Explícito: el laboratorio necesita las sesiones del reloj para poder
+                // enlazar un vídeo con una, y un EnvironmentObject que falta no da error
+                // de compilación — cierra la app al abrir la pantalla.
+                VideoLabView().environmentObject(model)
             }
             .background(T.fondo)
             .tint(T.pista)

@@ -188,6 +188,95 @@ final class VideoLabModel: ObservableObject {
         save()
     }
 
+    // MARK: Enlazar con el reloj
+
+    /// Las sesiones que pudieron grabarse en este vídeo, por solape de tiempos.
+    ///
+    /// Se filtra en vez de enseñar el historial entero porque elegir la sesión equivocada
+    /// no da un error: da un etiquetado lleno de marcas en sitios donde no hubo golpes, y
+    /// eso se tarda mucho más en descubrir que en evitar.
+    func sesionesCandidatas(para id: UUID, entre sesiones: [PadelSession]) -> [PadelSession] {
+        guard let etiquetado = etiquetado(id) else { return [] }
+        return sesiones.filter { etiquetado.puedeSer($0) }
+    }
+
+    /// Enlaza una sesión y trae sus golpes como marcas.
+    ///
+    /// El desfase se estima solo si el vídeo ya tiene marcas propias con las que cuadrar:
+    /// sin ellas no hay nada que alinear y se usa el ancla del fichero tal cual, que tiene
+    /// resolución de segundo. **Por eso el camino recomendado es marcar un golpe a mano
+    /// antes de enlazar**: con una sola marca el desfase ya sale medido en vez de supuesto.
+    ///
+    /// - Returns: cuántas marcas se trajeron, y el resto típico del cuadre en ms (nil si
+    ///   no había nada con lo que medirlo). Ese resto es lo que dice si fiarse.
+    @discardableResult
+    func enlazar(
+        _ id: UUID, con sesion: PadelSession
+    ) -> (traidas: Int, restoMedianoMs: Int64?) {
+        guard let index = etiquetados.firstIndex(where: { $0.id == id }) else { return (0, nil) }
+        var etiquetado = etiquetados[index]
+        etiquetado.sesionId = sesion.sessionId
+
+        let delReloj = EtiquetadoDeVideo.golpesDelReloj(sesion)
+        let mias = etiquetado.marcasEnTiempo
+        var resto: Int64?
+        if !mias.isEmpty {
+            let cruce = SincronizacionDeVideo.cruzarAutomatico(video: mias, reloj: delReloj)
+            etiquetado.desfaseMs = cruce.desfaseMs
+            resto = cruce.restoMedianoMs
+        }
+
+        let traidas = etiquetado.traerGolpes(de: sesion)
+        etiquetados[index] = etiquetado
+        save()
+        return (traidas, resto)
+    }
+
+    /// Deshace el enlace y quita las marcas que vinieron del reloj.
+    ///
+    /// Solo las que vinieron del reloj: las que puso el usuario a mano se quedan. Borrar
+    /// las suyas al desenlazar sería tirar el trabajo que más cuesta por una acción que
+    /// parece inocente.
+    func desenlazar(_ id: UUID) {
+        guard let index = etiquetados.firstIndex(where: { $0.id == id }) else { return }
+        etiquetados[index].sesionId = nil
+        etiquetados[index].desfaseMs = 0
+        etiquetados[index].escala = 1
+        etiquetados[index].marcas.removeAll { $0.origen == .propuesta }
+        save()
+    }
+
+    /// Cuadra el vídeo con el reloj a partir de **una claqueta**: el usuario señala un
+    /// golpe en el vídeo y se le asigna el golpe del reloj más cercano.
+    ///
+    /// Es el camino fiable cuando el automático no convence. Después se vuelven a traer
+    /// los golpes con el desfase bueno.
+    @discardableResult
+    func cuadrarConClaqueta(
+        _ id: UUID, marcaSegundos: Double, sesion: PadelSession
+    ) -> Int64? {
+        guard let index = etiquetados.firstIndex(where: { $0.id == id }) else { return nil }
+        var etiquetado = etiquetados[index]
+        guard let inicio = etiquetado.ancla.epochMs else { return nil }
+
+        let marcaEpoch = inicio + Int64((marcaSegundos * 1000).rounded())
+        let golpes = EtiquetadoDeVideo.golpesDelReloj(sesion)
+        guard let cercano = golpes.min(by: {
+            abs($0.epochMs - marcaEpoch) < abs($1.epochMs - marcaEpoch)
+        }) else { return nil }
+
+        etiquetado.sesionId = sesion.sessionId
+        etiquetado.desfaseMs = SincronizacionDeVideo.desfaseConUnaAncla(
+            marcaEpochMs: marcaEpoch, golpeEpochMs: cercano.epochMs
+        )
+        // Las traídas anteriores se van: estaban colocadas con el desfase viejo.
+        etiquetado.marcas.removeAll { $0.origen == .propuesta }
+        etiquetado.traerGolpes(de: sesion)
+        etiquetados[index] = etiquetado
+        save()
+        return etiquetado.desfaseMs
+    }
+
     /// Borra el etiquetado y el vídeo copiado. Los dos: dejar el fichero sería acumular
     /// gigas invisibles que el usuario no puede encontrar ni borrar desde la app.
     func borrar(_ id: UUID) {

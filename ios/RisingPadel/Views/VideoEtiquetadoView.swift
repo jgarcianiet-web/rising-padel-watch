@@ -14,6 +14,9 @@ struct VideoEtiquetadoView: View {
     /// redibujarse con lo que hay en el almacén. Mismo patrón que `LigaMatchDetailView`.
     let id: UUID
     @ObservedObject var lab: VideoLabModel
+    /// Las sesiones del reloj: son las que pueden poner las marcas sin que nadie las
+    /// marque a mano. Ver `enlaceCard`.
+    @EnvironmentObject private var model: AppModel
 
     @State private var reproductor: AVPlayer?
     /// El token del observador periódico. Hay que quitarlo antes de soltar el
@@ -24,6 +27,9 @@ struct VideoEtiquetadoView: View {
     @State private var nombre = ""
     @State private var fechaAncla = Date()
     @State private var exportando: VideoExportItem?
+    /// Lo último que dijo el enlace con el reloj: cuántas marcas trajo y si cuadró bien.
+    /// Se enseña una vez y se queda, porque es el dato con el que se decide si fiarse.
+    @State private var resultadoDelEnlace: String?
 
     /// Los tipos que se pueden marcar. `unknown` no es un golpe, es la ausencia de
     /// clasificación — igual que en el mando de tandas.
@@ -68,6 +74,7 @@ struct VideoEtiquetadoView: View {
                 lineaTemporalCard(etiquetado)
                 tipoCard(etiquetado)
                 anclaCard(etiquetado)
+                enlaceCard(etiquetado)
                 nombreCard
             }
             .padding(.horizontal, 16)
@@ -313,6 +320,157 @@ struct VideoEtiquetadoView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    // MARK: Enlazar con el reloj
+
+    /// **El atajo que hace usable el laboratorio.** Si llevabas el reloj mientras se
+    /// grababa este vídeo, los golpes y sus tipos los pone el reloj y no tu dedo.
+    ///
+    /// Lo que se enseña y por qué: el **resto del cuadre**. Es lo único que distingue un
+    /// enlace bueno de uno corrido un golpe entero, y un enlace corrido llena el vídeo de
+    /// marcas en sitios donde no hubo nada — con buena pinta. Ver `SincronizacionDeVideo`.
+    @ViewBuilder
+    private func enlaceCard(_ etiquetado: EtiquetadoDeVideo) -> some View {
+        PadelCard(title: "Golpes del reloj", icon: "applewatch") {
+            VStack(alignment: .leading, spacing: 10) {
+                if etiquetado.ancla.epochMs == nil {
+                    Text("Pon antes la hora de inicio del vídeo, arriba. Sin ella no hay "
+                         + "forma de saber qué golpe del reloj va en qué segundo.")
+                        .font(.caption)
+                        .foregroundStyle(T.tintaSuave)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else if let sesionId = etiquetado.sesionId {
+                    enlazado(etiquetado, sesionId: sesionId)
+                } else {
+                    candidatas(etiquetado)
+                }
+
+                if let resultadoDelEnlace {
+                    Text(resultadoDelEnlace)
+                        .font(.caption)
+                        .foregroundStyle(T.tinta)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private func candidatas(_ etiquetado: EtiquetadoDeVideo) -> some View {
+        let sesiones = lab.sesionesCandidatas(para: id, entre: model.sessions)
+        if sesiones.isEmpty {
+            Text("Ninguna sesión del reloj coincide en hora con este vídeo. Se marca a "
+                 + "mano, como siempre.")
+                .font(.caption)
+                .foregroundStyle(T.tintaSuave)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text("Elige la sesión que se grabó en este vídeo y sus golpes entrarán como "
+                 + "marcas, con su tipo.")
+                .font(.caption)
+                .foregroundStyle(T.tintaSuave)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(sesiones, id: \.sessionId) { sesion in
+                Button {
+                    enlazar(sesion)
+                } label: {
+                    HStack {
+                        Text(etiquetaDeSesion(sesion))
+                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        Spacer(minLength: 6)
+                        Image(systemName: "arrow.down.circle.fill")
+                    }
+                    .foregroundStyle(T.pista)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func enlazado(_ etiquetado: EtiquetadoDeVideo, sesionId: String) -> some View {
+        let sesion = model.sessions.first { $0.sessionId == sesionId }
+        Text(sesion.map(etiquetaDeSesion) ?? "Sesión enlazada (ya no está en el móvil)")
+            .font(.system(size: 14, weight: .semibold, design: .rounded))
+            .foregroundStyle(T.tinta)
+        Text(String(format: "Desfase aplicado: %+.2f s", Double(etiquetado.desfaseMs) / 1000))
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(T.tintaSuave)
+
+        if let sesion {
+            // Cuadrar a mano: se señala un golpe de verdad y el desfase sale medido en
+            // vez de supuesto. Es el camino bueno cuando el automático no convence.
+            Button {
+                cuadrar(sesion)
+            } label: {
+                Label(
+                    String(format: "Cuadrar con el golpe del segundo %.1f", instante),
+                    systemImage: "scope"
+                )
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(T.pista)
+            Text("Pon el vídeo justo en un golpe claro y pulsa: el desfase se calcula con "
+                 + "ese golpe en vez de con la hora del fichero, que va al segundo.")
+                .font(.caption2)
+                .foregroundStyle(T.tintaSuave)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Button(role: .destructive) {
+            lab.desenlazar(id)
+            resultadoDelEnlace = "Desenlazado. Tus marcas a mano siguen ahí; las del reloj se han ido."
+        } label: {
+            Label("Desenlazar", systemImage: "xmark.circle")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(T.rojo)
+    }
+
+    private func etiquetaDeSesion(_ sesion: PadelSession) -> String {
+        let fecha = Date(timeIntervalSince1970: Double(sesion.startedAtEpochMs) / 1000)
+        let formato = DateFormatter()
+        formato.dateFormat = "d MMM HH:mm"
+        return "\(formato.string(from: fecha)) · \(sesion.totalShots) golpeos"
+    }
+
+    private func enlazar(_ sesion: PadelSession) {
+        let (traidas, resto) = lab.enlazar(id, con: sesion)
+        resultadoDelEnlace = textoDelCuadre(traidas: traidas, restoMs: resto)
+    }
+
+    private func cuadrar(_ sesion: PadelSession) {
+        guard lab.cuadrarConClaqueta(id, marcaSegundos: instante, sesion: sesion) != nil else {
+            resultadoDelEnlace = "No se pudo cuadrar: al vídeo le falta la hora de inicio."
+            return
+        }
+        let traidas = lab.etiquetado(id)?.marcas.filter { $0.origen == .propuesta }.count ?? 0
+        resultadoDelEnlace = "Cuadrado con ese golpe. \(traidas) marcas colocadas desde el reloj."
+    }
+
+    /// El texto que decide si fiarse. **El número de marcas no basta**: un enlace corrido
+    /// un golpe trae tantas marcas como uno bueno, y lo que los separa es el resto.
+    private func textoDelCuadre(traidas: Int, restoMs: Int64?) -> String {
+        guard traidas > 0 else {
+            return "No se ha traído ninguna marca nueva: o ya estaban, o los golpes de esa "
+                + "sesión caen fuera del vídeo."
+        }
+        guard let restoMs else {
+            return "\(traidas) marcas traídas del reloj, colocadas con la hora del fichero "
+                + "(va al segundo). Pon el vídeo en un golpe claro y pulsa «Cuadrar» para "
+                + "medir el desfase de verdad."
+        }
+        if restoMs <= 120 {
+            return "\(traidas) marcas traídas y cuadran bien: \(restoMs) ms de diferencia típica."
+        }
+        return "\(traidas) marcas traídas, pero el cuadre es dudoso (\(restoMs) ms de "
+            + "diferencia típica, y la ventana son 300). Puede estar corrido un golpe: "
+            + "cuádralo a mano con un golpe claro antes de fiarte."
     }
 
     // MARK: Nombre

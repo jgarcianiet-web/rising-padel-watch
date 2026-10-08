@@ -131,6 +131,18 @@ struct EtiquetadoDeVideo: Codable, Equatable, Identifiable {
     /// Cuándo se importó, en ms de época. Ordena la lista.
     var creado: Int64
     var ancla = AnclaDeVideo.sinFijar
+    /// La sesión del reloj que se grabó en este vídeo, si se ha enlazado.
+    ///
+    /// Es lo que convierte el laboratorio en algo usable: con la sesión enlazada, los
+    /// golpes y sus tipos los pone el reloj y no la mano del usuario. Nil = vídeo
+    /// suelto, que sigue siendo válido y se marca a mano como siempre.
+    var sesionId: String?
+    /// Cuánto va por delante el reloj respecto al vídeo, en ms. Ver
+    /// `SincronizacionDeVideo`: la hora del fichero y la del reloj no son la misma.
+    var desfaseMs: Int64 = 0
+    /// Corrección de deriva entre los dos relojes. 1 = sin corregir, que es lo que sale
+    /// de una sola claqueta o del ajuste automático.
+    var escala: Double = 1
     /// Versión del formato exportado, como en `TandaCruda`: quien lea el JSON más
     /// adelante tiene que poder distinguir de qué generación viene.
     var formato = 1
@@ -150,6 +162,9 @@ struct EtiquetadoDeVideo: Codable, Equatable, Identifiable {
         marcas: [MarcaDeVideo] = [],
         creado: Int64,
         ancla: AnclaDeVideo = .sinFijar,
+        sesionId: String? = nil,
+        desfaseMs: Int64 = 0,
+        escala: Double = 1,
         formato: Int = 1
     ) {
         self.id = id
@@ -160,6 +175,9 @@ struct EtiquetadoDeVideo: Codable, Equatable, Identifiable {
         self.marcas = marcas
         self.creado = creado
         self.ancla = ancla
+        self.sesionId = sesionId
+        self.desfaseMs = desfaseMs
+        self.escala = escala
         self.formato = formato
     }
 
@@ -182,6 +200,9 @@ struct EtiquetadoDeVideo: Codable, Equatable, Identifiable {
         marcas = try c.decodeIfPresent([MarcaDeVideo].self, forKey: .marcas) ?? []
         creado = try c.decodeIfPresent(Int64.self, forKey: .creado) ?? 0
         ancla = try c.decodeIfPresent(AnclaDeVideo.self, forKey: .ancla) ?? .sinFijar
+        sesionId = try c.decodeIfPresent(String.self, forKey: .sesionId)
+        desfaseMs = try c.decodeIfPresent(Int64.self, forKey: .desfaseMs) ?? 0
+        escala = try c.decodeIfPresent(Double.self, forKey: .escala) ?? 1
         formato = try c.decodeIfPresent(Int.self, forKey: .formato) ?? 1
     }
 
@@ -224,5 +245,90 @@ struct EtiquetadoDeVideo: Codable, Equatable, Identifiable {
     var finEpochMs: Int64? {
         guard let inicio = ancla.epochMs else { return nil }
         return inicio + Int64((duracion * 1000).rounded())
+    }
+
+    // MARK: Enlazar con una sesión del reloj
+
+    /// Si esta sesión del reloj pudo grabarse en este vídeo: que se solapen en el tiempo.
+    ///
+    /// El margen es generoso (un minuto por cada lado) porque el ancla del fichero tiene
+    /// resolución de segundo y la sesión se arranca y se para a mano: pedir solape exacto
+    /// descartaría justo los casos buenos.
+    func puedeSer(_ sesion: PadelSession, margenMs: Int64 = 60_000) -> Bool {
+        guard let inicio = ancla.epochMs, let fin = finEpochMs else { return false }
+        let finSesion = sesion.startedAtEpochMs + sesion.durationSeconds * 1000
+        return sesion.startedAtEpochMs <= fin + margenMs && finSesion >= inicio - margenMs
+    }
+
+    /// Los golpes de una sesión en tiempo de reloj de pared, para dárselos al emparejador.
+    static func golpesDelReloj(_ sesion: PadelSession) -> [SincronizacionDeVideo.GolpeEnTiempo] {
+        sesion.shots.map {
+            SincronizacionDeVideo.GolpeEnTiempo(
+                epochMs: sesion.startedAtEpochMs + $0.offsetMs, tipo: $0.type
+            )
+        }
+    }
+
+    /// Las marcas de este vídeo en tiempo de reloj de pared. Vacío sin ancla.
+    var marcasEnTiempo: [SincronizacionDeVideo.GolpeEnTiempo] {
+        guard ancla.epochMs != nil else { return [] }
+        return marcasOrdenadas.compactMap { marca in
+            epochMs(de: marca).map {
+                SincronizacionDeVideo.GolpeEnTiempo(epochMs: $0, tipo: marca.tipo)
+            }
+        }
+    }
+
+    /// Qué segundo del vídeo le toca a un instante del reloj, con el desfase y la escala
+    /// de este etiquetado aplicados. Nil sin ancla, o si cae fuera del vídeo.
+    func segundosDeVideo(paraEpoch epochMs: Int64) -> Double? {
+        guard let inicio = ancla.epochMs, escala != 0 else { return nil }
+        // Inversa de lo que hace `SincronizacionDeVideo.cruzar`: allí el vídeo se estira
+        // y se desplaza hasta el reloj; aquí se deshace para volver al fichero.
+        let enVideoEpoch = Double(epochMs - desfaseMs) / escala
+        let segundos = (enVideoEpoch - Double(inicio)) / 1000
+        guard segundos >= -0.5, segundos <= duracion + 0.5 else { return nil }
+        return max(segundos, 0)
+    }
+
+    /// **Trae los golpes del reloj como marcas de este vídeo.**
+    ///
+    /// Es el botón entero: donde antes había que ver el vídeo y marcar trescientos golpes
+    /// a mano, la sesión los pone con su tipo y su instante.
+    ///
+    /// Dos decisiones que importan:
+    ///
+    /// **No se pisa nada marcado a mano.** Un golpe del reloj que cae encima de una marca
+    /// que ya existe se salta: lo que puso el ojo humano manda sobre lo que puso una señal
+    /// de acelerómetro, que es justo el motivo de que este laboratorio exista.
+    ///
+    /// **Las marcas traídas nacen como `propuesta`**, no como `manual`. Vienen de un
+    /// detector con su porcentaje de error, así que no son verdad-terreno: son un punto de
+    /// partida que el usuario confirma o corrige. Mezclarlas con las suyas sin distinguir
+    /// contaminaría el corpus con el que luego se entrena el clasificador, y el corpus
+    /// quedaría midiéndose contra sí mismo.
+    ///
+    /// - Returns: cuántas marcas nuevas se añadieron.
+    @discardableResult
+    mutating func traerGolpes(
+        de sesion: PadelSession,
+        ventanaDeDuplicadoSegundos: Double = 0.4
+    ) -> Int {
+        guard ancla.epochMs != nil else { return 0 }
+        var añadidas = 0
+        for golpe in Self.golpesDelReloj(sesion) {
+            guard let segundos = segundosDeVideo(paraEpoch: golpe.epochMs) else { continue }
+            let yaEsta = marcas.contains { abs($0.segundos - segundos) < ventanaDeDuplicadoSegundos }
+            if yaEsta { continue }
+            marcas.append(
+                MarcaDeVideo(
+                    segundos: segundos,
+                    tipo: golpe.tipo ?? .unknown,
+                    origen: .propuesta
+                )
+            )
+            añadidas += 1
+        }
+        return añadidas
     }
 }
