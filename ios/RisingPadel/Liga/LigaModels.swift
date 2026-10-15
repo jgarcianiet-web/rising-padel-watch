@@ -45,6 +45,24 @@ struct LigaFrecuenciaGolpeo: Codable, Equatable {
 }
 
 /// Un partido de la liga. El espejo exacto de `Match` en la app Expo.
+/// De dónde salieron los números de un partido.
+///
+/// Son cadenas y no un enum por la misma razón que todo lo demás en este fichero: la
+/// copia de seguridad tiene que poder ir y venir sin transformar, y una fuente que
+/// aparezca mañana no puede dejar ilegible un backup de hoy.
+///
+/// Espejo de `FuenteDeDatos` en el core Kotlin, con los tests allí.
+enum FuenteDeDatos {
+    /// Lo midió el Apple Watch (o el Wear OS) con nuestro detector.
+    static let reloj = "reloj"
+    /// Lo leyó la app de una pulsera ajena y se transcribió de una captura.
+    static let band = "band"
+    /// Lo escribió el jugador a mano en el formulario.
+    static let manual = "manual"
+    /// Vino de Apple Salud: duración, pulso y calorías, sin golpes.
+    static let salud = "salud"
+}
+
 struct LigaMatch: Codable, Equatable, Identifiable {
     /// `Date.now()` de JavaScript: milisegundos de época.
     var id: Int64
@@ -76,6 +94,17 @@ struct LigaMatch: Codable, Equatable, Identifiable {
     var salud: LigaSaludPartido?
     var bandPuntos: [LigaPuntoProgreso]?
     var frecuenciaGolpeo: LigaFrecuenciaGolpeo?
+    /// De dónde salieron los números de este partido. Ver `FuenteDeDatos`.
+    ///
+    /// **Hace falta porque los niveles de dos fuentes distintas no son comparables.** El
+    /// reloj y una pulsera ajena pueden decir las dos "3,5" sobre el mismo partido sin
+    /// que signifiquen lo mismo, y pintarlos en la misma curva de evolución produce un
+    /// salto que el jugador no ha dado. Sin este campo no hay forma de saber cuál es cuál
+    /// una vez guardados.
+    ///
+    /// Nil = no se sabe, que es el caso de todo el historial anterior a este campo. No se
+    /// supone "reloj": la mayoría de esos partidos se apuntaron a mano.
+    var fuente: String?
 
     /// Decodificación tolerante campo a campo: un backup de una versión vieja (o de la
     /// web-app original) trae menos campos, y uno futuro puede traer más.
@@ -108,6 +137,7 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         salud = try c.decodeIfPresent(LigaSaludPartido.self, forKey: .salud)
         bandPuntos = try c.decodeIfPresent([LigaPuntoProgreso].self, forKey: .bandPuntos)
         frecuenciaGolpeo = try c.decodeIfPresent(LigaFrecuenciaGolpeo.self, forKey: .frecuenciaGolpeo)
+        fuente = try c.decodeIfPresent(String.self, forKey: .fuente)
     }
 
     init(
@@ -137,7 +167,8 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         totalGolpes: Int? = nil,
         salud: LigaSaludPartido? = nil,
         bandPuntos: [LigaPuntoProgreso]? = nil,
-        frecuenciaGolpeo: LigaFrecuenciaGolpeo? = nil
+        frecuenciaGolpeo: LigaFrecuenciaGolpeo? = nil,
+        fuente: String? = nil
     ) {
         self.id = id
         self.fecha = fecha
@@ -166,6 +197,7 @@ struct LigaMatch: Codable, Equatable, Identifiable {
         self.salud = salud
         self.bandPuntos = bandPuntos
         self.frecuenciaGolpeo = frecuenciaGolpeo
+        self.fuente = fuente
     }
 }
 

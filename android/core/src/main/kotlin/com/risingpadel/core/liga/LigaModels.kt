@@ -41,6 +41,27 @@ data class LigaPuntoProgreso(val minuto: Double, val nivel: Double)
 @Serializable
 data class LigaFrecuenciaGolpeo(val intervaloMin: Int, val cuentas: List<Int>)
 
+/**
+ * De dónde salieron los números de un partido.
+ *
+ * Son cadenas y no un enum por la misma razón que todo lo demás en este fichero: la copia
+ * de seguridad tiene que poder ir y venir sin transformar, y una fuente que aparezca
+ * mañana no puede dejar ilegible un backup de hoy.
+ */
+object FuenteDeDatos {
+    /** Lo midió el Apple Watch (o el Wear OS) con nuestro detector. */
+    const val RELOJ = "reloj"
+
+    /** Lo leyó la app de una pulsera ajena y se transcribió de una captura. */
+    const val BAND = "band"
+
+    /** Lo escribió el jugador a mano en el formulario. */
+    const val MANUAL = "manual"
+
+    /** Vino de Apple Salud: duración, pulso y calorías, sin golpes. */
+    const val SALUD = "salud"
+}
+
 /** Un partido de la liga. El espejo exacto de `Match` en la app Expo. */
 @Serializable
 data class LigaMatch(
@@ -74,6 +95,19 @@ data class LigaMatch(
     val salud: LigaSaludPartido? = null,
     val bandPuntos: List<LigaPuntoProgreso>? = null,
     val frecuenciaGolpeo: LigaFrecuenciaGolpeo? = null,
+    /**
+     * De dónde salieron los números de este partido. Ver [FuenteDeDatos].
+     *
+     * **Hace falta porque los niveles de dos fuentes distintas no son comparables.** El
+     * reloj y una pulsera ajena pueden decir las dos "3,5" sobre el mismo partido sin que
+     * signifiquen lo mismo, y pintarlos en la misma curva de evolución produce un salto
+     * que el jugador no ha dado. Sin este campo no hay forma de saber cuál es cuál una vez
+     * guardados.
+     *
+     * Null = no se sabe, que es el caso de todo el historial anterior a este campo. No se
+     * supone "reloj": la mayoría de esos partidos se apuntaron a mano.
+     */
+    val fuente: String? = null,
 ) {
     /** La métrica estrella de la liga: 2 de 3 objetivos cumplidos. */
     val bienJugado: Boolean get() = objetivos.count { it } >= 2
@@ -250,6 +284,36 @@ object LigaMetrics {
         val puntos = listOfNotNull(m.bandInicio, m.bandFin)
         return if (puntos.isEmpty()) null else puntos.average()
     }
+
+    /**
+     * La fuente que domina en estos partidos, para saber qué curva se puede pintar.
+     *
+     * Solo cuentan los partidos que **tienen** nivel: la fuente de uno sin nivel no
+     * cambia nada de lo que se dibuja. Null si ninguno trae nivel o ninguno trae fuente.
+     */
+    fun fuenteDominante(matches: List<LigaMatch>): String? =
+        matches.filter { nivelDeSesion(it) != null }
+            .mapNotNull { it.fuente }
+            .groupingBy { it }
+            .eachCount()
+            .maxByOrNull { it.value }
+            ?.key
+
+    /**
+     * Los partidos de una sola fuente, para que una curva no mezcle escalas.
+     *
+     * Los de fuente desconocida (`null`) entran junto a los del reloj y no aparte, y esa
+     * es una decisión discutible que conviene dejar escrita: el historial anterior a que
+     * existiera el campo se midió con el reloj o se apuntó a mano sobre esa misma escala,
+     * así que sacarlo de la curva del reloj dejaría a casi todo el mundo con una
+     * evolución vacía. Lo que NO se hace nunca es meter los de la pulsera ahí.
+     */
+    fun deFuente(matches: List<LigaMatch>, fuente: String): List<LigaMatch> =
+        if (fuente == FuenteDeDatos.RELOJ) {
+            matches.filter { it.fuente == null || it.fuente == FuenteDeDatos.RELOJ }
+        } else {
+            matches.filter { it.fuente == fuente }
+        }
 
     private fun cronologico(matches: List<LigaMatch>) = matches.sortedBy { it.fecha }
 }

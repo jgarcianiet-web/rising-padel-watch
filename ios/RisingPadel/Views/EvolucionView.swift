@@ -53,8 +53,30 @@ struct EvolucionView: View {
     /// abrir la función.
     private var tramoVigente: Tramo { puedeElegirTramo ? tramo : .todo }
 
+    /// La fuente cuya curva se está enseñando.
+    ///
+    /// **Una curva no puede mezclar fuentes.** El reloj y una pulsera ajena miden en
+    /// escalas distintas: puestos en la misma línea producen un salto que el jugador no
+    /// ha dado, y como la curva es justo lo que contesta "¿voy mejorando?", ese salto
+    /// sería la app mintiendo. Arranca en la fuente que más partidos tiene medidos.
+    @State private var fuente: String?
+
+    private var fuentesDisponibles: [String] {
+        let todas = liga.state.matches
+            .filter { LigaMetrics.nivelDeSesion($0) != nil }
+            .map { $0.fuente ?? FuenteDeDatos.reloj }
+        // Orden fijo y no el de aparición: el selector no puede cambiar de sitio los
+        // botones según qué partido se guardó antes.
+        return [FuenteDeDatos.reloj, FuenteDeDatos.band, FuenteDeDatos.manual,
+                FuenteDeDatos.salud].filter { todas.contains($0) }
+    }
+
+    private var fuenteVigente: String {
+        fuente ?? LigaMetrics.fuenteDominante(liga.state.matches) ?? FuenteDeDatos.reloj
+    }
+
     private var partidos: [LigaMatch] {
-        let todos = liga.state.matches
+        let todos = LigaMetrics.deFuente(liga.state.matches, fuenteVigente)
         switch tramoVigente {
         case .todo:
             return todos
@@ -76,6 +98,7 @@ struct EvolucionView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    selectorDeFuente
                     selector
                     nivelGlobal
                     tarjetasDeGolpes
@@ -87,6 +110,39 @@ struct EvolucionView: View {
             .sheet(isPresented: $muroAbierto) {
                 PaywallView(destacando: .evolucionPorTramos, enHoja: true)
             }
+        }
+    }
+
+    /// Qué fuente se está mirando. **Solo aparece si hay más de una**: a quien solo
+    /// mide con el reloj no se le enseña un selector con una sola opción.
+    @ViewBuilder
+    private var selectorDeFuente: some View {
+        let fuentes = fuentesDisponibles
+        if fuentes.count > 1 {
+            VStack(alignment: .leading, spacing: 6) {
+                Picker("Fuente", selection: Binding(
+                    get: { fuenteVigente },
+                    set: { fuente = $0 }
+                )) {
+                    ForEach(fuentes, id: \.self) { Text(Self.nombreDeFuente($0)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("Cada fuente mide en su propia escala, así que van en curvas "
+                     + "separadas. Juntarlas daría un salto que no has dado.")
+                    .font(.caption2)
+                    .foregroundStyle(T.tintaSuave)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private static func nombreDeFuente(_ fuente: String) -> String {
+        switch fuente {
+        case FuenteDeDatos.reloj: return "Reloj"
+        case FuenteDeDatos.band: return "Pulsera"
+        case FuenteDeDatos.manual: return "A mano"
+        case FuenteDeDatos.salud: return "Salud"
+        default: return fuente.capitalized
         }
     }
 

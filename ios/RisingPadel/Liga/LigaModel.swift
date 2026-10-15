@@ -332,7 +332,10 @@ final class LigaModel: ObservableObject {
             } : nil,
             frecuenciaGolpeo: frequency.isEmpty ? nil : LigaFrecuenciaGolpeo(
                 intervaloMin: 10, cuentas: frequency.map(\.count)
-            )
+            ),
+            // Lo midió el reloj con nuestro detector: su nivel es comparable con el de
+            // los demás partidos del reloj y con ningún otro. Ver `FuenteDeDatos`.
+            fuente: FuenteDeDatos.reloj
         )
         upsert(match)
         message = objetivosMedidos > 0

@@ -161,6 +161,32 @@ enum LigaMetrics {
         return puntos.reduce(0, +) / Double(puntos.count)
     }
 
+    /// La fuente que domina en estos partidos, para saber qué curva se puede pintar.
+    ///
+    /// Solo cuentan los partidos que **tienen** nivel: la fuente de uno sin nivel no
+    /// cambia nada de lo que se dibuja. Nil si ninguno trae nivel o ninguno trae fuente.
+    static func fuenteDominante(_ matches: [LigaMatch]) -> String? {
+        let fuentes = matches.filter { nivelDeSesion($0) != nil }.compactMap(\.fuente)
+        guard !fuentes.isEmpty else { return nil }
+        var cuenta: [String: Int] = [:]
+        for fuente in fuentes { cuenta[fuente, default: 0] += 1 }
+        return cuenta.max { $0.value < $1.value }?.key
+    }
+
+    /// Los partidos de una sola fuente, para que una curva no mezcle escalas.
+    ///
+    /// Los de fuente desconocida (`nil`) entran junto a los del reloj y no aparte, y esa
+    /// es una decisión discutible que conviene dejar escrita: el historial anterior a que
+    /// existiera el campo se midió con el reloj o se apuntó a mano sobre esa misma escala,
+    /// así que sacarlo de la curva del reloj dejaría a casi todo el mundo con una
+    /// evolución vacía. Lo que NO se hace nunca es meter los de la pulsera ahí.
+    static func deFuente(_ matches: [LigaMatch], _ fuente: String) -> [LigaMatch] {
+        if fuente == FuenteDeDatos.reloj {
+            return matches.filter { $0.fuente == nil || $0.fuente == FuenteDeDatos.reloj }
+        }
+        return matches.filter { $0.fuente == fuente }
+    }
+
     // MARK: Stats por grupo
 
     static func statsTipo(_ matches: [LigaMatch]) -> [LigaStatsFila] {

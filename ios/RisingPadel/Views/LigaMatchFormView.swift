@@ -313,7 +313,11 @@ struct LigaMatchFormView: View {
             totalGolpes: editing?.totalGolpes,
             salud: editing?.salud,
             bandPuntos: editing?.bandPuntos,
-            frecuenciaGolpeo: editing?.frecuenciaGolpeo
+            frecuenciaGolpeo: editing?.frecuenciaGolpeo,
+            // Al editar se conserva la fuente original: corregir el club de un partido
+            // que midió el reloj no lo convierte en un partido escrito a mano, y perder
+            // esa etiqueta sacaría el partido de su propia curva de evolución.
+            fuente: editing?.fuente ?? FuenteDeDatos.manual
         )
         liga.upsert(match)
         liga.message = editing == nil ? "Partido guardado" : "Cambios guardados"
