@@ -141,10 +141,22 @@ public enum LecturaDeCaptura {
 
     /// Lee los trozos de texto reconocidos, con sus posiciones.
     public static func leerTrozos(_ trozos: [Trozo]) -> CapturaLeida {
-        let limpios = trozos
-            .map { Trozo(texto: $0.texto.trimmingCharacters(in: .whitespacesAndNewlines), x: $0.x, y: $0.y) }
-            .filter { !$0.texto.isEmpty }
-            .sorted { $0.y != $1.y ? $0.y < $1.y : $0.x < $1.x }
+        // En tres pasos con tipo explícito y no en una cadena: al type-checker de Swift
+        // se le va el presupuesto resolviendo `map` + `filter` + `sorted` con un ternario
+        // dentro del comparador, y el error que da ("unable to type-check in reasonable
+        // time") no señala al ternario, que es lo caro. Ya pasó en este repositorio con
+        // un literal de CSV.
+        var limpios: [Trozo] = []
+        limpios.reserveCapacity(trozos.count)
+        for trozo in trozos {
+            let texto = trozo.texto.trimmingCharacters(in: .whitespacesAndNewlines)
+            if texto.isEmpty { continue }
+            limpios.append(Trozo(texto: texto, x: trozo.x, y: trozo.y))
+        }
+        limpios.sort { (a: Trozo, b: Trozo) -> Bool in
+            if a.y != b.y { return a.y < b.y }
+            return a.x < b.x
+        }
         guard !limpios.isEmpty else {
             return CapturaLeida(
                 nivelSesion: nil, mediaDelJugador: nil, totalGolpes: nil, duracionMin: nil,
@@ -208,7 +220,16 @@ public enum LecturaDeCaptura {
                     filas[filas.count - 1].append(i)
                 }
             }
-            self.filas = filas.map { $0.sorted { trozos[$0].x < trozos[$1].x } }
+            // Con tipos explícitos, por lo mismo que arriba: un `map` cuyo cuerpo es
+            // un `sorted` con subíndices dentro es de los que agotan el type-checker.
+            var ordenadas: [[Int]] = []
+            ordenadas.reserveCapacity(filas.count)
+            for fila in filas {
+                ordenadas.append(fila.sorted { (i: Int, j: Int) -> Bool in
+                    trozos[i].x < trozos[j].x
+                })
+            }
+            self.filas = ordenadas
 
             var filaDe = [Int](repeating: 0, count: trozos.count)
             for (indice, fila) in self.filas.enumerated() { for i in fila { filaDe[i] = indice } }
@@ -220,11 +241,19 @@ public enum LecturaDeCaptura {
         }
 
         func etiquetas(_ claves: [String], excluyendo: [String] = []) -> [Int] {
-            trozos.indices.filter { i in
-                !usados.contains(i)
-                    && claves.contains { normalizados[i].contains($0) }
-                    && !excluyendo.contains { normalizados[i].contains($0) }
+            var salida: [Int] = []
+            for i in trozos.indices {
+                if usados.contains(i) { continue }
+                let texto = normalizados[i]
+                var casa = false
+                for clave in claves where texto.contains(clave) { casa = true; break }
+                if !casa { continue }
+                var excluido = false
+                for clave in excluyendo where texto.contains(clave) { excluido = true; break }
+                if excluido { continue }
+                salida.append(i)
             }
+            return salida
         }
 
         /// El valor de un rótulo: dentro del propio rótulo, a su derecha en la misma fila,
@@ -351,10 +380,12 @@ public enum LecturaDeCaptura {
 
         // En el orden del repertorio los conocidos y detrás los agregados, para que la
         // pantalla de confirmación se lea siempre igual venga la captura como venga.
-        let conocidos = GolpeVisible.allCases.compactMap { visible in
-            orden.compactMap { encontrados[$0] }.first { $0.golpe == visible }
+        let enOrden: [GolpeLeido] = orden.compactMap { encontrados[$0] }
+        var conocidos: [GolpeLeido] = []
+        for visible in GolpeVisible.allCases {
+            if let leido = enOrden.first(where: { $0.golpe == visible }) { conocidos.append(leido) }
         }
-        let agregados = orden.compactMap { encontrados[$0] }.filter { $0.golpe == nil }
+        let agregados = enOrden.filter { $0.golpe == nil }
         return conocidos + agregados
     }
 
