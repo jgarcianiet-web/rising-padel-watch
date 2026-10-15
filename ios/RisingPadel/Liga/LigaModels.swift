@@ -32,6 +32,9 @@ struct LigaSaludPartido: Codable, Equatable {
     var pulsoMedio: Int?
     var pulsoMax: Int?
     var calorias: Int?
+    /// Pasos del partido. El reloj ya los medía y la liga los tiraba; la pulsera también
+    /// los da. Nil = no se sabe, que es lo que traen todos los partidos anteriores.
+    var pasos: Int?
 }
 
 struct LigaPuntoProgreso: Codable, Equatable {

@@ -75,6 +75,7 @@ object LigaMapper {
                 pulsoMedio = session.health.heartRate?.meanBpm,
                 pulsoMax = session.health.heartRate?.maxBpm,
                 calorias = session.health.activeEnergyKcal?.roundToInt(),
+                pasos = session.health.steps,
             ),
             bandPuntos = progression.takeIf { it.size >= 2 }?.map {
                 LigaPuntoProgreso(minuto = it.offsetMs / 60_000.0, nivel = round1(it.level.toDouble()))

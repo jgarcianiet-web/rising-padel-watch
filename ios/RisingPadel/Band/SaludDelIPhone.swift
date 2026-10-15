@@ -37,6 +37,7 @@ final class SaludDelIPhone: ObservableObject {
         let pulsoMedio: Int?
         let pulsoMax: Int?
         let calorias: Int?
+        let pasos: Int?
         /// Qué actividad declaró la app que lo escribió ("Tenis", "Entrenamiento
         /// funcional"…). Se enseña porque es lo que permite reconocer el partido.
         let actividad: String
@@ -49,7 +50,8 @@ final class SaludDelIPhone: ObservableObject {
                 duracionMin: duracionMin,
                 pulsoMedio: pulsoMedio,
                 pulsoMax: pulsoMax,
-                calorias: calorias
+                calorias: calorias,
+                pasos: pasos
             )
         }
     }
@@ -73,6 +75,7 @@ final class SaludDelIPhone: ObservableObject {
             HKObjectType.workoutType(),
             HKQuantityType(.heartRate),
             HKQuantityType(.activeEnergyBurned),
+            HKQuantityType(.stepCount),
         ]
     }
 
@@ -157,6 +160,7 @@ final class SaludDelIPhone: ObservableObject {
             pulsoMedio: medio,
             pulsoMax: maximo,
             calorias: calorias(de: workout),
+            pasos: await pasos(en: workout),
             actividad: Self.nombreDeActividad(workout.workoutActivityType),
             origen: workout.sourceRevision.source.name
         )
@@ -182,6 +186,28 @@ final class SaludDelIPhone: ObservableObject {
                 continuacion.resume(
                     returning: (medio.map { Int($0.rounded()) }, maximo.map { Int($0.rounded()) })
                 )
+            }
+            store.execute(consulta)
+        }
+    }
+
+    /// Los pasos dados durante el entrenamiento.
+    ///
+    /// Por consulta aparte y no desde el workout porque la mayoría de las apps no
+    /// adjuntan los pasos al entrenamiento: los escribe el móvil o el reloj por su
+    /// cuenta, y lo único que los relaciona con el partido es caer en sus horas.
+    private func pasos(en workout: HKWorkout) async -> Int? {
+        let predicado = HKQuery.predicateForSamples(
+            withStart: workout.startDate, end: workout.endDate
+        )
+        return await withCheckedContinuation { continuacion in
+            let consulta = HKStatisticsQuery(
+                quantityType: HKQuantityType(.stepCount),
+                quantitySamplePredicate: predicado,
+                options: [.cumulativeSum]
+            ) { _, estadisticas, _ in
+                let suma = estadisticas?.sumQuantity()?.doubleValue(for: .count())
+                continuacion.resume(returning: suma.map { Int($0.rounded()) })
             }
             store.execute(consulta)
         }

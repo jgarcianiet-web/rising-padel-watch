@@ -33,6 +33,9 @@ data class LigaSaludPartido(
     val pulsoMedio: Int? = null,
     val pulsoMax: Int? = null,
     val calorias: Int? = null,
+    /** Pasos del partido. El reloj ya los medía y la liga los tiraba; la pulsera también
+     * los da. Null = no se sabe, que es lo que traen todos los partidos anteriores. */
+    val pasos: Int? = null,
 )
 
 @Serializable

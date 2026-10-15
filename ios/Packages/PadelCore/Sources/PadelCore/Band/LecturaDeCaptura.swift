@@ -4,39 +4,55 @@ import Foundation
 ///
 /// ## Por qué esto existe
 ///
-/// La Padel Band mide el nivel de cada golpe y cuántos hubo, y su app no tiene
-/// exportación ni API: lo que el jugador ve en pantalla es todo lo que hay. Pero es **su**
-/// dato, de su pulsera, en su móvil, y el único camino que queda para meterlo en su propia
-/// liga es leerlo de la imagen. El iPhone sabe reconocer texto en una foto sin salir del
-/// dispositivo (`VNRecognizeTextRequest`); este fichero es lo que pasa de ese montón de
-/// líneas de texto a números con nombre.
+/// La Padel Band mide el nivel de cada golpe y cuántos hubo, y su app no tiene exportación
+/// ni API: lo que el jugador ve en pantalla es todo lo que hay. Pero es **su** dato, de su
+/// pulsera, en su móvil, y el único camino que queda para meterlo en su propia liga es
+/// leerlo de la imagen.
 ///
 /// ## La regla que gobierna todo el fichero: **nada se da por bueno en silencio**
 ///
-/// Un número mal leído de una captura es peor que no tener el dato, porque entra en la
-/// liga con la misma pinta que uno medido. Un 3,5 que era un 8,5, un "128 golpes" que era
-/// "12,8 golpes/min", y de ahí sale una curva de evolución falsa que nadie va a cuestionar
-/// meses después.
+/// Un número mal leído entra en la liga con la misma pinta que uno medido. Así que esto
+/// **no devuelve una sesión**: devuelve `CapturaLeida`, candidatos donde cada número viene
+/// con **el texto exacto del que salió**, para enseñarlo al lado de la imagen y que el
+/// jugador confirme. Lo que no se deja leer no se rellena con un cero: se queda fuera.
 ///
-/// Así que esto **no devuelve una sesión**: devuelve `CapturaLeida`, una lista de
-/// candidatos donde cada número viene con **la línea de texto exacta de la que salió**. La
-/// pantalla los enseña al lado de la imagen y el jugador confirma o corrige antes de que
-/// nada se guarde. Lo que no se deja leer no se rellena con un cero: se queda fuera.
+/// ## Por qué hace falta saber DÓNDE está cada texto
 ///
-/// ## Y lo que no se puede arreglar leyendo mejor
+/// La primera versión trabajaba con líneas y contra las capturas de verdad no valía. Una
+/// app de móvil no apila rótulo y valor en una columna: los pone en rejilla.
 ///
-/// **El nivel de la Band y el del reloj no son la misma escala.** Las dos pueden decir
-/// "3,5" sobre el mismo partido y no significar lo mismo. Por eso cada partido guarda de
-/// dónde salió su nivel (`LigaMatch.fuente`), y las curvas no mezclan fuentes sin decirlo.
-/// Leer la captura con precisión perfecta no haría comparables los dos números.
+/// - `Num. golpes` y `Calidad` van **uno al lado del otro**, y debajo `11` y `2.99`.
+/// - En la tarjeta de actividad el número va **encima** del rótulo: `898` / `K Cal`.
+/// - En el radar de calidad, igual: `3.61` encima de `VOLEA`.
+///
+/// Por eso la entrada es `Trozo`, con posición. Se agrupan en filas y el valor de un
+/// rótulo se busca **a su derecha en la misma fila, debajo en su columna, o encima en su
+/// columna**, en ese orden.
 ///
 /// Espejo de `LecturaDeCaptura` en el core Kotlin, con los tests allí.
 public enum LecturaDeCaptura {
 
-    /// Un número leído, con la línea de la que salió para poder enseñarla.
+    /// Un trozo de texto reconocido, con dónde está.
+    ///
+    /// `x` e `y` son el centro del trozo en coordenadas normalizadas 0-1, con **el origen
+    /// arriba a la izquierda**: `y = 0` es el borde de arriba. Vision las da con el origen
+    /// abajo y hay que voltearlas una sola vez, al reconocer — tener dos convenios de `y`
+    /// dando vueltas es el fallo que deja la lectura del revés y nadie sabe dónde.
+    public struct Trozo: Equatable, Sendable {
+        public let texto: String
+        public let x: Double
+        public let y: Double
+
+        public init(texto: String, x: Double, y: Double) {
+            self.texto = texto
+            self.x = x
+            self.y = y
+        }
+    }
+
+    /// Un número leído, con el texto del que salió para poder enseñarlo.
     public struct Dato: Equatable, Sendable {
         public let valor: Double
-        /// La línea de texto reconocida tal cual. Es lo que se le enseña al jugador.
         public let origen: String
 
         public init(valor: Double, origen: String) {
@@ -45,217 +61,426 @@ public enum LecturaDeCaptura {
         }
     }
 
-    /// La nota y/o el recuento de un golpe concreto.
+    /// Un golpe de la captura.
+    ///
+    /// El `nombre` es lo que ponía en pantalla y es lo que se guarda, porque la liga
+    /// guarda los golpes **por nombre** y no por enum. El `golpe` es la correspondencia
+    /// con nuestro repertorio cuando la hay, y es nil cuando la captura da el golpe **sin
+    /// lado**: la pantalla de volumen dice "Volea 175" sin separar derecha de revés, y
+    /// partir ese 175 por la mitad sería inventarse dos números.
     public struct GolpeLeido: Equatable, Sendable, Identifiable {
-        public let golpe: GolpeVisible
+        public let nombre: String
+        public let golpe: GolpeVisible?
         public let nota: Dato?
         public let cantidad: Dato?
 
-        public var id: String { golpe.etiqueta }
+        public var id: String { nombre }
 
-        public init(golpe: GolpeVisible, nota: Dato? = nil, cantidad: Dato? = nil) {
+        public init(nombre: String, golpe: GolpeVisible?, nota: Dato? = nil, cantidad: Dato? = nil) {
+            self.nombre = nombre
             self.golpe = golpe
             self.nota = nota
             self.cantidad = cantidad
         }
     }
 
-    /// Todo lo que se pudo leer de una captura. **Todos los campos son opcionales**: una
-    /// captura de la pantalla de resumen no trae lo mismo que una del detalle por golpe, y
-    /// rellenar lo que falta sería inventar.
+    /// Todo lo que se pudo leer. **Todos los campos son opcionales**: la pantalla de
+    /// resumen no trae lo mismo que la de un golpe, y rellenar lo que falta sería inventar.
     public struct CapturaLeida: Equatable, Sendable {
         public let nivelSesion: Dato?
+        /// La "Calidad Media Jugador" de la gráfica de progreso.
+        public let mediaDelJugador: Dato?
         public let totalGolpes: Dato?
         public let duracionMin: Dato?
         public let pulsoMedio: Dato?
         public let pulsoMax: Dato?
         public let calorias: Dato?
+        public let pasos: Dato?
+        /// El golpe que la app destaca como mejor ("Mejor golpe: REMATE").
+        public let mejorGolpe: String?
         public let golpes: [GolpeLeido]
-        /// Las líneas que no se entendieron. Se guardan para poder enseñarlas: si falta
-        /// algo que el jugador sí ve en su captura, aquí está por qué.
+        /// Los textos que no se entendieron, para poder enseñarlos.
         public let sinEntender: [String]
 
-        /// Si no se ha podido leer ni un solo número, no hay nada que confirmar.
         public var vacia: Bool {
-            nivelSesion == nil && totalGolpes == nil && duracionMin == nil
-                && pulsoMedio == nil && pulsoMax == nil && calorias == nil && golpes.isEmpty
+            nivelSesion == nil && mediaDelJugador == nil && totalGolpes == nil
+                && duracionMin == nil && pulsoMedio == nil && pulsoMax == nil
+                && calorias == nil && pasos == nil && mejorGolpe == nil && golpes.isEmpty
         }
     }
 
-    // ─── Palabras que buscamos ───
+    // ─── Rótulos ───
     //
-    // Varias por campo y en singular y plural porque no se sabe cómo lo escribe cada app,
-    // ni cómo lo escribirá la siguiente versión. Son las etiquetas que de verdad aparecen
-    // en una app de pádel; cuando aparezca otra se añade aquí y nada más.
+    // Los de la Padel Band están sacados de capturas reales (oct 2026); los demás son
+    // variantes razonables de otras apps.
 
-    private static let nivelClaves = ["nivel", "level", "valoracion", "puntuacion", "score"]
-    private static let totalClaves = ["golpes", "golpeos", "shots", "impactos", "total"]
-    private static let duracionClaves = ["duracion", "tiempo", "duration"]
+    private static let nivelClaves = ["nivel sesion", "nivel de la sesion", "nivel", "level"]
+    private static let mediaClaves = ["calidad media jugador", "media jugador"]
+    /// Incluye "golpes" a secas porque la tarjeta de actividad lo rotula así, pero se usa
+    /// **excluyendo** el "Num. golpes" de cada golpe: sin eso, el recuento de las bandejas
+    /// entraría como el total del partido.
+    private static let totalClaves = ["golpes totales", "total golpes", "golpeos", "shots", "golpes"]
+    private static let duracionClaves = ["tiempo", "duracion", "duration"]
     private static let pulsoMedioClaves = ["pulso medio", "fc media", "media ppm", "pulso med"]
     private static let pulsoMaxClaves = ["pulso max", "fc max", "max ppm", "pulso maximo"]
-    private static let caloriasClaves = ["calorias", "kcal", "cal"]
+    private static let caloriasClaves = ["k cal", "kcal", "calorias"]
+    private static let pasosClaves = ["pasos", "steps"]
+    private static let mejorGolpeClaves = ["mejor golpe"]
+    private static let numGolpesClaves = ["num golpes", "numero de golpes"]
+    private static let calidadClaves = ["calidad"]
 
-    /// Lee las líneas que devolvió el reconocedor de texto.
-    ///
-    /// Las líneas llegan **en orden de lectura** (arriba abajo) y ese orden importa: en
-    /// casi todas las apps el rótulo y su número no están en la misma línea, sino uno
-    /// encima del otro. Por eso se busca el número en la propia línea y, si no está, en la
-    /// siguiente y en la anterior — y nunca más lejos, porque a dos líneas de distancia ya
-    /// no se sabe de quién es el número.
+    /// Dos filas se consideran la misma si sus centros caen dentro de esto.
+    private static let toleranciaFila = 0.012
+    /// Cuánto se puede desviar en horizontal un valor de su rótulo, en otra fila.
+    private static let toleranciaColumna = 0.30
+
+    /// Lee una captura de una sola columna, sin posiciones.
     public static func leer(_ lineas: [String]) -> CapturaLeida {
-        let limpias = lineas.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        let normalizadas = limpias.map(normalizar)
-        var usadas = Set<Int>()
+        leerTrozos(lineas.enumerated().map { Trozo(texto: $1, x: 0, y: Double($0)) })
+    }
 
-        func buscar(_ claves: [String], maximo: Double? = nil) -> Dato? {
-            for i in limpias.indices where !usadas.contains(i) {
-                let linea = normalizadas[i]
-                guard claves.contains(where: { linea.contains($0) }) else { continue }
-                // En la línea del rótulo, en la de abajo, y en la de arriba. Ese orden:
-                // el número suele ir después del rótulo o justo debajo.
-                for j in [i, i + 1, i - 1] {
-                    guard limpias.indices.contains(j), !usadas.contains(j) else { continue }
-                    guard let numero = numeroDe(limpias[j]) else { continue }
-                    if let maximo, numero > maximo { continue }
-                    usadas.insert(i)
-                    usadas.insert(j)
-                    return Dato(valor: numero, origen: limpias[j])
-                }
-            }
-            return nil
+    /// Lee los trozos de texto reconocidos, con sus posiciones.
+    public static func leerTrozos(_ trozos: [Trozo]) -> CapturaLeida {
+        let limpios = trozos
+            .map { Trozo(texto: $0.texto.trimmingCharacters(in: .whitespacesAndNewlines), x: $0.x, y: $0.y) }
+            .filter { !$0.texto.isEmpty }
+            .sorted { $0.y != $1.y ? $0.y < $1.y : $0.x < $1.x }
+        guard !limpios.isEmpty else {
+            return CapturaLeida(
+                nivelSesion: nil, mediaDelJugador: nil, totalGolpes: nil, duracionMin: nil,
+                pulsoMedio: nil, pulsoMax: nil, calorias: nil, pasos: nil,
+                mejorGolpe: nil, golpes: [], sinEntender: []
+            )
         }
 
-        // El orden de búsqueda NO es arbitrario: los rótulos más específicos primero. Si
-        // se buscara "pulso" antes que "pulso máximo", la línea del máximo se consumiría
-        // como si fuera la media — y una vez consumida ya no se puede recuperar.
-        let pulsoMax = buscar(pulsoMaxClaves, maximo: 250)
-        let pulsoMedio = buscar(pulsoMedioClaves, maximo: 250)
-        let calorias = buscar(caloriasClaves, maximo: 5_000)
-        let duracion = buscar(duracionClaves, maximo: 600)
-        // El nivel va limitado a 10: en estas apps es 1-7 o 1-10, así que un "3500" en la
-        // línea del nivel es que se leyó otra cosa. Mejor no traer el dato que traerlo mal.
-        let nivel = buscar(nivelClaves, maximo: 10)
-        let total = buscar(totalClaves, maximo: 2_000)
+        let contexto = Contexto(limpios)
 
-        let golpes = leerGolpes(limpias, normalizadas, &usadas)
+        // El orden NO es arbitrario: los rótulos más específicos primero. Buscando
+        // "calidad" antes que "calidad media jugador", la media se consume como si fuera
+        // la calidad de un golpe y ya no se puede recuperar.
+        let media = contexto.buscar(mediaClaves, maximo: 10)
+        let nivel = contexto.buscar(nivelClaves, maximo: 10)
+        let pulsoMax = contexto.buscar(pulsoMaxClaves, maximo: 250)
+        let pulsoMedio = contexto.buscar(pulsoMedioClaves, maximo: 250)
+        let calorias = contexto.buscar(caloriasClaves, maximo: 10_000)
+        let pasos = contexto.buscar(pasosClaves, maximo: 100_000)
+        let duracion = contexto.buscar(duracionClaves, maximo: 600, enMinutos: true)
+        let total = contexto.buscar(totalClaves, maximo: 5_000, excluyendo: numGolpesClaves)
+        let mejorGolpe = contexto.buscarTexto(mejorGolpeClaves)
+
+        let golpes = leerGolpes(contexto)
 
         return CapturaLeida(
             nivelSesion: nivel,
+            mediaDelJugador: media,
             totalGolpes: total,
             duracionMin: duracion,
             pulsoMedio: pulsoMedio,
             pulsoMax: pulsoMax,
             calorias: calorias,
+            pasos: pasos,
+            mejorGolpe: mejorGolpe,
             golpes: golpes,
-            sinEntender: limpias.indices.filter { !usadas.contains($0) }.map { limpias[$0] }
+            sinEntender: contexto.sinUsar()
         )
     }
 
-    /// Las líneas que nombran un golpe del repertorio, con los números que las acompañan.
-    ///
-    /// Cuando una línea trae **dos** números —"Bandeja 3,5 · 24"— se interpreta que el
-    /// primero es la nota y el segundo el recuento, porque una nota lleva decimales y un
-    /// recuento no. Si solo hay uno, decide la forma: con decimales es nota; entero es
-    /// recuento. Es una heurística y por eso el número viaja con su línea: si acierta, el
-    /// jugador confirma de un toque, y si no, lo ve y lo corrige.
-    private static func leerGolpes(
-        _ limpias: [String], _ normalizadas: [String], _ usadas: inout Set<Int>
-    ) -> [GolpeLeido] {
-        var encontrados: [GolpeVisible: GolpeLeido] = [:]
-        for i in limpias.indices where !usadas.contains(i) {
-            guard let golpe = golpeDe(normalizadas[i]) else { continue }
-            // La propia línea y la de abajo: el nombre del golpe y su número a veces van
-            // en dos líneas, como los rótulos.
-            var numeros = numerosDe(limpias[i])
-            if numeros.isEmpty, limpias.indices.contains(i + 1), !usadas.contains(i + 1) {
-                numeros = numerosDe(limpias[i + 1])
-                if !numeros.isEmpty { usadas.insert(i + 1) }
-            }
-            guard !numeros.isEmpty else { continue }
-            usadas.insert(i)
+    /// El estado de una lectura: lo que hay y lo que ya se ha consumido.
+    private final class Contexto {
+        let trozos: [Trozo]
+        let normalizados: [String]
+        let filas: [[Int]]
+        let filaDe: [Int]
+        var usados = Set<Int>()
 
-            let nota: Dato?
-            let cantidad: Dato?
-            if numeros.count >= 2 {
-                nota = Dato(valor: numeros[0], origen: limpias[i])
-                cantidad = Dato(valor: numeros[1], origen: limpias[i])
-            } else if tieneDecimales(numeros[0]) {
-                nota = Dato(valor: numeros[0], origen: limpias[i])
-                cantidad = nil
-            } else {
-                nota = nil
-                cantidad = Dato(valor: numeros[0], origen: limpias[i])
+        init(_ trozos: [Trozo]) {
+            self.trozos = trozos
+            self.normalizados = trozos.map { normalizar($0.texto) }
+
+            // Agrupar en filas por altura, cada fila de izquierda a derecha.
+            var filas: [[Int]] = []
+            var alturaActual = -Double.greatestFiniteMagnitude
+            for i in trozos.indices {
+                if filas.isEmpty || abs(trozos[i].y - alturaActual) > toleranciaFila {
+                    filas.append([i])
+                    alturaActual = trozos[i].y
+                } else {
+                    filas[filas.count - 1].append(i)
+                }
             }
-            // El primero gana: una captura larga puede repetir el nombre del golpe en una
-            // leyenda o en un pie, y lo de arriba es lo que el jugador está mirando.
-            if encontrados[golpe] == nil {
-                encontrados[golpe] = GolpeLeido(golpe: golpe, nota: nota, cantidad: cantidad)
+            self.filas = filas.map { $0.sorted { trozos[$0].x < trozos[$1].x } }
+
+            var filaDe = [Int](repeating: 0, count: trozos.count)
+            for (indice, fila) in self.filas.enumerated() { for i in fila { filaDe[i] = indice } }
+            self.filaDe = filaDe
+        }
+
+        func sinUsar() -> [String] {
+            trozos.indices.filter { !usados.contains($0) }.map { trozos[$0].texto }
+        }
+
+        func etiquetas(_ claves: [String], excluyendo: [String] = []) -> [Int] {
+            trozos.indices.filter { i in
+                !usados.contains(i)
+                    && claves.contains { normalizados[i].contains($0) }
+                    && !excluyendo.contains { normalizados[i].contains($0) }
             }
         }
-        // En el orden del repertorio y no en el de la captura: así la pantalla de
-        // confirmación se lee siempre igual, venga la captura como venga.
-        return GolpeVisible.allCases.compactMap { encontrados[$0] }
+
+        /// El valor de un rótulo: dentro del propio rótulo, a su derecha en la misma fila,
+        /// debajo en su columna, o encima en su columna — en ese orden.
+        ///
+        /// Lo de mirar **encima** no es simetría gratuita: en las tarjetas de actividad el
+        /// número va arriba y el rótulo debajo (`898` / `K Cal`), y sin eso no se lee
+        /// ninguna de las cuatro.
+        func buscar(
+            _ claves: [String],
+            maximo: Double? = nil,
+            enMinutos: Bool = false,
+            desde: Int = 0,
+            hasta: Int = .max,
+            excluyendo: [String] = []
+        ) -> Dato? {
+            for i in etiquetas(claves, excluyendo: excluyendo) {
+                let fila = filaDe[i]
+                guard fila >= desde, fila <= hasta else { continue }
+                guard let (dato, indice) = valorPara(i, maximo: maximo, enMinutos: enMinutos) else {
+                    continue
+                }
+                usados.insert(i)
+                usados.insert(indice)
+                return dato
+            }
+            return nil
+        }
+
+        /// Como `buscar` pero el valor es texto ("Mejor golpe" → "REMATE").
+        func buscarTexto(_ claves: [String]) -> String? {
+            for i in etiquetas(claves) {
+                let fila = filas[filaDe[i]]
+                guard let elegido = fila.first(where: {
+                    $0 > i && !usados.contains($0) && numerosDe(trozos[$0].texto).isEmpty
+                }) else { continue }
+                usados.insert(i)
+                usados.insert(elegido)
+                return trozos[elegido].texto
+            }
+            return nil
+        }
+
+        private func valorPara(
+            _ etiqueta: Int, maximo: Double?, enMinutos: Bool
+        ) -> (Dato, Int)? {
+            func leerDe(_ indice: Int) -> Dato? {
+                let texto = trozos[indice].texto
+                guard let valor = enMinutos ? minutosDe(texto) : numeroDe(texto) else { return nil }
+                if let maximo, valor > maximo { return nil }
+                return Dato(valor: valor, origen: texto)
+            }
+
+            if let dato = leerDe(etiqueta) { return (dato, etiqueta) }
+
+            let fila = filaDe[etiqueta]
+            for j in filas[fila] where j > etiqueta && !usados.contains(j) {
+                if let dato = leerDe(j) { return (dato, j) }
+            }
+            for otra in [fila + 1, fila - 1] {
+                guard filas.indices.contains(otra) else { continue }
+                let candidato = filas[otra]
+                    .filter { !usados.contains($0) && abs(trozos[$0].x - trozos[etiqueta].x) <= toleranciaColumna }
+                    .min { abs(trozos[$0].x - trozos[etiqueta].x) < abs(trozos[$1].x - trozos[etiqueta].x) }
+                guard let candidato, let dato = leerDe(candidato) else { continue }
+                return (dato, candidato)
+            }
+            return nil
+        }
     }
 
-    /// Un nivel plausible tiene decimales; un recuento de golpes, no.
+    /// Los golpes de la captura.
+    ///
+    /// Tres maquetaciones, y las tres salen en las capturas de verdad: tarjeta de un golpe
+    /// (nombre arriba, `Num. golpes` y `Calidad` debajo), lista de volumen (nombre y
+    /// número en la misma fila) y radar de calidad (número encima del nombre).
+    ///
+    /// **Cada nombre acota hasta dónde se busca su valor**, y eso resuelve un fallo real:
+    /// en la pantalla del globo el título pone "Globo" y debajo vienen "Globo Rev." y
+    /// "Globo Dcha."; sin acotar, el "Globo" de arriba se habría quedado con los números
+    /// de la primera tarjeta.
+    private static func leerGolpes(_ contexto: Contexto) -> [GolpeLeido] {
+        let apariciones: [(Int, Nombrado)] = contexto.trozos.indices.compactMap { i in
+            nombreDeGolpe(contexto.normalizados[i]).map { (i, $0) }
+        }
+        guard !apariciones.isEmpty else { return [] }
+
+        var encontrados: [String: GolpeLeido] = [:]
+        var orden: [String] = []
+        for (posicion, aparicion) in apariciones.enumerated() {
+            let (indice, nombrado) = aparicion
+            let filaInicio = contexto.filaDe[indice]
+            let filaFin = posicion + 1 < apariciones.count
+                ? contexto.filaDe[apariciones[posicion + 1].0] - 1
+                : contexto.filas.count - 1
+
+            let cantidad = contexto.buscar(
+                numGolpesClaves, maximo: 5_000, desde: filaInicio, hasta: filaFin
+            )
+            let nota = contexto.buscar(
+                calidadClaves, maximo: 10, desde: filaInicio, hasta: filaFin
+            )
+            var notaFinal = nota
+            var cantidadFinal = cantidad
+            if nota == nil, cantidad == nil {
+                let (sueltaNota, sueltaCantidad) = sueltos(contexto, indice)
+                notaFinal = sueltaNota
+                cantidadFinal = sueltaCantidad
+            }
+            guard notaFinal != nil || cantidadFinal != nil else { continue }
+            contexto.usados.insert(indice)
+            // El primero gana: una captura puede repetir el nombre en un título y en una
+            // leyenda, y lo de arriba es lo que el jugador está mirando.
+            if encontrados[nombrado.nombre] == nil {
+                encontrados[nombrado.nombre] = GolpeLeido(
+                    nombre: nombrado.nombre,
+                    golpe: nombrado.golpe,
+                    nota: notaFinal,
+                    cantidad: cantidadFinal
+                )
+                orden.append(nombrado.nombre)
+            }
+        }
+
+        // En el orden del repertorio los conocidos y detrás los agregados, para que la
+        // pantalla de confirmación se lea siempre igual venga la captura como venga.
+        let conocidos = GolpeVisible.allCases.compactMap { visible in
+            orden.compactMap { encontrados[$0] }.first { $0.golpe == visible }
+        }
+        let agregados = orden.compactMap { encontrados[$0] }.filter { $0.golpe == nil }
+        return conocidos + agregados
+    }
+
+    /// El número que acompaña a un nombre sin rótulo: a su derecha en la misma fila (lista
+    /// de volumen) o justo encima (radar de calidad).
+    ///
+    /// Con decimales es nota y entero es recuento, porque una calidad lleva decimales y un
+    /// recuento no. Es una heurística, y por eso el número viaja con su texto.
+    private static func sueltos(_ contexto: Contexto, _ indice: Int) -> (Dato?, Dato?) {
+        let propios = numerosDe(contexto.trozos[indice].texto)
+        let texto = contexto.trozos[indice].texto
+        if propios.count >= 2 {
+            return (Dato(valor: propios[0], origen: texto), Dato(valor: propios[1], origen: texto))
+        }
+        if propios.count == 1 {
+            let dato = Dato(valor: propios[0], origen: texto)
+            return tieneDecimales(propios[0]) ? (dato, nil) : (nil, dato)
+        }
+
+        let fila = contexto.filaDe[indice]
+        var candidatos = contexto.filas[fila].filter { $0 > indice && !contexto.usados.contains($0) }
+        if contexto.filas.indices.contains(fila - 1) {
+            let arriba = contexto.filas[fila - 1]
+                .filter {
+                    !contexto.usados.contains($0)
+                        && abs(contexto.trozos[$0].x - contexto.trozos[indice].x) <= toleranciaColumna
+                }
+                .min {
+                    abs(contexto.trozos[$0].x - contexto.trozos[indice].x)
+                        < abs(contexto.trozos[$1].x - contexto.trozos[indice].x)
+                }
+            if let arriba { candidatos.append(arriba) }
+        }
+
+        for j in candidatos {
+            guard let numero = numeroDe(contexto.trozos[j].texto) else { continue }
+            contexto.usados.insert(j)
+            let dato = Dato(valor: numero, origen: contexto.trozos[j].texto)
+            return tieneDecimales(numero) ? (dato, nil) : (nil, dato)
+        }
+        return (nil, nil)
+    }
+
     private static func tieneDecimales(_ valor: Double) -> Bool {
         valor != valor.rounded(.towardZero)
+    }
+
+    /// Un nombre de golpe reconocido, con su correspondencia en nuestro repertorio.
+    public struct Nombrado: Equatable, Sendable {
+        public let nombre: String
+        public let golpe: GolpeVisible?
     }
 
     /// Cómo puede estar escrito cada golpe, **todo en una lista y ordenado de más largo a
     /// más corto**.
     ///
     /// Las dos cosas son necesarias y la segunda no es evidente. "Volea de revés" contiene
-    /// "revés", así que el patrón largo tiene que probarse antes — pero además la variante
-    /// sin preposición ("volea revés", que es como lo escribe media aplicación) tiene que
-    /// competir **en la misma pasada**: si se deja para un segundo intento, "volea revés"
-    /// ya habrá casado con "revés" y el jugador verá su volea de revés contada como revés,
-    /// que es otro golpe. Pasó, y lo pilló un test.
-    private static let patrones: [(String, GolpeVisible)] = {
-        var salida: [(String, GolpeVisible)] = []
-        for golpe in GolpeVisible.allCases {
-            let completo = normalizar(golpe.etiqueta)
-            let sinPreposicion = completo.replacingOccurrences(of: " de ", with: " ")
-            salida.append((completo, golpe))
-            if sinPreposicion != completo { salida.append((sinPreposicion, golpe)) }
+    /// "revés", así que el patrón largo va antes — pero además las variantes abreviadas,
+    /// que son las que usa la app de verdad ("Volea Rev.", "Globo Dcha."), tienen que
+    /// competir **en la misma pasada**: si se dejan para un segundo intento, "volea rev"
+    /// ya habrá casado con "reves" y el jugador vería su volea de revés contada como
+    /// revés, que es otro golpe. Pasó, y lo pilló un test.
+    ///
+    /// "Volea" y "Globo" a secas son **agregados**: la pantalla de volumen no separa
+    /// lados. Van los últimos, así que solo ganan cuando no hay nada más específico.
+    private static let patrones: [(String, Nombrado)] = {
+        var salida: [(String, Nombrado)] = []
+        func añadir(_ texto: String, _ nombre: String, _ golpe: GolpeVisible?) {
+            salida.append((normalizar(texto), Nombrado(nombre: nombre, golpe: golpe)))
         }
+        for golpe in GolpeVisible.allCases {
+            añadir(golpe.etiqueta, golpe.etiqueta, golpe)
+            let sinPreposicion = golpe.etiqueta.replacingOccurrences(of: " de ", with: " ")
+            if sinPreposicion != golpe.etiqueta { añadir(sinPreposicion, golpe.etiqueta, golpe) }
+        }
+        añadir("volea rev", "Volea de revés", .voleaReves)
+        añadir("volea dcha", "Volea de derecha", .voleaDerecha)
+        añadir("globo rev", "Globo de revés", .globoReves)
+        añadir("globo dcha", "Globo de derecha", .globoDerecha)
+        añadir("volea", "Volea", nil)
+        añadir("globo", "Globo", nil)
         return salida.sorted { $0.0.count > $1.0.count }
     }()
 
-    /// El golpe del repertorio que nombra esta línea, o nil.
-    public static func golpeDe(_ lineaNormalizada: String) -> GolpeVisible? {
-        patrones.first { lineaNormalizada.contains($0.0) }?.1
+    /// El golpe que nombra este texto ya normalizado, o nil.
+    public static func nombreDeGolpe(_ normalizado: String) -> Nombrado? {
+        patrones.first { normalizado.contains($0.0) }?.1
     }
 
-    /// Minúsculas, sin acentos y con un solo espacio: así "Revés" y "REVES" son lo mismo.
+    /// El golpe del repertorio que nombra este texto, o nil.
+    public static func golpeDe(_ normalizado: String) -> GolpeVisible? {
+        nombreDeGolpe(normalizado)?.golpe
+    }
+
+    /// Minúsculas, sin acentos, sin puntos y con un solo espacio.
+    ///
+    /// Los puntos fuera porque la app abrevia con ellos —"Rev.", "Dcha.", "Num. golpes"—
+    /// y un patrón con punto deja de valer en cuanto otra app escriba lo mismo sin él. No
+    /// afecta a los números: se sacan siempre del texto original.
     public static func normalizar(_ texto: String) -> String {
         let sinAcentos = texto.lowercased()
             .folding(options: [.diacriticInsensitive], locale: Locale(identifier: "es"))
-        // Por `whitespacesAndNewlines` y no solo por el espacio: el reconocedor de texto
-        // devuelve tabulaciones y saltos cuando la captura tiene columnas, y el espejo
-        // Kotlin colapsa `\s+`. Dos normalizaciones distintas darían dos lecturas
-        // distintas de la misma captura según el core, que es lo que no puede pasar.
+            .replacingOccurrences(of: ".", with: " ")
+        // Por `whitespacesAndNewlines` y no solo por el espacio: el reconocedor devuelve
+        // tabulaciones cuando la captura tiene columnas, y el espejo Kotlin colapsa `\s+`.
         return sinAcentos.components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }
             .joined(separator: " ")
     }
 
-    /// El primer número de una línea, o nil.
-    public static func numeroDe(_ linea: String) -> Double? { numerosDe(linea).first }
+    /// El primer número de un texto, o nil.
+    public static func numeroDe(_ texto: String) -> Double? { numerosDe(texto).first }
 
-    /// Todos los números de una línea, en orden.
+    /// Todos los números de un texto, en orden.
     ///
-    /// **La coma es decimal**, que es como lo escribe una app en español: "3,5" es tres y
-    /// medio y no dos números. Y un "3,5/7" da solo el 3,5 — el 7 es el máximo de la
-    /// escala, no un dato del jugador; por eso se descarta lo que vaya detrás de una barra.
-    public static func numerosDe(_ linea: String) -> [Double] {
-        let sinEscala = linea.replacingOccurrences(
+    /// **La coma es decimal**: "3,5" es tres y medio y no dos números. Un "3,5/7" da solo
+    /// el 3,5 — el 7 es la escala, no un dato. Y un texto con forma de reloj ("01:39:46")
+    /// no da números sueltos: eso lo lee `minutosDe`, porque leer el "01" como si fuera un
+    /// dato daría un partido de un minuto.
+    public static func numerosDe(_ texto: String) -> [Double] {
+        let limpio = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+        if esReloj(limpio) { return [] }
+        let sinEscala = limpio.replacingOccurrences(
             of: "/\\s*\\d+([.,]\\d+)?", with: "", options: .regularExpression
         )
-        guard let regex = try? NSRegularExpression(pattern: "-?\\d+(?:[.,]\\d+)?") else {
-            return []
-        }
+        guard let regex = try? NSRegularExpression(pattern: "-?\\d+(?:[.,]\\d+)?") else { return [] }
         let rango = NSRange(sinEscala.startIndex..., in: sinEscala)
         return regex.matches(in: sinEscala, range: rango).compactMap { match in
             guard let r = Range(match.range, in: sinEscala) else { return nil }
@@ -263,5 +488,25 @@ public enum LecturaDeCaptura {
             guard let valor = Double(texto), valor >= 0 else { return nil }
             return valor
         }
+    }
+
+    private static func esReloj(_ texto: String) -> Bool {
+        texto.range(of: "^\\d{1,2}:\\d{2}:\\d{2}$", options: .regularExpression) != nil
+    }
+
+    /// Minutos a partir de un texto de duración.
+    ///
+    /// La Padel Band escribe el tiempo como **`01:39:46`**, y eso no es un número: leído
+    /// con el lector normal daría "1" y el partido entraría durando un minuto. Aquí se
+    /// convierte a 99,8 minutos. También vale "92 min" y un número suelto.
+    public static func minutosDe(_ texto: String) -> Double? {
+        let limpio = texto.trimmingCharacters(in: .whitespacesAndNewlines)
+        if esReloj(limpio) {
+            let partes = limpio.split(separator: ":").compactMap { Int($0) }
+            if partes.count == 3 {
+                return Double(partes[0]) * 60 + Double(partes[1]) + Double(partes[2]) / 60
+            }
+        }
+        return numeroDe(limpio)
     }
 }

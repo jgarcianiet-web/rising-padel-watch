@@ -29,14 +29,40 @@ enum LectorDeCapturas {
         }
     }
 
+    /// Los trozos reconocidos **con su posición en la imagen**.
+    ///
+    /// La posición no es un adorno: es lo que permite leer una rejilla. En estas apps
+    /// `Num. golpes` y `Calidad` van uno al lado del otro y sus valores en la fila de
+    /// abajo, y en las tarjetas de actividad el número va encima del rótulo. Sin saber en
+    /// qué columna está cada cosa no hay forma de emparejarlos. Ver `LecturaDeCaptura`.
+    ///
+    /// **Vision da el origen abajo a la izquierda y aquí se voltea**, una sola vez y en
+    /// este sitio, para que en todo el resto del código `y = 0` sea el borde de arriba.
+    /// Tener dos convenios de `y` dando vueltas es el fallo que deja la lectura del revés
+    /// y nadie sabe dónde.
+    static func trozos(de imagen: UIImage) async throws -> [LecturaDeCaptura.Trozo] {
+        try await observaciones(de: imagen).map { observacion in
+            let caja = observacion.boundingBox
+            return LecturaDeCaptura.Trozo(
+                texto: observacion.topCandidates(1).first?.string ?? "",
+                x: caja.midX,
+                y: 1 - caja.midY
+            )
+        }
+    }
+
     /// Las líneas reconocidas, de arriba abajo y de izquierda a derecha.
     ///
-    /// **El orden es parte del dato, no una cortesía.** `LecturaDeCaptura` cuenta con que
-    /// el rótulo y su número vengan seguidos, porque en una app el rótulo pequeño va
-    /// encima del número grande. Si las líneas llegaran en el orden interno de Vision, los
-    /// rótulos y los números se mezclarían y no habría forma de saber de quién es cada
-    /// número.
+    /// Se mantiene para cuando solo hace falta el texto. Para interpretar una captura
+    /// de verdad usa `trozos(de:)`: sin posiciones, una rejilla de dos columnas se lee
+    /// como una sopa de rótulos y números sin dueño.
     static func lineas(de imagen: UIImage) async throws -> [String] {
+        try await observaciones(de: imagen).compactMap { $0.topCandidates(1).first?.string }
+    }
+
+    private static func observaciones(
+        de imagen: UIImage
+    ) async throws -> [VNRecognizedTextObservation] {
         guard let cg = imagen.cgImage else { throw Fallo.sinImagen }
 
         let peticion = VNRecognizeTextRequest()
@@ -72,11 +98,11 @@ enum LectorDeCapturas {
             return a.boundingBox.minX < b.boundingBox.minX
         }
 
-        return ordenadas.compactMap { $0.topCandidates(1).first?.string }
+        return ordenadas
     }
 
     /// El atajo completo: imagen → lo que se pudo entender de ella.
     static func leer(_ imagen: UIImage) async throws -> LecturaDeCaptura.CapturaLeida {
-        LecturaDeCaptura.leer(try await lineas(de: imagen))
+        LecturaDeCaptura.leerTrozos(try await trozos(de: imagen))
     }
 }

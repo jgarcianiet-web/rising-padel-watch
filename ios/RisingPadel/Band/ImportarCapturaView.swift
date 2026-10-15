@@ -39,6 +39,9 @@ struct ImportarCapturaView: View {
     @State private var pulsoMedio = ""
     @State private var pulsoMax = ""
     @State private var calorias = ""
+    @State private var pasos = ""
+    @State private var mediaJugador = ""
+    @State private var mejorGolpe = ""
     @State private var golpes: [GolpeEditable] = []
     @State private var entrenamiento: UUID?
 
@@ -46,13 +49,19 @@ struct ImportarCapturaView: View {
     /// texto y no números: un campo numérico vacío tendría que valer algo, y "no lo sé"
     /// no es un número.
     private struct GolpeEditable: Identifiable {
-        let golpe: GolpeVisible
+        /// Lo que ponía en la captura, y lo que se guarda: la liga guarda los golpes por
+        /// nombre y no por enum, así que un "Volea" sin lado cabe igual que una "Volea de
+        /// revés".
+        let nombre: String
+        /// La correspondencia con nuestro repertorio, si la hay. Nil en los agregados que
+        /// la captura da sin lado — y eso se le dice al jugador, no se parte en dos.
+        let golpe: GolpeVisible?
         var nota: String
         var cantidad: String
-        /// La línea de la captura de la que salió. Es lo que permite ver si se leyó bien.
+        /// El texto de la captura del que salió. Es lo que permite ver si se leyó bien.
         var origen: String
 
-        var id: String { golpe.etiqueta }
+        var id: String { nombre }
     }
 
     var body: some View {
@@ -141,6 +150,11 @@ struct ImportarCapturaView: View {
             campo("Nivel de la sesión", texto: $nivel, pista: "3,5", origen: leida?.nivelSesion?.origen)
             campo("Golpes totales", texto: $totalGolpes, pista: "284", origen: leida?.totalGolpes?.origen)
             campo("Duración (min)", texto: $duracion, pista: "90", origen: leida?.duracionMin?.origen)
+            campo("Calidad media del jugador", texto: $mediaJugador, pista: "3,45",
+                  origen: leida?.mediaDelJugador?.origen)
+            if !mejorGolpe.isEmpty {
+                LabeledContent("Mejor golpe") { Text(mejorGolpe).foregroundStyle(T.tintaSuave) }
+            }
         } header: {
             Text("Lo que se ha leído")
         } footer: {
@@ -185,8 +199,18 @@ struct ImportarCapturaView: View {
                 ForEach($golpes) { $golpe in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
-                            Text(golpe.golpe.etiqueta)
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(golpe.nombre)
+                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                if golpe.golpe == nil {
+                                    // La captura lo dio sin lado. Se dice, no se reparte:
+                                    // partir 175 voleas en dos mitades serían dos números
+                                    // inventados.
+                                    Text("sin lado en la captura")
+                                        .font(.caption2)
+                                        .foregroundStyle(T.tintaSuave)
+                                }
+                            }
                             Spacer(minLength: 4)
                             TextField("nota", text: $golpe.nota)
                                 .keyboardType(.decimalPad)
@@ -252,6 +276,7 @@ struct ImportarCapturaView: View {
             campo("Pulso medio", texto: $pulsoMedio, pista: "138", origen: leida?.pulsoMedio?.origen)
             campo("Pulso máximo", texto: $pulsoMax, pista: "176", origen: leida?.pulsoMax?.origen)
             campo("Calorías", texto: $calorias, pista: "610", origen: leida?.calorias?.origen)
+            campo("Pasos", texto: $pasos, pista: "8861", origen: leida?.pasos?.origen)
         } header: {
             Text("Esfuerzo (Apple Salud)")
         } footer: {
@@ -264,6 +289,7 @@ struct ImportarCapturaView: View {
         var piezas: [String] = []
         if let medio = entreno.pulsoMedio { piezas.append("\(medio) ppm medios") }
         if let calorias = entreno.calorias { piezas.append("\(calorias) kcal") }
+        if let dados = entreno.pasos { piezas.append("\(dados) pasos") }
         piezas.append("según \(entreno.origen)")
         return piezas.joined(separator: " · ")
     }
@@ -276,6 +302,7 @@ struct ImportarCapturaView: View {
         if let medio = entreno.pulsoMedio { pulsoMedio = String(medio) }
         if let maximo = entreno.pulsoMax { pulsoMax = String(maximo) }
         if let kcal = entreno.calorias { calorias = String(kcal) }
+        if let dados = entreno.pasos { pasos = String(dados) }
     }
 
     // MARK: Cargar y guardar
@@ -319,23 +346,23 @@ struct ImportarCapturaView: View {
         poner(&pulsoMedio, resultado.pulsoMedio, entero: true)
         poner(&pulsoMax, resultado.pulsoMax, entero: true)
         poner(&calorias, resultado.calorias, entero: true)
+        poner(&pasos, resultado.pasos, entero: true)
+        poner(&mediaJugador, resultado.mediaDelJugador, entero: false)
+        if mejorGolpe.isEmpty, let mejor = resultado.mejorGolpe { mejorGolpe = mejor }
 
-        for leido in resultado.golpes where !golpes.contains(where: { $0.golpe == leido.golpe }) {
+        // El orden ya lo pone el core (el repertorio primero y los agregados detrás), así
+        // que aquí solo se añade lo que falte: reordenar otra vez movería de sitio lo que
+        // el jugador ya está mirando al importar la segunda captura.
+        for leido in resultado.golpes where !golpes.contains(where: { $0.nombre == leido.nombre }) {
             golpes.append(
                 GolpeEditable(
+                    nombre: leido.nombre,
                     golpe: leido.golpe,
                     nota: leido.nota.map { textoDe($0.valor) } ?? "",
                     cantidad: leido.cantidad.map { String(Int($0.valor.rounded())) } ?? "",
                     origen: leido.nota?.origen ?? leido.cantidad?.origen ?? ""
                 )
             )
-        }
-        // En el orden del repertorio, como en el resto de la app.
-        golpes.sort { a, b in
-            let orden = GolpeVisible.allCases
-            let i = orden.firstIndex(of: a.golpe) ?? 0
-            let j = orden.firstIndex(of: b.golpe) ?? 0
-            return i < j
         }
     }
 
@@ -356,11 +383,11 @@ struct ImportarCapturaView: View {
     private func guardar() {
         let notas = golpes.compactMap { editable -> LigaGolpeSesion? in
             guard let nota = numero(editable.nota) else { return nil }
-            return LigaGolpeSesion(nombre: editable.golpe.etiqueta, nota: nota)
+            return LigaGolpeSesion(nombre: editable.nombre, nota: nota)
         }
         let volumen = golpes.compactMap { editable -> LigaGolpeVolumen? in
             guard let cantidad = numero(editable.cantidad) else { return nil }
-            return LigaGolpeVolumen(nombre: editable.golpe.etiqueta, cantidad: Int(cantidad))
+            return LigaGolpeVolumen(nombre: editable.nombre, cantidad: Int(cantidad))
         }
 
         // La salud solo se guarda si hay algo que guardar: un `LigaSaludPartido` con todo
@@ -369,17 +396,21 @@ struct ImportarCapturaView: View {
         let medio = numero(pulsoMedio).map { Int($0) }
         let maximo = numero(pulsoMax).map { Int($0) }
         let kcal = numero(calorias).map { Int($0) }
-        let haySalud = minutos > 0 || medio != nil || maximo != nil || kcal != nil
+        let dados = numero(pasos).map { Int($0) }
+        let haySalud = minutos > 0 || medio != nil || maximo != nil || kcal != nil || dados != nil
 
         liga.guardarDesdeCaptura(
             fecha: fecha,
             nivelSesion: numero(nivel),
+            mediaDelJugador: numero(mediaJugador),
+            mejorGolpe: mejorGolpe.isEmpty ? nil : mejorGolpe,
             totalGolpes: numero(totalGolpes).map { Int($0) },
             golpes: notas,
             volumen: volumen,
             salud: haySalud
                 ? LigaSaludPartido(
-                    duracionMin: minutos, pulsoMedio: medio, pulsoMax: maximo, calorias: kcal
+                    duracionMin: minutos, pulsoMedio: medio, pulsoMax: maximo,
+                    calorias: kcal, pasos: dados
                 )
                 : nil
         )

@@ -325,7 +325,8 @@ final class LigaModel: ObservableObject {
                 duracionMin: Int((Double(session.durationSeconds) / 60).rounded()),
                 pulsoMedio: session.health.heartRate?.meanBpm,
                 pulsoMax: session.health.heartRate?.maxBpm,
-                calorias: session.health.activeEnergyKcal.map { Int($0.rounded()) }
+                calorias: session.health.activeEnergyKcal.map { Int($0.rounded()) },
+                pasos: session.health.steps
             ),
             bandPuntos: progression.count >= 2 ? progression.map {
                 LigaPuntoProgreso(minuto: Double($0.offsetMs) / 60_000, nivel: round1(Double($0.level)))
@@ -363,6 +364,8 @@ final class LigaModel: ObservableObject {
     func guardarDesdeCaptura(
         fecha: Date,
         nivelSesion: Double?,
+        mediaDelJugador: Double? = nil,
+        mejorGolpe: String? = nil,
         totalGolpes: Int?,
         golpes: [LigaGolpeSesion],
         volumen: [LigaGolpeVolumen],
@@ -380,8 +383,10 @@ final class LigaModel: ObservableObject {
             tipo: "competitivo",
             resultado: resultado,
             nivelBand: nivelSesion,
+            mejorGolpe: mejorGolpe,
             golpesSesion: golpes.isEmpty ? nil : golpes,
             nota: nota,
+            bandMediaJugador: mediaDelJugador,
             golpesVolumen: volumen.isEmpty ? nil : volumen,
             totalGolpes: totalGolpes,
             salud: salud,
