@@ -234,14 +234,31 @@ struct ImportarCapturaView: View {
 
     // MARK: Apple Salud
 
+    /// El esfuerzo del partido.
+    ///
+    /// **La captura ya lo trae casi todo.** La Padel Band calcula por su cuenta el
+    /// tiempo, las calorías y los pasos, y los enseña en su pantalla de actividad, así
+    /// que salen leídos de la imagen como cualquier otro número. Lo único que no da es el
+    /// **pulso**: eso no lo mide una pulsera de pala.
+    ///
+    /// Y no lo da por otro sitio tampoco: **la Band no escribe nada en Apple Salud**. Su
+    /// cálculo se queda en su app. Por eso buscar en Salud está abajo y como extra, no
+    /// como el camino principal: solo encuentra algo si ese día llevabas además un reloj
+    /// —el Apple Watch con la app de Entreno, por ejemplo— que sí escribiera el
+    /// entrenamiento. Es el único modo de que un partido con pulsera tenga pulso.
     private var saludSection: some View {
         Section {
+            campo("Pulso medio", texto: $pulsoMedio, pista: "138", origen: leida?.pulsoMedio?.origen)
+            campo("Pulso máximo", texto: $pulsoMax, pista: "176", origen: leida?.pulsoMax?.origen)
+            campo("Calorías", texto: $calorias, pista: "898", origen: leida?.calorias?.origen)
+            campo("Pasos", texto: $pasos, pista: "8861", origen: leida?.pasos?.origen)
+
             Button {
                 Task {
                     if await salud.pedirPermiso() { await salud.buscar(enElDia: fecha) }
                 }
             } label: {
-                Label("Buscar el entrenamiento de ese día", systemImage: "heart.text.square")
+                Label("Buscar pulso en Apple Salud", systemImage: "heart.text.square")
             }
             .disabled(salud.buscando)
 
@@ -273,15 +290,13 @@ struct ImportarCapturaView: View {
                     .foregroundStyle(T.tintaSuave)
             }
 
-            campo("Pulso medio", texto: $pulsoMedio, pista: "138", origen: leida?.pulsoMedio?.origen)
-            campo("Pulso máximo", texto: $pulsoMax, pista: "176", origen: leida?.pulsoMax?.origen)
-            campo("Calorías", texto: $calorias, pista: "610", origen: leida?.calorias?.origen)
-            campo("Pasos", texto: $pasos, pista: "8861", origen: leida?.pasos?.origen)
         } header: {
-            Text("Esfuerzo (Apple Salud)")
+            Text("Esfuerzo")
         } footer: {
-            Text("Salud no guarda golpes de pádel: lo que aporta es el esfuerzo. Si eliges "
-                 + "un entrenamiento, rellena los tres campos de abajo y puedes retocarlos.")
+            Text("El tiempo, las calorías y los pasos salen de la captura: la pulsera los "
+                 + "calcula ella. El pulso no lo mide, y tampoco escribe en Apple Salud, "
+                 + "así que buscar ahí solo sirve si ese día llevabas además un reloj que "
+                 + "sí guardara el entrenamiento.")
         }
     }
 
@@ -296,13 +311,20 @@ struct ImportarCapturaView: View {
 
     private func elegir(_ entreno: SaludDelIPhone.Entrenamiento) {
         entrenamiento = entreno.id
-        // Se rellenan los campos en vez de guardarse aparte: así el jugador ve qué va a
-        // entrar y lo puede cambiar, igual que con lo leído de la captura.
-        duracion = String(entreno.duracionMin)
-        if let medio = entreno.pulsoMedio { pulsoMedio = String(medio) }
-        if let maximo = entreno.pulsoMax { pulsoMax = String(maximo) }
-        if let kcal = entreno.calorias { calorias = String(kcal) }
-        if let dados = entreno.pasos { pasos = String(dados) }
+        // **Solo lo que esté vacío.** La captura manda sobre Salud en lo que las dos
+        // saben: la pulsera cuenta los golpes del partido y su duración es la del
+        // partido, mientras que el entrenamiento de Salud puede incluir el calentamiento
+        // o lo que tardaste en acordarte de pararlo. Lo que de verdad viene a aportar
+        // Salud es el pulso, que la pulsera no mide.
+        func poner(_ campo: inout String, _ valor: Int?) {
+            guard campo.isEmpty, let valor else { return }
+            campo = String(valor)
+        }
+        poner(&pulsoMedio, entreno.pulsoMedio)
+        poner(&pulsoMax, entreno.pulsoMax)
+        poner(&duracion, entreno.duracionMin)
+        poner(&calorias, entreno.calorias)
+        poner(&pasos, entreno.pasos)
     }
 
     // MARK: Cargar y guardar
