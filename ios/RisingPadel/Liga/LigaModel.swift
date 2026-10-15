@@ -343,6 +343,55 @@ final class LigaModel: ObservableObject {
             : "Partido guardado en la liga"
     }
 
+    /// Guarda como partido lo que se leyó de una captura de otra app, ya confirmado por
+    /// el jugador.
+    ///
+    /// Tres decisiones que no son obvias:
+    ///
+    /// **La fuente es `band` y eso lo cambia todo.** El nivel que venga de aquí no es
+    /// comparable con el que mide el reloj, así que este partido vive en su propia curva
+    /// de evolución. Guardarlo sin fuente lo mezclaría con los del reloj y produciría un
+    /// salto que el jugador no ha dado. Ver `FuenteDeDatos`.
+    ///
+    /// **El id sale del día y no del instante de guardado.** Así, volver a importar la
+    /// misma captura actualiza el partido en vez de duplicarlo — y reimportar es lo normal
+    /// cuando la primera lectura salió torcida.
+    ///
+    /// **Nada se rellena.** Lo que el jugador dejó en blanco entra como nil, no como cero:
+    /// un cero en golpes diría que jugó sin dar un golpe, y un cero en pulso, que no tenía.
+    @discardableResult
+    func guardarDesdeCaptura(
+        fecha: Date,
+        nivelSesion: Double?,
+        totalGolpes: Int?,
+        golpes: [LigaGolpeSesion],
+        volumen: [LigaGolpeVolumen],
+        salud: LigaSaludPartido?,
+        resultado: String = ResultadoDePartido.sinResultado,
+        nota: String = ""
+    ) -> Int64 {
+        let dia = LigaFechas.iso(fecha)
+        // Mediodía del día elegido: el id tiene que ser estable para el mismo día y no
+        // depender de la hora a la que se importe.
+        let id = Int64(Calendar.current.startOfDay(for: fecha).timeIntervalSince1970 * 1000)
+        let match = LigaMatch(
+            id: id,
+            fecha: dia,
+            tipo: "competitivo",
+            resultado: resultado,
+            nivelBand: nivelSesion,
+            golpesSesion: golpes.isEmpty ? nil : golpes,
+            nota: nota,
+            golpesVolumen: volumen.isEmpty ? nil : volumen,
+            totalGolpes: totalGolpes,
+            salud: salud,
+            fuente: FuenteDeDatos.band
+        )
+        upsert(match)
+        message = "Partido de la pulsera guardado en la liga"
+        return id
+    }
+
     // MARK: Entrenador
 
     /// Guarda un análisis nuevo del entrenador: pasa a ser el vigente y entra en el

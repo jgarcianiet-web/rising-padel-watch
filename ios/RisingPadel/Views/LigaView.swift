@@ -14,6 +14,7 @@ struct LigaView: View {
     @State private var exportURL: ExportItem?
     @State private var creating = false
     @State private var editingAjustes = false
+    @State private var importandoCaptura = false
 
     var body: some View {
         NavigationStack {
@@ -45,6 +46,13 @@ struct LigaView: View {
                         } label: {
                             Label("Objetivos y perfil", systemImage: "person.crop.circle")
                         }
+                        // El partido jugado sin el reloj: captura de la app de la pulsera
+                        // más el esfuerzo que haya en Apple Salud.
+                        Button {
+                            importandoCaptura = true
+                        } label: {
+                            Label("Partido sin reloj (captura)", systemImage: "photo.badge.plus")
+                        }
                         Button {
                             importing = true
                         } label: {
@@ -70,6 +78,9 @@ struct LigaView: View {
             }
             .sheet(isPresented: $editingAjustes) {
                 LigaAjustesView(liga: liga).environmentObject(liga)
+            }
+            .sheet(isPresented: $importandoCaptura) {
+                ImportarCapturaView().environmentObject(liga)
             }
             .fileImporter(
                 isPresented: $importing,

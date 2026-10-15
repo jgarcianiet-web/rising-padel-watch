@@ -63,11 +63,22 @@ targets:
         ITSAppUsesNonExemptEncryption: false
         # El marcador del partido en la pantalla de bloqueo y la Dynamic Island.
         NSSupportsLiveActivities: true
+        # Solo LECTURA y solo de entrenamientos, para los partidos jugados sin nuestro
+        # reloj: de ahí salen la duración, el pulso y las calorías que una captura de otra
+        # app no trae. La app del iPhone no escribe nada en Salud — por eso no hay
+        # NSHealthUpdateUsageDescription aquí, aunque el reloj sí lo tenga.
+        NSHealthShareUsageDescription: >-
+          Rising Padel lee los entrenamientos de Salud para completar los partidos que
+          juegas sin el reloj: duración, pulso y calorías. Solo los del día que tú elijas,
+          y no salen de tu móvil.
     entitlements:
       path: RisingPadel/RisingPadel.entitlements
       properties:
         # Las notificaciones de la comunidad ("fulano está jugando", etiquetas).
         aps-environment: production
+        # Ver NSHealthShareUsageDescription arriba: lectura de entrenamientos y nada más.
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.access: []
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.risingpadel.watch
