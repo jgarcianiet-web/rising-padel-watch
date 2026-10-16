@@ -64,13 +64,25 @@ targets:
         # El marcador del partido en la pantalla de bloqueo y la Dynamic Island.
         NSSupportsLiveActivities: true
         # Solo LECTURA y solo de entrenamientos, para los partidos jugados sin nuestro
-        # reloj: de ahí salen la duración, el pulso y las calorías que una captura de otra
-        # app no trae. La app del iPhone no escribe nada en Salud — por eso no hay
-        # NSHealthUpdateUsageDescription aquí, aunque el reloj sí lo tenga.
+        # reloj: de ahí sale el pulso, que una captura de otra app no trae.
         NSHealthShareUsageDescription: >-
           Rising Padel lee los entrenamientos de Salud para completar los partidos que
           juegas sin el reloj: duración, pulso y calorías. Solo los del día que tú elijas,
           y no salen de tu móvil.
+        # **Y la de escritura también, aunque la app del iPhone no escriba nada.**
+        #
+        # Aquí me equivoqué y lo tumbó la validación de Apple al subir la build 73: yo
+        # había puesto solo la de lectura razonando que no escribimos. El validador no
+        # mira lo que hace el código, mira el entitlement — y `com.apple.developer.healthkit`
+        # habilita las dos cosas, así que exige las dos cadenas (error 90683). No hay un
+        # entitlement de solo lectura.
+        #
+        # El texto dice la verdad en vez de rellenar: esta autorización no se pide nunca
+        # desde el iPhone, y si algún día se pidiera, esto es lo que se leería.
+        NSHealthUpdateUsageDescription: >-
+          Rising Padel no guarda nada en Salud desde el iPhone: aquí solo lee tus
+          entrenamientos. El que escribe el entrenamiento en Salud es el reloj, y solo
+          cuando tú se lo permites.
     entitlements:
       path: RisingPadel/RisingPadel.entitlements
       properties:
