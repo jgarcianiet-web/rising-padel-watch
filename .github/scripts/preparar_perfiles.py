@@ -38,7 +38,18 @@ KEY_PATH = os.environ["APPSTORE_KEY_PATH"]
 TARGETS = [
     # PUSH: las notificaciones de la comunidad. Sin la capability, el perfil no cubre
     # el entitlement aps-environment y la firma falla al validar.
-    ("com.risingpadel.watch", "Rising Padel", "RisingPadel AppStore", ["PUSH_NOTIFICATIONS"]),
+    #
+    # HEALTHKIT: desde que la app del iPhone lee entrenamientos de Salud para los
+    # partidos jugados sin nuestro reloj. Es la MISMA capability que ya tenía el reloj,
+    # pero las capabilities son del App ID y el del iPhone es otro — tenerla en uno no la
+    # da en el otro. Sin esto el archivado falla con "Provisioning profile doesn't
+    # include the HealthKit capability", que es exactamente lo que pasó en la build 72.
+    (
+        "com.risingpadel.watch",
+        "Rising Padel",
+        "RisingPadel AppStore",
+        ["PUSH_NOTIFICATIONS", "HEALTHKIT"],
+    ),
     (
         "com.risingpadel.watch.watchkitapp",
         "Rising Padel Watch",
