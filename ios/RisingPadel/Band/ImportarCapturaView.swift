@@ -2,8 +2,15 @@ import PadelCore
 import PhotosUI
 import SwiftUI
 
-/// Importar un partido que se jugó **sin nuestro reloj**: una captura de la app de la
-/// pulsera, más el esfuerzo que haya en Apple Salud.
+/// Importar un partido que se jugó **sin nuestro reloj**: las capturas de la app de la
+/// pulsera, más el pulso que haya en Apple Salud.
+///
+/// ## Varias capturas a la vez, porque un partido no cabe en una pantalla
+///
+/// La app de la pulsera reparte el resumen en siete u ocho pantallas: la actividad, el
+/// volumen, el radar de calidad y una por cada golpe. Pedirlas de una en una obligaba a
+/// entrar y salir ocho veces para un solo partido. Se eligen todas de golpe y se leen
+/// seguidas, **fundiéndose en el mismo partido**.
 ///
 /// ## Por qué las dos cosas juntas
 ///
@@ -15,21 +22,33 @@ import SwiftUI
 /// ## Nada se guarda sin que lo mires
 ///
 /// Esta pantalla **no importa: propone**. Cada número sale con la línea de la captura de
-/// la que se leyó, en un campo que se puede corregir, y nada entra en la liga hasta que se
-/// pulsa Guardar. Un número mal leído es peor que un hueco: entra con la misma pinta que
+/// la que se leyó —y con varias pantallas eso pasa a importar más, porque un dato puede
+/// venir de cualquiera de ellas—, en un campo que se puede corregir, y nada entra en la
+/// liga hasta que se pulsa Guardar. Un número mal leído es peor que un hueco: entra con la misma pinta que
 /// uno medido y nadie lo cuestiona meses después. Ver `LecturaDeCaptura`.
 ///
-/// La captura no se guarda en ningún sitio: se lee en el dispositivo, se saca el texto y
-/// la imagen se suelta.
+/// Las capturas no se guardan en ningún sitio: se leen en el dispositivo, se saca el
+/// texto y las imágenes se sueltan.
 struct ImportarCapturaView: View {
     @EnvironmentObject private var liga: LigaModel
     @Environment(\.dismiss) private var dismiss
     @StateObject private var salud = SaludDelIPhone()
 
-    @State private var elegida: PhotosPickerItem?
-    @State private var imagen: UIImage?
-    @State private var leida: LecturaDeCaptura.CapturaLeida?
+    @State private var elegidas: [PhotosPickerItem] = []
+    @State private var imagenes: [UIImage] = []
+    /// Cuántas capturas se han leído ya. Con varias, "leída" deja de ser un sí o un no.
+    @State private var leidas = 0
+    /// De qué texto salió cada campo, por campo.
+    ///
+    /// Con una sola captura bastaba con guardar la última lectura y preguntarle. Con
+    /// varias no: el nivel puede venir de la pantalla de actividad y las calorías de
+    /// otra, así que el origen hay que apuntarlo en el momento de rellenar cada campo o
+    /// se pierde cuál fue.
+    @State private var origenes: [String: String] = [:]
+    /// Lo que no se entendió, de todas las capturas juntas.
+    @State private var sinEntender: [String] = []
     @State private var leyendo = false
+    @State private var progreso = ""
     @State private var aviso: String?
 
     @State private var fecha = Date()
@@ -68,7 +87,7 @@ struct ImportarCapturaView: View {
         NavigationStack {
             Form {
                 capturaSection
-                if leida != nil {
+                if leidas > 0 {
                     datosSection
                     golpesSection
                 }
@@ -88,9 +107,9 @@ struct ImportarCapturaView: View {
                         .disabled(!hayAlgoQueGuardar)
                 }
             }
-            .onChange(of: elegida) { _, nueva in
-                guard let nueva else { return }
-                Task { await cargar(nueva) }
+            .onChange(of: elegidas) { _, nuevas in
+                guard !nuevas.isEmpty else { return }
+                Task { await cargar(nuevas) }
             }
         }
     }
@@ -99,35 +118,57 @@ struct ImportarCapturaView: View {
 
     private var capturaSection: some View {
         Section {
-            PhotosPicker(selection: $elegida, matching: .images) {
+            // `maxSelectionCount` sin poner significa sin límite, y aquí es lo que
+            // interesa: el resumen de la pulsera ocupa las pantallas que ocupe y no me
+            // toca a mí decidir que son ocho.
+            PhotosPicker(selection: $elegidas, matching: .images) {
                 Label(
-                    imagen == nil ? "Elegir captura de la pulsera" : "Cambiar captura",
+                    elegidas.isEmpty
+                        ? "Elegir capturas de la pulsera"
+                        : "Cambiar las capturas (\(elegidas.count))",
                     systemImage: "photo.on.rectangle.angled"
                 )
             }
-            if let imagen {
-                Image(uiImage: imagen)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxHeight: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            if !imagenes.isEmpty {
+                // En tira y pequeñas: con ocho pantallas, enseñarlas a tamaño grande
+                // dejaba los campos a un scroll de distancia. Lo que importa mirar son
+                // los números, no las capturas.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(imagenes.indices, id: \.self) { indice in
+                            Image(uiImage: imagenes[indice])
+                                .resizable()
+                                .scaledToFit()
+                                .frame(height: 120)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
             }
             if leyendo {
                 HStack(spacing: 8) {
                     ProgressView()
-                    Text("Leyendo la captura…").font(.caption)
+                    Text(progreso).font(.caption)
                 }
+            }
+            if leidas > 0, !leyendo {
+                Text(leidas == 1
+                     ? "1 captura leída."
+                     : "\(leidas) capturas leídas y fundidas en el mismo partido.")
+                    .font(.caption)
+                    .foregroundStyle(T.tintaSuave)
             }
             if let aviso {
                 Text(aviso)
                     .font(.caption)
                     .foregroundStyle(T.rojo)
             }
-            if let leida, !leida.sinEntender.isEmpty {
+            if !sinEntender.isEmpty {
                 // Lo que no se entendió, por si falta un dato que el jugador sí ve en su
                 // captura: sin esto, el dato desaparecido no tiene explicación.
-                DisclosureGroup("Líneas que no se entendieron (\(leida.sinEntender.count))") {
-                    ForEach(leida.sinEntender, id: \.self) { linea in
+                DisclosureGroup("Líneas que no se entendieron (\(sinEntender.count))") {
+                    ForEach(sinEntender, id: \.self) { linea in
                         Text(linea)
                             .font(.caption2)
                             .foregroundStyle(T.tintaSuave)
@@ -135,10 +176,13 @@ struct ImportarCapturaView: View {
                 }
             }
         } header: {
-            Text("La captura")
+            Text("Las capturas")
         } footer: {
-            Text("Se lee en el móvil y no sale de aquí: se saca el texto y la imagen se "
-                 + "suelta. Lo que se guarda son los números que confirmes abajo.")
+            Text("Elige de una vez todas las pantallas del partido —actividad, volumen, "
+                 + "calidad y las de cada golpe—: se leen seguidas y se juntan en un solo "
+                 + "partido. Se leen en el móvil y no salen de aquí: se saca el texto y "
+                 + "las imágenes se sueltan. Lo que se guarda son los números que "
+                 + "confirmes abajo.")
         }
     }
 
@@ -147,11 +191,11 @@ struct ImportarCapturaView: View {
     private var datosSection: some View {
         Section {
             DatePicker("Día del partido", selection: $fecha, displayedComponents: .date)
-            campo("Nivel de la sesión", texto: $nivel, pista: "3,5", origen: leida?.nivelSesion?.origen)
-            campo("Golpes totales", texto: $totalGolpes, pista: "284", origen: leida?.totalGolpes?.origen)
-            campo("Duración (min)", texto: $duracion, pista: "90", origen: leida?.duracionMin?.origen)
+            campo("Nivel de la sesión", texto: $nivel, pista: "3,5", origen: origenes["nivel"])
+            campo("Golpes totales", texto: $totalGolpes, pista: "284", origen: origenes["total"])
+            campo("Duración (min)", texto: $duracion, pista: "90", origen: origenes["duracion"])
             campo("Calidad media del jugador", texto: $mediaJugador, pista: "3,45",
-                  origen: leida?.mediaDelJugador?.origen)
+                  origen: origenes["media"])
             if !mejorGolpe.isEmpty {
                 LabeledContent("Mejor golpe") { Text(mejorGolpe).foregroundStyle(T.tintaSuave) }
             }
@@ -187,8 +231,9 @@ struct ImportarCapturaView: View {
     private var golpesSection: some View {
         if golpes.isEmpty {
             Section {
-                Text("La captura no traía golpes por tipo. Si tu app los enseña en otra "
-                     + "pantalla, importa esa captura también: se guarda sobre el mismo día.")
+                Text("Las capturas no traían golpes por tipo. Están en las pantallas de "
+                     + "cada golpe y en la de volumen: elígelas también en el selector de "
+                     + "arriba y se añaden a este mismo partido.")
                     .font(.caption)
                     .foregroundStyle(T.tintaSuave)
             } header: {
@@ -224,10 +269,19 @@ struct ImportarCapturaView: View {
                         Text("leído de «\(golpe.origen)»")
                             .font(.caption2)
                             .foregroundStyle(T.tintaSuave)
+                        if duplicaSusLados(golpe) {
+                            Text("sus dos lados ya están en la lista: esto los cuenta "
+                                 + "otra vez. Deslízalo a la izquierda para quitarlo.")
+                                .font(.caption2)
+                                .foregroundStyle(T.rojo)
+                        }
                     }
                 }
+                .onDelete { indices in golpes.remove(atOffsets: indices) }
             } header: {
                 Text("Golpes (nota y cantidad)")
+            } footer: {
+                Text("Desliza a la izquierda para quitar un golpe que no quieras guardar.")
             }
         }
     }
@@ -248,10 +302,10 @@ struct ImportarCapturaView: View {
     /// entrenamiento. Es el único modo de que un partido con pulsera tenga pulso.
     private var saludSection: some View {
         Section {
-            campo("Pulso medio", texto: $pulsoMedio, pista: "138", origen: leida?.pulsoMedio?.origen)
-            campo("Pulso máximo", texto: $pulsoMax, pista: "176", origen: leida?.pulsoMax?.origen)
-            campo("Calorías", texto: $calorias, pista: "898", origen: leida?.calorias?.origen)
-            campo("Pasos", texto: $pasos, pista: "8861", origen: leida?.pasos?.origen)
+            campo("Pulso medio", texto: $pulsoMedio, pista: "138", origen: origenes["pulsoMedio"])
+            campo("Pulso máximo", texto: $pulsoMax, pista: "176", origen: origenes["pulsoMax"])
+            campo("Calorías", texto: $calorias, pista: "898", origen: origenes["calorias"])
+            campo("Pasos", texto: $pasos, pista: "8861", origen: origenes["pasos"])
 
             Button {
                 Task {
@@ -316,61 +370,124 @@ struct ImportarCapturaView: View {
         // partido, mientras que el entrenamiento de Salud puede incluir el calentamiento
         // o lo que tardaste en acordarte de pararlo. Lo que de verdad viene a aportar
         // Salud es el pulso, que la pulsera no mide.
-        func poner(_ campo: inout String, _ valor: Int?) {
+        func poner(_ clave: String, _ campo: inout String, _ valor: Int?) {
             guard campo.isEmpty, let valor else { return }
             campo = String(valor)
+            origenes[clave] = "Apple Salud · \(entreno.origen)"
         }
-        poner(&pulsoMedio, entreno.pulsoMedio)
-        poner(&pulsoMax, entreno.pulsoMax)
-        poner(&duracion, entreno.duracionMin)
-        poner(&calorias, entreno.calorias)
-        poner(&pasos, entreno.pasos)
+        poner("pulsoMedio", &pulsoMedio, entreno.pulsoMedio)
+        poner("pulsoMax", &pulsoMax, entreno.pulsoMax)
+        poner("duracion", &duracion, entreno.duracionMin)
+        poner("calorias", &calorias, entreno.calorias)
+        poner("pasos", &pasos, entreno.pasos)
     }
 
     // MARK: Cargar y guardar
 
-    private func cargar(_ item: PhotosPickerItem) async {
+    /// Lee las capturas elegidas **una detrás de otra**, fundiendo cada una en los mismos
+    /// campos.
+    ///
+    /// Seguidas y no en paralelo a propósito. El orden importa: `volcar` solo rellena lo
+    /// que está vacío, así que la primera captura que traiga un dato es la que lo pone, y
+    /// con lecturas simultáneas eso dependería de cuál acabara antes — el mismo partido
+    /// daría números distintos en cada importación. Leídas en fila, gana la captura que el
+    /// jugador puso primero y el resultado es siempre el mismo.
+    ///
+    /// Reelegir no borra lo tecleado: la selección nueva se vuelve a leer completa y lo
+    /// corregido a mano sigue mandando, porque sigue sin estar vacío.
+    private func cargar(_ items: [PhotosPickerItem]) async {
         leyendo = true
         aviso = nil
-        defer { leyendo = false }
+        sinEntender = []
+        defer {
+            leyendo = false
+            progreso = ""
+        }
 
-        guard let datos = try? await item.loadTransferable(type: Data.self),
-              let foto = UIImage(data: datos) else {
-            aviso = "Esa imagen no se pudo abrir."
-            return
-        }
-        imagen = foto
-        do {
-            let resultado = try await LectorDeCapturas.leer(foto)
-            leida = resultado
-            volcar(resultado)
-            if resultado.vacia {
-                aviso = "No se ha reconocido ningún número. Prueba con una captura más "
-                    + "cercana o escribe los datos a mano."
+        var fotos: [UIImage] = []
+        var leidasAhora = 0
+        var ilegibles = 0
+        var vacias = 0
+
+        for (indice, item) in items.enumerated() {
+            progreso = items.count == 1
+                ? "Leyendo la captura…"
+                : "Leyendo la captura \(indice + 1) de \(items.count)…"
+            guard let datos = try? await item.loadTransferable(type: Data.self),
+                  let foto = UIImage(data: datos) else {
+                ilegibles += 1
+                continue
             }
-        } catch {
-            aviso = (error as? LocalizedError)?.errorDescription
-                ?? "No se ha podido leer la captura."
+            fotos.append(foto)
+            do {
+                let resultado = try await LectorDeCapturas.leer(foto)
+                volcar(resultado)
+                leidasAhora += 1
+                if resultado.vacia { vacias += 1 }
+            } catch {
+                ilegibles += 1
+            }
         }
+
+        imagenes = fotos
+        leidas = leidasAhora
+        aviso = parteDeLectura(total: items.count, ilegibles: ilegibles, vacias: vacias)
+    }
+
+    /// Qué contar de la tanda. Con varias capturas, "ha fallado" ya no vale: hay que decir
+    /// cuántas y de qué manera, o el jugador no sabe si le falta un dato o le falta una
+    /// pantalla.
+    private func parteDeLectura(total: Int, ilegibles: Int, vacias: Int) -> String? {
+        if ilegibles == total {
+            return total == 1
+                ? "Esa imagen no se pudo leer."
+                : "Ninguna de las \(total) imágenes se pudo leer."
+        }
+        var partes: [String] = []
+        if ilegibles > 0 {
+            partes.append(ilegibles == 1
+                          ? "1 imagen no se pudo leer."
+                          : "\(ilegibles) imágenes no se pudieron leer.")
+        }
+        if vacias > 0 {
+            partes.append(vacias == 1
+                          ? "En 1 captura no se reconoció ningún número."
+                          : "En \(vacias) capturas no se reconoció ningún número.")
+        }
+        if partes.isEmpty { return nil }
+        partes.append("Lo que falte, escríbelo a mano abajo.")
+        return partes.joined(separator: " ")
     }
 
     /// Pasa lo leído a los campos editables. **Solo lo que esté vacío**: si el jugador ya
     /// corrigió algo y luego importa una segunda captura del mismo partido, su corrección
     /// manda sobre la lectura nueva.
     private func volcar(_ resultado: LecturaDeCaptura.CapturaLeida) {
-        func poner(_ campo: inout String, _ dato: LecturaDeCaptura.Dato?, entero: Bool) {
+        // El origen se apunta **aquí**, al rellenar. Con una sola captura bastaba con
+        // preguntárselo luego a la lectura; con ocho, la lectura que tienes en la mano no
+        // es la que puso el dato, y la etiqueta "leído de" acabaría señalando a la línea
+        // de otra pantalla. Y una procedencia equivocada es peor que ninguna: es lo único
+        // con lo que el jugador puede comprobar si el número se leyó bien.
+        func poner(
+            _ clave: String, _ campo: inout String, _ dato: LecturaDeCaptura.Dato?, entero: Bool
+        ) {
             guard campo.isEmpty, let dato else { return }
             campo = entero ? String(Int(dato.valor.rounded())) : textoDe(dato.valor)
+            origenes[clave] = dato.origen
         }
-        poner(&nivel, resultado.nivelSesion, entero: false)
-        poner(&totalGolpes, resultado.totalGolpes, entero: true)
-        poner(&duracion, resultado.duracionMin, entero: true)
-        poner(&pulsoMedio, resultado.pulsoMedio, entero: true)
-        poner(&pulsoMax, resultado.pulsoMax, entero: true)
-        poner(&calorias, resultado.calorias, entero: true)
-        poner(&pasos, resultado.pasos, entero: true)
-        poner(&mediaJugador, resultado.mediaDelJugador, entero: false)
+        poner("nivel", &nivel, resultado.nivelSesion, entero: false)
+        poner("total", &totalGolpes, resultado.totalGolpes, entero: true)
+        poner("duracion", &duracion, resultado.duracionMin, entero: true)
+        poner("pulsoMedio", &pulsoMedio, resultado.pulsoMedio, entero: true)
+        poner("pulsoMax", &pulsoMax, resultado.pulsoMax, entero: true)
+        poner("calorias", &calorias, resultado.calorias, entero: true)
+        poner("pasos", &pasos, resultado.pasos, entero: true)
+        poner("media", &mediaJugador, resultado.mediaDelJugador, entero: false)
         if mejorGolpe.isEmpty, let mejor = resultado.mejorGolpe { mejorGolpe = mejor }
+
+        for linea in resultado.sinEntender where !sinEntender.contains(linea) {
+            sinEntender.append(linea)
+        }
 
         // El orden ya lo pone el core (el repertorio primero y los agregados detrás), así
         // que aquí solo se añade lo que falte: reordenar otra vez movería de sitio lo que
@@ -386,6 +503,25 @@ struct ImportarCapturaView: View {
                 )
             )
         }
+    }
+
+    /// ¿Este golpe sin lado ya está contado por sus dos mitades?
+    ///
+    /// Al importar todas las pantallas de golpe aparece solo: la de volumen da "Volea
+    /// 175" y las de detalle dan "Volea de revés 74" y "Volea de derecha 101". Los tres
+    /// son lecturas buenas y los tres entran, porque el nombre es distinto — pero juntos
+    /// cuentan 350 voleas donde hubo 175.
+    ///
+    /// No se quita solo: con una sola pantalla de las dos, el agregado es el único dato
+    /// que hay, y descartarlo por su cuenta borraría un número que el jugador sí tiene.
+    /// Se marca, y lo quita quien sabe cuál de los dos quiere.
+    private func duplicaSusLados(_ golpe: GolpeEditable) -> Bool {
+        guard golpe.golpe == nil else { return false }
+        let raiz = golpe.nombre.lowercased() + " "
+        for otro in golpes where otro.golpe != nil {
+            if otro.nombre.lowercased().hasPrefix(raiz) { return true }
+        }
+        return false
     }
 
     /// Con coma, que es como se escribe un nivel en español y como lo va a leer el jugador.
